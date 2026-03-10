@@ -24,4 +24,7 @@ export const authApi = {
 
   registerViaInvite: (data: RegisterViaInviteRequest) =>
     apiClient.post<LoginResponse>("/api/v1/auth/register", data),
+
+  sendInvite: (email: string, competition_id?: number, category_id?: number) =>
+    apiClient.post("/api/v1/auth/invite", { email, competition_id, category_id }),
 };

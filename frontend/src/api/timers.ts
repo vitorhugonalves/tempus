@@ -52,4 +52,10 @@ export const rankingApi = {
 
   exportPdfUrl: (competitionId: number) =>
     `/api/v1/competitions/${competitionId}/export/pdf`,
+
+  certificateUrl: (competitionId: number, userId: number) =>
+    `/api/v1/competitions/${competitionId}/certificate/${userId}`,
+
+  socialImageUrl: (competitionId: number, userId: number) =>
+    `/api/v1/competitions/${competitionId}/social-image/${userId}`,
 };

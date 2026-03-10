@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { useAuthStore } from "./store/auth";
+import { ToastProvider } from "./components/ui/ToastContext";
 
 import AuthLayout from "./components/layouts/AuthLayout";
 import MainLayout from "./components/layouts/MainLayout";
@@ -59,6 +60,7 @@ export default function App() {
   }
 
   return (
+    <ToastProvider>
     <BrowserRouter>
       <Routes>
         {/* Rota raiz */}
@@ -104,5 +106,6 @@ export default function App() {
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>
+    </ToastProvider>
   );
 }

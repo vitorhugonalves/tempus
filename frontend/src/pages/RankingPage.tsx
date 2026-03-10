@@ -8,6 +8,7 @@ import { Card } from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
 import type { Category, Competition, RankingEntry } from "../types";
 import { secondsToDisplay } from "../utils/time";
+import { useAuthStore } from "../store/auth";
 
 const STATUS_BADGE: Record<string, { label: string; variant: "gray" | "green" | "red" }> = {
   draft: { label: "Rascunho", variant: "gray" },
@@ -25,6 +26,7 @@ const TIMER_STATUS_BADGE: Record<string, { label: string; color: "green" | "yell
 export default function RankingPage() {
   const { competitionId } = useParams<{ competitionId: string }>();
   const id = Number(competitionId);
+  const { user } = useAuthStore();
 
   const [competition, setCompetition] = useState<Competition | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -187,6 +189,11 @@ export default function RankingPage() {
                         {h}
                       </th>
                     ))}
+                    {competition.status === "finished" && user && (
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Downloads
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -225,6 +232,37 @@ export default function RankingPage() {
                         <td className="px-4 py-4">
                           <Badge variant={statusInfo.color}>{statusInfo.label}</Badge>
                         </td>
+                        {competition.status === "finished" && user && (() => {
+                          const canDownload =
+                            (user.role === "operator" || user.role === "admin") ||
+                            (user.role === "competitor" && entry.user_id === user.id);
+                          return (
+                            <td className="px-4 py-4">
+                              {canDownload && entry.user_id != null ? (
+                                <div className="flex items-center gap-2">
+                                  <a
+                                    href={rankingApi.certificateUrl(id, entry.user_id)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white border border-gray-300 dark:border-gray-600 px-2 py-1 rounded transition-colors"
+                                  >
+                                    📄 Certificado
+                                  </a>
+                                  <a
+                                    href={rankingApi.socialImageUrl(id, entry.user_id)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white border border-gray-300 dark:border-gray-600 px-2 py-1 rounded transition-colors"
+                                  >
+                                    🖼 Social
+                                  </a>
+                                </div>
+                              ) : (
+                                <span className="text-gray-300 dark:text-gray-600">—</span>
+                              )}
+                            </td>
+                          );
+                        })()}
                       </tr>
                     );
                   })}
