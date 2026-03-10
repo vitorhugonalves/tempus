@@ -66,8 +66,9 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
         </Route>
 
-        {/* Ranking público — sem sidebar */}
+        {/* Ranking público — sem sidebar (RF-39: sem necessidade de login) */}
         <Route path="/ranking/:competitionId" element={<RankingPage />} />
+        <Route path="/competitions/:competitionId/ranking" element={<RankingPage />} />
 
         {/* Rotas protegidas — todos os roles autenticados */}
         <Route element={<ProtectedRoute />}>
@@ -80,6 +81,7 @@ export default function App() {
               element={<ProtectedRoute allowedRoles={["judge", "operator", "admin"]} />}
             >
               <Route path="/timers" element={<TimersPage />} />
+              <Route path="/competitions/:competitionId/timers" element={<TimersPage />} />
             </Route>
 
             {/* Gestão — operator, admin */}
