@@ -31,3 +31,21 @@ class User(Base):
     sessions: Mapped[list["Session"]] = relationship(  # noqa: F821
         "Session", back_populates="user", cascade="all, delete-orphan"
     )
+    registrations: Mapped[list["CompetitorRegistration"]] = relationship(  # noqa: F821
+        "CompetitorRegistration", back_populates="user", cascade="all, delete-orphan"
+    )
+    captained_teams: Mapped[list["Team"]] = relationship(  # noqa: F821
+        "Team", foreign_keys="Team.captain_id", back_populates="captain"
+    )
+    team_memberships: Mapped[list["TeamMember"]] = relationship(  # noqa: F821
+        "TeamMember", back_populates="user", cascade="all, delete-orphan"
+    )
+    timers: Mapped[list["Timer"]] = relationship(  # noqa: F821
+        "Timer", back_populates="user", cascade="all, delete-orphan"
+    )
+    timer_events: Mapped[list["TimerEvent"]] = relationship(  # noqa: F821
+        "TimerEvent", back_populates="triggered_by"
+    )
+    applied_penalties: Mapped[list["Penalty"]] = relationship(  # noqa: F821
+        "Penalty", back_populates="applied_by"
+    )

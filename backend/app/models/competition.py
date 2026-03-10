@@ -2,7 +2,7 @@ import enum
 from datetime import date, datetime
 
 from sqlalchemy import Date, Enum, Integer, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
@@ -28,3 +28,19 @@ class Competition(Base):
     rules: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+    categories: Mapped[list["Category"]] = relationship(  # noqa: F821
+        "Category", back_populates="competition", cascade="all, delete-orphan"
+    )
+    registrations: Mapped[list["CompetitorRegistration"]] = relationship(  # noqa: F821
+        "CompetitorRegistration", back_populates="competition", cascade="all, delete-orphan"
+    )
+    teams: Mapped[list["Team"]] = relationship(  # noqa: F821
+        "Team", back_populates="competition", cascade="all, delete-orphan"
+    )
+    timers: Mapped[list["Timer"]] = relationship(  # noqa: F821
+        "Timer", back_populates="competition", cascade="all, delete-orphan"
+    )
+    penalty_types: Mapped[list["PenaltyType"]] = relationship(  # noqa: F821
+        "PenaltyType", back_populates="competition", cascade="all, delete-orphan"
+    )

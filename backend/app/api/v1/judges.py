@@ -1,28 +1,53 @@
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_roles
 from app.db.session import get_db
 from app.models.user import User
+from app.schemas.timer import PenaltyApply, PenaltyResponse
+from app.services.timer import PenaltyService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
-@router.post("/judges/penalties", status_code=201)
+@router.post(
+    "/timers/{timer_id}/penalties",
+    response_model=PenaltyResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def apply_penalty(
     timer_id: int,
-    penalty_seconds: int,
-    reason: str,
-    _current_user: User = Depends(require_roles("judge", "operator", "admin")),
+    payload: PenaltyApply,
+    current_user: User = Depends(require_roles("judge", "operator", "admin")),
     db: AsyncSession = Depends(get_db),
-) -> dict:
-    """Aplica uma penalidade a um atleta/equipe (Judge, Operador, Admin).
+) -> PenaltyResponse:
+    """Aplica penalidade a um atleta/equipe (RF-33, RF-34).
 
-    Regra RN-03: Penalidades não podem ser removidas após aplicadas.
+    Regra RN-03: penalidades não podem ser removidas após aplicadas.
+    Regra RN-04: não pode aplicar após encerramento da competição.
     """
-    # TODO: implementar PenaltyService.apply
-    return {"timer_id": timer_id, "penalty_seconds": penalty_seconds, "reason": reason}
+    penalty = await PenaltyService.apply(db, timer_id, payload, current_user)
+    logger.info(
+        "Penalidade aplicada: timer=%s tipo=%s seconds=%s por user=%s",
+        timer_id,
+        penalty.penalty_type_id,
+        penalty.seconds_added,
+        current_user.id,
+    )
+    return PenaltyResponse.from_orm_with_type(penalty)
+
+
+@router.get("/timers/{timer_id}/penalties", response_model=list[PenaltyResponse])
+async def list_penalties(
+    timer_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> list[PenaltyResponse]:
+    """Lista penalidades de um timer (RF-35, acesso público)."""
+    from app.services.timer import TimerService
+
+    timer = await TimerService.get_or_404(db, timer_id)
+    return [PenaltyResponse.from_orm_with_type(p) for p in timer.penalties]

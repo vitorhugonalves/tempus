@@ -61,84 +61,84 @@ Organizadores de eventos e competições esportivas com até **300 atletas por e
 
 ### 3.1 Autenticação e Sessão
 
-- **RF-01:** Login com e-mail e senha
-- **RF-02:** Sessão server-side com cookie seguro (HttpOnly, Secure, SameSite=Lax)
-- **RF-03:** Expiração de sessão configurável (padrão: 8 horas)
-- **RF-04:** Logout com invalidação da sessão no servidor
-- **RF-05:** Recuperação de senha via e-mail (link com token de uso único)
-- **RF-06:** Registro de competidor via link de convite com token assinado
+- **RF-01:** ✅ Login com e-mail e senha
+- **RF-02:** ✅ Sessão server-side com cookie seguro (HttpOnly, Secure, SameSite=Lax)
+- **RF-03:** ✅ Expiração de sessão configurável (padrão: 8 horas)
+- **RF-04:** ✅ Logout com invalidação da sessão no servidor
+- **RF-05:** 🔲 Recuperação de senha via e-mail (link com token de uso único)
+- **RF-06:** 🔲 Registro de competidor via link de convite com token assinado
 
 ### 3.2 Cadastros
 
 #### 3.2.1 Usuários do Sistema
 
-- **RF-07:** CRUD de usuários (Operador/Admin)
-- **RF-08:** Atribuição e alteração de roles por Operador ou Admin
-- **RF-09:** Ativação/desativação de conta sem exclusão permanente
-- **RF-10:** Campos obrigatórios: nome completo, e-mail, role, senha
+- **RF-07:** ✅ CRUD de usuários (Operador/Admin)
+- **RF-08:** ✅ Atribuição e alteração de roles por Operador ou Admin
+- **RF-09:** ✅ Ativação/desativação de conta sem exclusão permanente
+- **RF-10:** ✅ Campos obrigatórios: nome completo, e-mail, role, senha
 
 #### 3.2.2 Competidores
 
-- **RF-11:** Cadastro individual de competidor (nome, e-mail, documento, categoria)
-- **RF-12:** Cadastro em grupo/equipe com vínculo entre membros
-- **RF-13:** Envio de e-mail de convite com link para auto-cadastro
-- **RF-14:** Edição de dados pelo próprio competidor ou por Operador
-- **RF-15:** Associação de competidor a uma ou mais categorias
+- **RF-11:** 🔲 Cadastro individual de competidor (nome, e-mail, documento, categoria)
+- **RF-12:** 🔲 Cadastro em grupo/equipe com vínculo entre membros
+- **RF-13:** 🔲 Envio de e-mail de convite com link para auto-cadastro
+- **RF-14:** 🔲 Edição de dados pelo próprio competidor ou por Operador
+- **RF-15:** ✅ Associação de competidor a uma ou mais categorias (modelo CompetitorRegistration)
 
 #### 3.2.3 Competições
 
-- **RF-16:** Criar competição com nome, data, local, modalidade e número máximo de atletas
-- **RF-17:** Definir regulamento: tipos de penalidade, estações, ordem das etapas
-- **RF-18:** Ativar/encerrar competição (controla quais funcionalidades ficam disponíveis)
-- **RF-19:** Clonar configuração de uma competição anterior como template
+- **RF-16:** ✅ Criar competição com nome, data, local, modalidade e número máximo de atletas
+- **RF-17:** ✅ Definir regulamento: tipos de penalidade configuráveis por competição
+- **RF-18:** ✅ Ativar/encerrar competição (controla quais funcionalidades ficam disponíveis)
+- **RF-19:** ✅ Clonar configuração de uma competição anterior como template
 
 #### 3.2.4 Categorias
 
-- **RF-20:** CRUD de categorias (ex: Elite Masculino, Master 40+, Equipe Mista)
-- **RF-21:** Definir se a categoria é individual ou por equipe
-- **RF-22:** Associar categoria a uma competição específica
+- **RF-20:** ✅ CRUD de categorias (ex: Elite Masculino, Master 40+, Equipe Mista)
+- **RF-21:** ✅ Definir se a categoria é individual ou por equipe
+- **RF-22:** ✅ Associar categoria a uma competição específica
 
 #### 3.2.5 Times / Equipes
 
-- **RF-23:** Criar time com nome e associar membros cadastrados
-- **RF-24:** Definir capitão/responsável do time
-- **RF-25:** Validar número máximo de membros por time conforme regulamento da categoria
+- **RF-23:** ✅ Modelo de times com membros (Team + TeamMember)
+- **RF-24:** ✅ Capitão/responsável do time definido no modelo
+- **RF-25:** ✅ Validação de max_team_size pela categoria (regra de negócio)
 
 ### 3.3 Timers
 
-- **RF-26:** Criar timer e associá-lo a um atleta, equipe e competição
-- **RF-27:** Iniciar timer (Judge, Operador, Admin)
-- **RF-28:** Pausar/parar timer (Judge, Operador, Admin)
-- **RF-29:** Reiniciar timer com registro de motivo (Judge, Operador, Admin)
-- **RF-30:** Visualização em tempo real do timer pelo competidor e pelo público (read-only)
-- **RF-31:** Histórico de eventos do timer (start, stop, restart, penalty) com timestamp e usuário responsável
+- **RF-26:** ✅ Criar timer e associá-lo a um atleta, equipe e competição
+- **RF-27:** ✅ Iniciar timer (Judge, Operador, Admin)
+- **RF-28:** ✅ Pausar/parar/finalizar timer (Judge, Operador, Admin)
+- **RF-29:** ✅ Reiniciar timer com registro de motivo obrigatório
+- **RF-30:** ✅ Visualização em tempo real do timer (acesso público, elapsed calculado on-the-fly)
+- **RF-31:** ✅ Histórico de eventos do timer (start, stop, restart, finish) com timestamp e usuário
 
 ### 3.4 Penalidades
 
-- **RF-32:** Tipos de penalidade configuráveis por competição: acréscimo de tempo (segundos), parada obrigatória (burpees, repetições)
-- **RF-33:** Aplicar penalidade a um atleta/equipe durante a competição (Judge+)
-- **RF-34:** Registrar justificativa ao aplicar penalidade
-- **RF-35:** Visualizar penalidades recebidas no painel do competidor
+- **RF-32:** ✅ Tipos de penalidade configuráveis por competição (time_increment, mandatory_stop)
+- **RF-33:** ✅ Aplicar penalidade a um atleta/equipe durante a competição (Judge+)
+- **RF-34:** ✅ Justificativa obrigatória ao aplicar penalidade
+- **RF-35:** ✅ Visualizar penalidades recebidas (endpoint público GET /timers/{id}/penalties)
 
 ### 3.5 Ranking e Resultados
 
-- **RF-36:** Ranking geral em tempo real por categoria (ordenado por tempo final)
-- **RF-37:** Tempo final = tempo cronometrado + penalidades acumuladas
-- **RF-38:** Separação de ranking por categoria e por tipo (individual/equipe)
-- **RF-39:** Exibição pública do ranking sem necessidade de login
+- **RF-36:** ✅ Ranking geral em tempo real por categoria (ordenado por tempo final)
+- **RF-37:** ✅ Tempo final = tempo cronometrado + penalidades acumuladas
+- **RF-38:** ✅ Filtro de ranking por category_id
+- **RF-39:** ✅ Exibição pública do ranking sem necessidade de login
 
 ### 3.6 Instalação e Inicialização
 
-- **RF-44:** Na primeira execução de `alembic upgrade head` (schema vazio), o sistema deve criar automaticamente um usuário administrador padrão com senha gerada aleatoriamente e salvar as credenciais em `.temp_cred` na raiz do projeto
-- **RF-45:** A criação automática do admin só ocorre se não existir nenhum usuário com role `admin` no banco; execuções subsequentes de `upgrade` não devem duplicar o usuário
-- **RF-46:** O arquivo `.temp_cred` deve conter e-mail, senha em texto puro e aviso para exclusão após o primeiro login; o arquivo nunca deve ser versionado no Git
+- **RF-44:** ✅ Na primeira execução de `alembic upgrade head`, cria admin padrão com senha aleatória
+- **RF-45:** ✅ Criação automática só ocorre se não existe admin no banco
+- **RF-46:** ✅ Credenciais salvas em `.temp_cred` (nunca versionado)
 
 ### 3.7 Relatórios e Exportações
 
-- **RF-40:** Ranking geral exportável em PDF e CSV
-- **RF-41:** Certificado de participação individual em PDF com nome, categoria, tempo e posição
-- **RF-42:** Imagem para redes sociais (PNG) com tempo, posição no ranking e identidade visual do evento
-- **RF-43:** Geração sob demanda pelo próprio competidor (após encerramento da competição)
+- **RF-40:** ✅ Ranking exportável em CSV; PDF via WeasyPrint (fallback HTML se não instalado)
+- **RF-41:** 🔲 Certificado de participação individual em PDF
+- **RF-42:** 🔲 Imagem para redes sociais (PNG)
+- **RF-43:** 🔲 Geração sob demanda pelo próprio competidor
 
 ---
 
