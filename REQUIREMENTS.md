@@ -65,8 +65,8 @@ Organizadores de eventos e competições esportivas com até **300 atletas por e
 - **RF-02:** ✅ Sessão server-side com cookie seguro (HttpOnly, Secure, SameSite=Lax)
 - **RF-03:** ✅ Expiração de sessão configurável (padrão: 8 horas)
 - **RF-04:** ✅ Logout com invalidação da sessão no servidor
-- **RF-05:** 🔲 Recuperação de senha via e-mail (link com token de uso único)
-- **RF-06:** 🔲 Registro de competidor via link de convite com token assinado
+- **RF-05:** ✅ Recuperação de senha via e-mail (link com token de uso único)
+- **RF-06:** ✅ Registro de competidor via link de convite com token assinado
 
 ### 3.2 Cadastros
 
@@ -81,7 +81,7 @@ Organizadores de eventos e competições esportivas com até **300 atletas por e
 
 - **RF-11:** 🔲 Cadastro individual de competidor (nome, e-mail, documento, categoria)
 - **RF-12:** 🔲 Cadastro em grupo/equipe com vínculo entre membros
-- **RF-13:** 🔲 Envio de e-mail de convite com link para auto-cadastro
+- **RF-13:** ✅ Envio de e-mail de convite com link para auto-cadastro
 - **RF-14:** 🔲 Edição de dados pelo próprio competidor ou por Operador
 - **RF-15:** ✅ Associação de competidor a uma ou mais categorias (modelo CompetitorRegistration)
 
@@ -136,9 +136,9 @@ Organizadores de eventos e competições esportivas com até **300 atletas por e
 ### 3.7 Relatórios e Exportações
 
 - **RF-40:** ✅ Ranking exportável em CSV; PDF via WeasyPrint (fallback HTML se não instalado)
-- **RF-41:** 🔲 Certificado de participação individual em PDF
-- **RF-42:** 🔲 Imagem para redes sociais (PNG)
-- **RF-43:** 🔲 Geração sob demanda pelo próprio competidor
+- **RF-41:** ✅ Certificado de participação individual em PDF
+- **RF-42:** ✅ Imagem para redes sociais (PNG)
+- **RF-43:** ✅ Geração sob demanda pelo próprio competidor
 
 ---
 
@@ -154,8 +154,8 @@ Organizadores de eventos e competições esportivas com até **300 atletas por e
 
 - **RNF-04:** Senhas armazenadas com bcrypt (custo ≥ 12)
 - **RNF-05:** Todas as rotas protegidas verificam role antes de processar a requisição
-- **RNF-06:** Rate limiting em endpoints de autenticação (máx. 10 tentativas/minuto por IP)
-- **RNF-07:** Tokens de convite com expiração de 72 horas e uso único
+- **RNF-06:** ✅ Rate limiting em endpoints de autenticação (máx. 10 tentativas/minuto por IP)
+- **RNF-07:** ✅ Tokens de convite com expiração de 72 horas e uso único
 - **RNF-14:** Documentos devem ser tokenizados e armazenados em segurança
 - **RNF-15:** Todos os dados pessoais devem atender a LGPD (Lei Geral de Proteção de Dados) Brasileira
 

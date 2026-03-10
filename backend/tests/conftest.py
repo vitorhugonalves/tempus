@@ -8,6 +8,9 @@ from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
 
+# Desabilita rate limiting em testes (RNF-06 é validado separadamente)
+app.state.limiter.enabled = False
+
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 

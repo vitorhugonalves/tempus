@@ -7,6 +7,9 @@ import MainLayout from "./components/layouts/MainLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import DashboardPage from "./pages/DashboardPage";
 import CompetitionsPage from "./pages/CompetitionsPage";
 import UsersPage from "./pages/UsersPage";
@@ -64,6 +67,9 @@ export default function App() {
         {/* Rotas públicas — layout centralizado */}
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
         </Route>
 
         {/* Ranking público — sem sidebar (RF-39: sem necessidade de login) */}

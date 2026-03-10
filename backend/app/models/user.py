@@ -49,3 +49,9 @@ class User(Base):
     applied_penalties: Mapped[list["Penalty"]] = relationship(  # noqa: F821
         "Penalty", back_populates="applied_by"
     )
+    password_reset_tokens: Mapped[list["PasswordResetToken"]] = relationship(  # noqa: F821
+        "PasswordResetToken", back_populates="user", cascade="all, delete-orphan"
+    )
+    sent_invites: Mapped[list["InviteToken"]] = relationship(  # noqa: F821
+        "InviteToken", back_populates="invited_by"
+    )

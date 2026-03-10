@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import require_roles
+from app.api.deps import get_current_user, require_roles
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.timer import RankingEntry
@@ -145,4 +145,64 @@ async def export_ranking_pdf(
         iter([pdf_bytes]),
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=ranking_{competition_id}.pdf"},
+    )
+
+
+# ── Certificados individuais (RF-41, RF-42, RF-43) ───────────────────────────
+
+
+@router.get("/competitions/{competition_id}/certificate/{user_id}")
+async def get_certificate_pdf(
+    competition_id: int,
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """Gera certificado de participação em PDF para um atleta (RF-41, RF-43).
+
+    O próprio competidor pode gerar o seu certificado (RF-43).
+    Operadores e admins podem gerar para qualquer atleta.
+    Disponível apenas após encerramento da competição (RN-06).
+    """
+    from app.services.certificate import generate_certificate_pdf
+
+    # Competidor só acessa o próprio certificado
+    if current_user.role.value == "competitor" and current_user.id != user_id:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    pdf_bytes = await generate_certificate_pdf(db, competition_id, user_id)
+    media_type = "application/pdf" if pdf_bytes[:4] == b"%PDF" else "text/html"
+    ext = "pdf" if media_type == "application/pdf" else "html"
+    logger.info("Certificado gerado: competition=%s user=%s", competition_id, user_id)
+    return StreamingResponse(
+        iter([pdf_bytes]),
+        media_type=media_type,
+        headers={"Content-Disposition": f"attachment; filename=certificado_{user_id}.{ext}"},
+    )
+
+
+@router.get("/competitions/{competition_id}/social-image/{user_id}")
+async def get_social_image(
+    competition_id: int,
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """Gera imagem PNG 1080×1080 para redes sociais (RF-42, RF-43).
+
+    Disponível apenas após encerramento da competição (RN-06).
+    """
+    from app.services.certificate import generate_social_image
+
+    if current_user.role.value == "competitor" and current_user.id != user_id:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    png_bytes = await generate_social_image(db, competition_id, user_id)
+    logger.info("Imagem social gerada: competition=%s user=%s", competition_id, user_id)
+    return StreamingResponse(
+        iter([png_bytes]),
+        media_type="image/png",
+        headers={"Content-Disposition": f"attachment; filename=resultado_{user_id}.png"},
     )

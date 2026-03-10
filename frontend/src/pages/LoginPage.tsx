@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { useAuthStore } from "../store/auth";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
@@ -7,11 +7,14 @@ import Alert from "../components/ui/Alert";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, isLoading } = useAuthStore();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  const passwordReset = (location.state as { passwordReset?: boolean } | null)?.passwordReset;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,6 +34,12 @@ export default function LoginPage() {
       <p className="text-sm text-gray-500 mb-6">
         Acesse sua conta para gerenciar a competição
       </p>
+
+      {passwordReset && (
+        <div className="mb-5">
+          <Alert variant="success">Senha redefinida com sucesso! Faça login com sua nova senha.</Alert>
+        </div>
+      )}
 
       {error && (
         <div className="mb-5">
@@ -70,6 +79,12 @@ export default function LoginPage() {
           Entrar
         </Button>
       </form>
+
+      <p className="mt-6 text-center text-sm text-gray-500">
+        <Link to="/forgot-password" className="text-primary-600 hover:underline font-medium">
+          Esqueci minha senha
+        </Link>
+      </p>
     </>
   );
 }

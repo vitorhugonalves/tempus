@@ -4,6 +4,7 @@ from app.models.competition import Competition, CompetitionStatus
 from app.models.session import Session
 from app.models.team import Team, TeamMember
 from app.models.timer import Penalty, PenaltyType, Timer, TimerEvent, TimerStatus
+from app.models.token import InviteToken, PasswordResetToken
 from app.models.user import User, UserRole
 
 __all__ = [
@@ -12,8 +13,10 @@ __all__ = [
     "Competition",
     "CompetitionStatus",
     "CompetitorRegistration",
+    "InviteToken",
     "Penalty",
     "PenaltyType",
+    "PasswordResetToken",
     "Session",
     "Team",
     "TeamMember",
