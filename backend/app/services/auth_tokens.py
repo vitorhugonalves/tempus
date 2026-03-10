@@ -110,8 +110,12 @@ class InviteService:
         competition_id: int | None,
         category_id: int | None,
         invited_by: User,
+        team_id: int | None = None,
     ) -> InviteToken:
         """Cria token de convite para um e-mail (RF-13).
+
+        Se team_id for None e category_id apontar para uma categoria individual,
+        uma equipe com o e-mail como nome é criada automaticamente no registro.
 
         Args:
             db: Sessão assíncrona.
@@ -119,6 +123,7 @@ class InviteService:
             competition_id: Competição associada (opcional).
             category_id: Categoria sugerida (opcional).
             invited_by: Usuário que está convidando.
+            team_id: Equipe a que o competidor será automaticamente adicionado (opcional).
 
         Returns:
             InviteToken criado.
@@ -148,6 +153,7 @@ class InviteService:
             email=email,
             competition_id=competition_id,
             category_id=category_id,
+            team_id=team_id,
             invited_by_id=invited_by.id,
             expires_at=_utcnow() + timedelta(hours=_TOKEN_TTL_HOURS),
         )
@@ -241,6 +247,59 @@ class InviteService:
             )
             db.add(reg)
 
+            # Associar à equipe do convite (ou auto-criar para categoria individual)
+            await InviteService._handle_team_assignment(db, user, invite)
+
         await db.flush()
         logger.info("Competidor registrado via convite: user_id=%s", user.id)
         return user
+
+    @staticmethod
+    async def _handle_team_assignment(
+        db: AsyncSession, user: "User", invite: "InviteToken"
+    ) -> None:
+        """Associa o competidor a uma equipe conforme o convite.
+
+        Se o convite tiver team_id: adiciona o usuário como membro.
+        Se a categoria for individual e sem team_id: cria equipe com o e-mail como nome.
+
+        Args:
+            db: Sessão assíncrona.
+            user: Usuário recém-criado.
+            invite: InviteToken consumido.
+        """
+        from app.models.category import Category, CategoryType
+        from app.models.team import Team, TeamMember
+
+        if invite.team_id:
+            # Adiciona à equipe especificada no convite
+            member = TeamMember(team_id=invite.team_id, user_id=user.id)
+            db.add(member)
+            await db.flush()
+            return
+
+        if not invite.category_id:
+            return
+
+        # Verifica o tipo da categoria
+        cat_result = await db.execute(
+            select(Category).where(Category.id == invite.category_id)
+        )
+        category = cat_result.scalar_one_or_none()
+        if not category or category.category_type != CategoryType.individual:
+            return
+
+        # Categoria individual: cria equipe com e-mail como nome (RN: atleta individual = equipe solo)
+        team = Team(
+            name=user.email,
+            competition_id=invite.competition_id,
+            category_id=invite.category_id,
+            captain_id=user.id,
+        )
+        db.add(team)
+        await db.flush()
+        await db.refresh(team)
+
+        member = TeamMember(team_id=team.id, user_id=user.id)
+        db.add(member)
+        await db.flush()

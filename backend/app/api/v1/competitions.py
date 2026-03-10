@@ -1,20 +1,81 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_roles
 from app.db.session import get_db
-from app.models.competition import CompetitionStatus
+from app.models.competition import Competition, CompetitionStatus
 from app.models.user import User
 from app.repositories.competition import CompetitionRepository
+from app.repositories.modality import ModalityRepository
 from app.schemas.category import CategoryCreate, CategoryResponse, CategoryUpdate
 from app.schemas.competition import CompetitionCreate, CompetitionResponse, CompetitionUpdate
+from app.schemas.heat import HeatCreate, HeatResponse, HeatTeamResponse, HeatTimerAdd
+from app.schemas.team import (
+    TeamCreate,
+    TeamMemberAdd,
+    TeamMemberResponse,
+    TeamResponse,
+    TeamUpdate,
+)
 from app.services.category import CategoryService
+from app.services.heat import HeatService
+from app.services.team import TeamService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+
+def _heat_to_response(heat: object) -> HeatResponse:
+    h = heat  # type: ignore[assignment]
+    teams = [
+        HeatTeamResponse(team_id=ht.team_id, team_name=ht.team.name)
+        for ht in h.heat_teams
+    ]
+    return HeatResponse(
+        id=h.id,
+        competition_id=h.competition_id,
+        name=h.name,
+        status=h.status,
+        scheduled_at=h.scheduled_at,
+        max_participants=h.max_participants,
+        timer_count=len(h.timers),
+        team_count=len(h.heat_teams),
+        teams=teams,
+        created_at=h.created_at,
+        updated_at=h.updated_at,
+    )
+
+
+def _team_to_response(team: object) -> TeamResponse:
+    t = team  # type: ignore[assignment]
+    return TeamResponse(
+        id=t.id,
+        competition_id=t.competition_id,
+        category_id=t.category_id,
+        name=t.name,
+        captain_id=t.captain_id,
+        member_count=len(t.members),
+        created_at=t.created_at,
+        updated_at=t.updated_at,
+    )
+
+
+def _member_to_response(member: object) -> TeamMemberResponse:
+    m = member  # type: ignore[assignment]
+    return TeamMemberResponse(
+        id=m.id,
+        team_id=m.team_id,
+        user_id=m.user_id,
+        user_name=m.user.full_name if m.user else f"Usuário #{m.user_id}",
+        created_at=m.created_at,
+    )
 
 
 # ── Competições ───────────────────────────────────────────────────────────────
@@ -28,7 +89,7 @@ async def list_competitions(
 ) -> list[CompetitionResponse]:
     """Lista todas as competições (acesso público)."""
     competitions = await CompetitionRepository.get_all(db, skip=skip, limit=limit)
-    return [CompetitionResponse.model_validate(c) for c in competitions]
+    return [CompetitionResponse.from_orm(c) for c in competitions]
 
 
 @router.post(
@@ -39,13 +100,23 @@ async def create_competition(
     _current_user: User = Depends(require_roles("operator", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> CompetitionResponse:
-    """Cria uma nova competição (Operador/Admin)."""
-    from app.models.competition import Competition
+    """Cria nova competição (Operador/Admin).
 
-    competition = Competition(**payload.model_dump())
+    Se modality_id for fornecido e a modalidade tiver default_duration_seconds,
+    o campo duration_seconds é pré-preenchido automaticamente quando não informado.
+    """
+    data = payload.model_dump()
+
+    # Auto-preencher duração a partir da modalidade (timer default)
+    if data.get("modality_id") and data.get("duration_seconds") is None:
+        modality = await ModalityRepository.get_by_id(db, data["modality_id"])
+        if modality and modality.default_duration_seconds:
+            data["duration_seconds"] = modality.default_duration_seconds
+
+    competition = Competition(**data)
     created = await CompetitionRepository.create(db, competition)
     logger.info("Competição criada: id=%s nome=%s", created.id, created.name)
-    return CompetitionResponse.model_validate(created)
+    return CompetitionResponse.from_orm(created)
 
 
 @router.get("/competitions/{competition_id}", response_model=CompetitionResponse)
@@ -59,7 +130,7 @@ async def get_competition(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Competição não encontrada"
         )
-    return CompetitionResponse.model_validate(competition)
+    return CompetitionResponse.from_orm(competition)
 
 
 @router.patch("/competitions/{competition_id}", response_model=CompetitionResponse)
@@ -79,7 +150,6 @@ async def update_competition(
             status_code=status.HTTP_404_NOT_FOUND, detail="Competição não encontrada"
         )
 
-    # RN-05: só Admin pode reabrir competição encerrada
     if (
         competition.status == CompetitionStatus.finished
         and payload.status is not None
@@ -96,7 +166,7 @@ async def update_competition(
 
     updated = await CompetitionRepository.update(db, competition)
     logger.info("Competição atualizada: id=%s status=%s", updated.id, updated.status)
-    return CompetitionResponse.model_validate(updated)
+    return CompetitionResponse.from_orm(updated)
 
 
 @router.delete("/competitions/{competition_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -200,12 +270,7 @@ async def clone_competition(
     _current_user: User = Depends(require_roles("operator", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> CompetitionResponse:
-    """Clona uma competição como template (RF-19).
-
-    Copia nome, local, modalidade, max_athletes e categorias.
-    O clone inicia com status 'draft'.
-    """
-    from app.models.competition import Competition
+    """Clona uma competição como template (RF-19)."""
     from app.models.category import Category
 
     source = await CompetitionRepository.get_by_id(db, competition_id)
@@ -217,7 +282,8 @@ async def clone_competition(
     clone = Competition(
         name=f"{source.name} (cópia)",
         location=source.location,
-        modality=source.modality,
+        modality_id=source.modality_id,
+        duration_seconds=source.duration_seconds,
         max_athletes=source.max_athletes,
         rules=source.rules,
         status=CompetitionStatus.draft,
@@ -225,7 +291,6 @@ async def clone_competition(
     db.add(clone)
     await db.flush()
 
-    # Clonar categorias
     source_categories = await CategoryService.list_by_competition(db, competition_id)
     for cat in source_categories:
         db.add(Category(
@@ -238,4 +303,289 @@ async def clone_competition(
     await db.flush()
     await db.refresh(clone)
     logger.info("Competição clonada: source=%s clone=%s", competition_id, clone.id)
-    return CompetitionResponse.model_validate(clone)
+    return CompetitionResponse.from_orm(clone)
+
+
+# ── Equipes (RF-23 a RF-25) ───────────────────────────────────────────────────
+
+
+@router.get(
+    "/competitions/{competition_id}/teams",
+    response_model=list[TeamResponse],
+)
+async def list_teams(
+    competition_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> list[TeamResponse]:
+    """Lista equipes de uma competição (acesso público)."""
+    teams = await TeamService.list_by_competition(db, competition_id)
+    return [_team_to_response(t) for t in teams]
+
+
+@router.post(
+    "/competitions/{competition_id}/teams",
+    response_model=TeamResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_team(
+    competition_id: int,
+    payload: TeamCreate,
+    _current_user: User = Depends(require_roles("operator", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> TeamResponse:
+    """Cria equipe em uma competição (Operador/Admin)."""
+    team = await TeamService.create(db, competition_id, payload)
+    logger.info("Equipe criada: id=%s competition_id=%s", team.id, competition_id)
+    return _team_to_response(team)
+
+
+@router.patch(
+    "/competitions/{competition_id}/teams/{team_id}",
+    response_model=TeamResponse,
+)
+async def update_team(
+    competition_id: int,
+    team_id: int,
+    payload: TeamUpdate,
+    _current_user: User = Depends(require_roles("operator", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> TeamResponse:
+    """Atualiza dados de uma equipe (Operador/Admin)."""
+    team = await TeamService.get_or_404(db, team_id)
+    if team.competition_id != competition_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Equipe não encontrada")
+    updated = await TeamService.update(db, team_id, payload)
+    return _team_to_response(updated)
+
+
+@router.delete(
+    "/competitions/{competition_id}/teams/{team_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_team(
+    competition_id: int,
+    team_id: int,
+    _current_user: User = Depends(require_roles("operator", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Remove equipe (Operador/Admin)."""
+    team = await TeamService.get_or_404(db, team_id)
+    if team.competition_id != competition_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Equipe não encontrada")
+    await TeamService.delete(db, team_id)
+    logger.info("Equipe removida: id=%s", team_id)
+
+
+@router.get(
+    "/competitions/{competition_id}/teams/{team_id}/members",
+    response_model=list[TeamMemberResponse],
+)
+async def list_team_members(
+    competition_id: int,
+    team_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> list[TeamMemberResponse]:
+    """Lista membros de uma equipe."""
+    team = await TeamService.get_or_404(db, team_id)
+    if team.competition_id != competition_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Equipe não encontrada")
+    return [_member_to_response(m) for m in team.members]
+
+
+@router.post(
+    "/competitions/{competition_id}/teams/{team_id}/members",
+    response_model=TeamMemberResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_team_member(
+    competition_id: int,
+    team_id: int,
+    payload: TeamMemberAdd,
+    _current_user: User = Depends(require_roles("operator", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> TeamMemberResponse:
+    """Adiciona membro a uma equipe (Operador/Admin)."""
+    team = await TeamService.get_or_404(db, team_id)
+    if team.competition_id != competition_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Equipe não encontrada")
+    member = await TeamService.add_member(db, team_id, payload)
+    # Carregar relacionamento user para response
+    from app.repositories.user import UserRepository
+    user = await UserRepository.get_by_id(db, member.user_id)
+    member.user = user  # type: ignore[assignment]
+    return _member_to_response(member)
+
+
+@router.delete(
+    "/competitions/{competition_id}/teams/{team_id}/members/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def remove_team_member(
+    competition_id: int,
+    team_id: int,
+    user_id: int,
+    _current_user: User = Depends(require_roles("operator", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Remove membro de uma equipe (Operador/Admin)."""
+    team = await TeamService.get_or_404(db, team_id)
+    if team.competition_id != competition_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Equipe não encontrada")
+    await TeamService.remove_member(db, team_id, user_id)
+
+
+# ── Baterias (Heats) ──────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/competitions/{competition_id}/heats",
+    response_model=list[HeatResponse],
+)
+async def list_heats(
+    competition_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> list[HeatResponse]:
+    """Lista baterias de uma competição."""
+    heats = await HeatService.list_by_competition(db, competition_id)
+    return [_heat_to_response(h) for h in heats]
+
+
+@router.post(
+    "/competitions/{competition_id}/heats",
+    response_model=HeatResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_heat(
+    competition_id: int,
+    payload: HeatCreate,
+    _current_user: User = Depends(require_roles("operator", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> HeatResponse:
+    """Cria bateria em uma competição (Operador/Admin)."""
+    heat = await HeatService.create(db, competition_id, payload)
+    logger.info("Bateria criada: id=%s competition_id=%s", heat.id, competition_id)
+    return _heat_to_response(heat)
+
+
+@router.delete(
+    "/competitions/{competition_id}/heats/{heat_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_heat(
+    competition_id: int,
+    heat_id: int,
+    _current_user: User = Depends(require_roles("operator", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Remove bateria (Operador/Admin)."""
+    heat = await HeatService.get_or_404(db, heat_id)
+    if heat.competition_id != competition_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bateria não encontrada")
+    await HeatService.delete(db, heat_id)
+    logger.info("Bateria removida: id=%s", heat_id)
+
+
+@router.post(
+    "/competitions/{competition_id}/heats/{heat_id}/timers",
+    response_model=HeatResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_timer_to_heat(
+    competition_id: int,
+    heat_id: int,
+    payload: HeatTimerAdd,
+    _current_user: User = Depends(require_roles("operator", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> HeatResponse:
+    """Adiciona timer a uma bateria (Operador/Admin)."""
+    heat = await HeatService.get_or_404(db, heat_id)
+    if heat.competition_id != competition_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bateria não encontrada")
+    updated_heat = await HeatService.add_timer(db, heat_id, payload.timer_id)
+    return _heat_to_response(updated_heat)
+
+
+@router.delete(
+    "/competitions/{competition_id}/heats/{heat_id}/timers/{timer_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def remove_timer_from_heat(
+    competition_id: int,
+    heat_id: int,
+    timer_id: int,
+    _current_user: User = Depends(require_roles("operator", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Remove timer de uma bateria (Operador/Admin)."""
+    heat = await HeatService.get_or_404(db, heat_id)
+    if heat.competition_id != competition_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bateria não encontrada")
+    await HeatService.remove_timer(db, heat_id, timer_id)
+
+
+@router.post(
+    "/competitions/{competition_id}/heats/{heat_id}/start",
+    response_model=HeatResponse,
+)
+async def start_heat(
+    competition_id: int,
+    heat_id: int,
+    current_user: User = Depends(require_roles("judge", "operator", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> HeatResponse:
+    """Inicia todos os timers da bateria simultaneamente (Judge/Operator/Admin)."""
+    heat = await HeatService.get_or_404(db, heat_id)
+    if heat.competition_id != competition_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bateria não encontrada")
+    updated_heat = await HeatService.start_all(db, heat_id, current_user)
+    logger.info(
+        "Bateria iniciada: id=%s por user_id=%s", heat_id, current_user.id
+    )
+    return _heat_to_response(updated_heat)
+
+
+# ── Equipes nas Baterias ───────────────────────────────────────────────────────
+
+
+class HeatTeamAdd(BaseModel):
+    team_id: int
+
+
+@router.post(
+    "/competitions/{competition_id}/heats/{heat_id}/teams",
+    response_model=HeatResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_team_to_heat(
+    competition_id: int,
+    heat_id: int,
+    payload: HeatTeamAdd,
+    _current_user: User = Depends(require_roles("operator", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> HeatResponse:
+    """Associa equipe a uma bateria com validação de capacidade (Operador/Admin)."""
+    heat = await HeatService.get_or_404(db, heat_id)
+    if heat.competition_id != competition_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bateria não encontrada")
+    updated = await HeatService.add_team(db, heat_id, payload.team_id)
+    logger.info("Equipe %s adicionada à bateria %s", payload.team_id, heat_id)
+    return _heat_to_response(updated)
+
+
+@router.delete(
+    "/competitions/{competition_id}/heats/{heat_id}/teams/{team_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def remove_team_from_heat(
+    competition_id: int,
+    heat_id: int,
+    team_id: int,
+    _current_user: User = Depends(require_roles("operator", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Remove equipe de uma bateria (Operador/Admin)."""
+    heat = await HeatService.get_or_404(db, heat_id)
+    if heat.competition_id != competition_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bateria não encontrada")
+    await HeatService.remove_team(db, heat_id, team_id)
+    logger.info("Equipe %s removida da bateria %s", team_id, heat_id)

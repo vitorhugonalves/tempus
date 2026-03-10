@@ -31,7 +31,7 @@ async def create_session(db: AsyncSession, user_id: int) -> str:
         expires_at=expires_at,
     )
     db.add(session)
-    await db.commit()
+    await db.flush()
 
     logger.info("Sessão criada para user_id=%s", user_id)
     return token
@@ -73,7 +73,7 @@ async def invalidate_session(db: AsyncSession, token: str) -> None:
     from app.models.session import Session as SessionModel
 
     await db.execute(delete(SessionModel).where(SessionModel.token == token))
-    await db.commit()
+    await db.flush()
     logger.info("Sessão invalidada")
 
 

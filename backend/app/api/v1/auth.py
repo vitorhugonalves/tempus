@@ -33,6 +33,7 @@ class InviteRequest(BaseModel):
     email: EmailStr
     competition_id: int | None = None
     category_id: int | None = None
+    team_id: int | None = None
 
 
 class RegisterViaInviteRequest(BaseModel):
@@ -123,7 +124,7 @@ async def forgot_password(
     token = await PasswordResetService.create_token(db, str(payload.email))
     if token:
         base_url = str(request.base_url).rstrip("/")
-        reset_link = f"{settings.VITE_API_BASE_URL}/reset-password?token={token.token}"
+        reset_link = f"{settings.FRONTEND_URL}/reset-password?token={token.token}"
         try:
             await send_password_reset(str(payload.email), reset_link)
         except Exception:
@@ -168,10 +169,11 @@ async def send_invite(
         email=str(payload.email),
         competition_id=payload.competition_id,
         category_id=payload.category_id,
+        team_id=payload.team_id,
         invited_by=current_user,
     )
 
-    invite_link = f"{settings.VITE_API_BASE_URL}/register?token={invite.token}"
+    invite_link = f"{settings.FRONTEND_URL}/register?token={invite.token}"
 
     comp_name = "Tempus"
     if payload.competition_id:

@@ -23,6 +23,15 @@ const TIMER_STATUS_BADGE: Record<string, { label: string; color: "green" | "yell
   idle: { label: "Aguardando", color: "gray" },
 };
 
+function formatRemaining(seconds: number | null): string {
+  if (seconds === null) return "—";
+  if (seconds <= 0) return "00:00:00";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return [h, m, s].map((v) => String(v).padStart(2, "0")).join(":");
+}
+
 export default function RankingPage() {
   const { competitionId } = useParams<{ competitionId: string }>();
   const id = Number(competitionId);
@@ -66,12 +75,10 @@ export default function RankingPage() {
     else setNotFound(true);
   }, [id]);
 
-  // Re-carrega ranking quando muda filtro de categoria
   useEffect(() => {
     if (!loading) loadRanking();
   }, [selectedCategory, loadRanking, loading]);
 
-  // Polling a cada 10s se competição ativa
   useEffect(() => {
     if (competition?.status !== "active") return;
     const interval = setInterval(loadRanking, 10000);
@@ -99,11 +106,12 @@ export default function RankingPage() {
   }
 
   const { label, variant } = STATUS_BADGE[competition.status] ?? STATUS_BADGE.draft;
+  const hasRemaining = ranking.some((e) => e.remaining_seconds !== null);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <header className="bg-gray-900 text-white">
-        <div className="max-w-4xl mx-auto px-4 py-6">
+        <div className="max-w-5xl mx-auto px-4 py-6">
           <Link to="/" className="inline-flex items-center gap-2 text-gray-400 hover:text-white text-sm mb-4 transition-colors">
             <ArrowLeftIcon className="h-4 w-4" />
             Voltar
@@ -112,7 +120,7 @@ export default function RankingPage() {
             <div>
               <h1 className="text-2xl font-bold">{competition.name}</h1>
               <p className="text-gray-400 text-sm mt-1">
-                {competition.modality ?? "—"} · {competition.location ?? "—"}
+                {competition.modality_name ?? "—"} · {competition.location ?? "—"}
               </p>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
@@ -134,7 +142,6 @@ export default function RankingPage() {
             </div>
           </div>
 
-          {/* Filtro de categoria */}
           {categories.length > 1 && (
             <div className="mt-4 flex flex-wrap gap-2">
               <button
@@ -157,7 +164,7 @@ export default function RankingPage() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-8">
+      <main className="max-w-5xl mx-auto px-4 py-8">
         <Card padding="none">
           <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
             <TrophyIcon className="h-5 w-5 text-yellow-500" />
@@ -184,7 +191,17 @@ export default function RankingPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 dark:bg-gray-800">
-                    {["Pos.", "Atleta / Equipe", "Categoria", "Cronometrado", "Penalidades", "Tempo Final", "Status"].map((h) => (
+                    {[
+                      "Pos.",
+                      "Atleta / Equipe",
+                      "Categoria",
+                      "Cronometrado",
+                      "Penalidades",
+                      "Infrações",
+                      ...(hasRemaining ? ["Tempo Restante"] : []),
+                      "Tempo Final",
+                      "Status",
+                    ].map((h) => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         {h}
                       </th>
@@ -199,6 +216,7 @@ export default function RankingPage() {
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                   {ranking.map((entry) => {
                     const statusInfo = TIMER_STATUS_BADGE[entry.status];
+                    const displayName = entry.team_name ?? entry.athlete_name;
                     return (
                       <tr key={entry.timer_id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                         <td className="px-4 py-4">
@@ -213,7 +231,10 @@ export default function RankingPage() {
                           </span>
                         </td>
                         <td className="px-4 py-4 font-medium text-gray-900 dark:text-white">
-                          {entry.athlete_name}
+                          <div>{displayName}</div>
+                          {entry.team_name && (
+                            <div className="text-xs text-gray-400 mt-0.5">{entry.athlete_name}</div>
+                          )}
                         </td>
                         <td className="px-4 py-4 text-gray-500 dark:text-gray-400">
                           {entry.category_name ?? "—"}
@@ -226,6 +247,20 @@ export default function RankingPage() {
                             <span className="text-red-500">+{entry.total_penalty_seconds}s</span>
                           ) : "—"}
                         </td>
+                        <td className="px-4 py-4 text-center">
+                          {entry.infractions_count > 0 ? (
+                            <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-red-100 text-red-700 text-xs font-bold">
+                              {entry.infractions_count}
+                            </span>
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
+                        </td>
+                        {hasRemaining && (
+                          <td className="px-4 py-4 font-mono text-blue-600 dark:text-blue-400">
+                            {formatRemaining(entry.remaining_seconds)}
+                          </td>
+                        )}
                         <td className="px-4 py-4 font-mono font-bold text-gray-900 dark:text-white">
                           {secondsToDisplay(entry.final_seconds)}
                         </td>

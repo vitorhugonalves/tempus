@@ -20,12 +20,16 @@ AsyncSessionLocal = async_sessionmaker(
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependency que fornece uma sessão de banco de dados assíncrona.
 
+    Commita automaticamente ao final da requisição caso não haja erros.
+    Em caso de exceção, faz rollback antes de propagar.
+
     Yields:
-        Sessão AsyncSession com rollback automático em caso de erro.
+        Sessão AsyncSession gerenciada pela dependency.
     """
     async with AsyncSessionLocal() as session:
         try:
             yield session
+            await session.commit()
         except Exception:
             await session.rollback()
             raise

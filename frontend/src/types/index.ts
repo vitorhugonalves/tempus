@@ -15,10 +15,21 @@ export interface Competition {
   name: string;
   location: string | null;
   event_date: string | null;
-  modality: string | null;
+  modality_id: number | null;
+  modality_name: string | null;
+  duration_seconds: number | null;
   max_athletes: number;
   status: CompetitionStatus;
   rules: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Modality {
+  id: number;
+  name: string;
+  description: string | null;
+  default_duration_seconds: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -36,6 +47,46 @@ export interface Category {
   updated_at: string;
 }
 
+export type HeatStatus = "pending" | "running" | "finished";
+
+export interface HeatTeamRef {
+  team_id: number;
+  team_name: string;
+}
+
+export interface Heat {
+  id: number;
+  competition_id: number;
+  name: string;
+  status: HeatStatus;
+  scheduled_at: string | null;
+  max_participants: number | null;
+  timer_count: number;
+  team_count: number;
+  teams: HeatTeamRef[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TeamMember {
+  id: number;
+  team_id: number;
+  user_id: number;
+  user_name: string;
+  created_at: string;
+}
+
+export interface Team {
+  id: number;
+  competition_id: number;
+  category_id: number;
+  name: string;
+  captain_id: number | null;
+  member_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export type TimerStatus = "idle" | "running" | "stopped" | "finished";
 
 export interface Timer {
@@ -44,6 +95,7 @@ export interface Timer {
   category_id: number | null;
   user_id: number | null;
   team_id: number | null;
+  heat_id: number | null;
   status: TimerStatus;
   started_at: string | null;
   stopped_at: string | null;
@@ -93,10 +145,13 @@ export interface RankingEntry {
   user_id: number | null;
   team_id: number | null;
   athlete_name: string;
+  team_name: string | null;
   category_name: string | null;
   elapsed_seconds: number;
   total_penalty_seconds: number;
   final_seconds: number;
+  infractions_count: number;
+  remaining_seconds: number | null;
   status: TimerStatus;
 }
 

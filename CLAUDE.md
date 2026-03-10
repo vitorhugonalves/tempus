@@ -158,6 +158,44 @@ class Competition(Base):
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 ```
 
+### Padrão de Persistência — Unit of Work via `get_db`
+
+**Regra central:** `get_db` é o único responsável pelo `commit` da transação. Repositories e services **nunca** chamam `db.commit()` — apenas `db.flush()` para materializar IDs e disparar constraints dentro da transação aberta.
+
+```python
+# app/db/session.py — get_db faz commit ao final da requisição
+async def get_db():
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()   # ← único commit do ciclo de request
+        except Exception:
+            await session.rollback()
+            raise
+```
+
+```python
+# ✅ Repository correto — só flush, nunca commit
+@staticmethod
+async def create(db: AsyncSession, obj: Model) -> Model:
+    db.add(obj)
+    await db.flush()    # materializa o ID; commit fica com get_db
+    await db.refresh(obj)
+    return obj
+
+# ❌ Errado — commit dentro do repository quebra o Unit of Work
+@staticmethod
+async def create(db: AsyncSession, obj: Model) -> Model:
+    db.add(obj)
+    await db.commit()   # NÃO FAÇA ISSO em repositories/services de request
+    await db.refresh(obj)
+    return obj
+```
+
+**Exceção permitida:** funções utilitárias chamadas **fora do ciclo de request** (jobs, scripts, tarefas agendadas) podem gerenciar seu próprio `commit`, pois não passam pelo `get_db`.
+
+> **Histórico:** a ausência de `commit()` no `get_db` fez com que operações que usavam apenas `flush()` (categorias, timers, penalidades) retornassem 201 mas não persistissem os dados no banco. O bug foi silencioso porque a resposta da API era construída a partir dos objetos em memória (ainda válidos na sessão), não de uma releitura do banco.
+
 ### Migrations (Alembic)
 
 - **Toda** alteração de schema deve ser feita via migration Alembic — nunca altere o banco manualmente
@@ -326,7 +364,8 @@ VITE_API_BASE_URL=http://localhost:8000
 
 ## 9. Regras Gerais para o Assistente (Claude)
 
-1. **Sempre pergunte** antes de refatorar código existente não relacionado à tarefa
+1. **`flush()` em repositories, nunca `commit()`** — o commit pertence exclusivamente ao `get_db`. Ver seção 4 "Padrão de Persistência".
+2. **Sempre pergunte** antes de refatorar código existente não relacionado à tarefa
 2. **Nunca altere migrações já aplicadas** — crie uma nova se necessário
 3. **Siga a estrutura de pastas** definida na seção 2 — não crie arquivos fora do padrão sem justificativa
 4. **Testes são obrigatórios** para toda nova funcionalidade implementada
@@ -334,3 +373,5 @@ VITE_API_BASE_URL=http://localhost:8000
 6. **Documente decisões arquiteturais** relevantes em `docs/ADR/`
 7. **Priorize legibilidade** sobre cleverness — código será mantido por humanos
 8. **Em caso de dúvida sobre regra de negócio**, interrompa e pergunte antes de implementar
+9. **Documentação sempre atualizada** - sempre que houverem mudanças na arquitetura do projeto e/ou no banco de dados documente. Caso ainda não tenha realizado nenhuma documentação, faça-a. Procure sempre realizar a documentação, adicionando topologias com o Mermaid.
+10. **Sempre execute os testes** sem perguntar. Caso tenha algum erro nos testes, pergunte antes de ajustar.

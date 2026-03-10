@@ -44,6 +44,9 @@ class Timer(Base):
     team_id: Mapped[int | None] = mapped_column(
         ForeignKey("teams.id", ondelete="CASCADE"), nullable=True, index=True
     )
+    heat_id: Mapped[int | None] = mapped_column(
+        ForeignKey("heats.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     status: Mapped[TimerStatus] = mapped_column(
         Enum(TimerStatus), nullable=False, default=TimerStatus.idle
     )
@@ -61,6 +64,7 @@ class Timer(Base):
     )
     user: Mapped["User | None"] = relationship("User", back_populates="timers")  # noqa: F821
     team: Mapped["Team | None"] = relationship("Team", back_populates="timers")  # noqa: F821
+    heat: Mapped["Heat | None"] = relationship("Heat", back_populates="timers")  # noqa: F821
     events: Mapped[list["TimerEvent"]] = relationship(
         "TimerEvent", back_populates="timer", cascade="all, delete-orphan"
     )

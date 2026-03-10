@@ -378,38 +378,43 @@ export default function TimersPage() {
   const compId = Number(competitionId);
   const canControl = user?.role === "judge" || user?.role === "operator" || user?.role === "admin";
   const canCreate = canControl && (user?.role === "operator" || user?.role === "admin");
+  const canListUsers = user?.role === "operator" || user?.role === "admin";
 
   const loadData = useCallback(async () => {
+    if (isNaN(compId)) return;
     try {
-      const [comp, timerList, catList, ptList, usersResp] = await Promise.all([
+      const baseRequests = Promise.all([
         competitionsApi.getById(compId),
         timersApi.list(compId),
         categoriesApi.list(compId, true),
         penaltyTypesApi.list(compId),
-        usersApi.list(),
       ]);
+      const [comp, timerList, catList, ptList] = await baseRequests;
       setCompetition(comp);
       setTimers(timerList);
       setCategories(catList);
       setPenaltyTypes(ptList);
 
-      const allUsers: User[] = usersResp.data;
-      const map = new Map<number, string>();
-      const compList: User[] = [];
-      for (const u of allUsers) {
-        map.set(u.id, u.full_name);
-        if (u.role === "competitor") {
-          compList.push(u);
+      if (canListUsers) {
+        const usersResp = await usersApi.list();
+        const allUsers: User[] = usersResp.data;
+        const map = new Map<number, string>();
+        const compList: User[] = [];
+        for (const u of allUsers) {
+          map.set(u.id, u.full_name);
+          if (u.role === "competitor") {
+            compList.push(u);
+          }
         }
+        setUserMap(map);
+        setCompetitors(compList);
       }
-      setUserMap(map);
-      setCompetitors(compList);
     } catch {
       setError("Erro ao carregar dados da competição");
     } finally {
       setLoading(false);
     }
-  }, [compId]);
+  }, [compId, canListUsers]);
 
   useEffect(() => {
     loadData();
@@ -443,6 +448,14 @@ export default function TimersPage() {
     if (t.team_id) return `Equipe #${t.team_id}`;
     return `Timer #${t.id}`;
   };
+
+  if (isNaN(compId)) {
+    return (
+      <div className="flex items-center justify-center h-48 text-gray-500">
+        Selecione uma competição para visualizar os timers.
+      </div>
+    );
+  }
 
   if (loading) {
     return <div className="flex items-center justify-center h-48 text-gray-500">Carregando timers...</div>;

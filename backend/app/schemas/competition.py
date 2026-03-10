@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 from pydantic import BaseModel
 
@@ -9,7 +9,8 @@ class CompetitionCreate(BaseModel):
     name: str
     location: str | None = None
     event_date: date | None = None
-    modality: str | None = None
+    modality_id: int | None = None
+    duration_seconds: int | None = None
     max_athletes: int = 300
     rules: str | None = None
 
@@ -18,7 +19,8 @@ class CompetitionUpdate(BaseModel):
     name: str | None = None
     location: str | None = None
     event_date: date | None = None
-    modality: str | None = None
+    modality_id: int | None = None
+    duration_seconds: int | None = None
     max_athletes: int | None = None
     rules: str | None = None
     status: CompetitionStatus | None = None
@@ -29,9 +31,31 @@ class CompetitionResponse(BaseModel):
     name: str
     location: str | None
     event_date: date | None
-    modality: str | None
+    modality_id: int | None
+    modality_name: str | None
+    duration_seconds: int | None
     max_athletes: int
     status: CompetitionStatus
     rules: str | None
+    created_at: datetime
+    updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @classmethod
+    def from_orm(cls, comp: object) -> "CompetitionResponse":
+        c = comp  # type: ignore[assignment]
+        return cls(
+            id=c.id,
+            name=c.name,
+            location=c.location,
+            event_date=c.event_date,
+            modality_id=c.modality_id,
+            modality_name=c.modality_rel.name if c.modality_rel else None,
+            duration_seconds=c.duration_seconds,
+            max_athletes=c.max_athletes,
+            status=c.status,
+            rules=c.rules,
+            created_at=c.created_at,
+            updated_at=c.updated_at,
+        )

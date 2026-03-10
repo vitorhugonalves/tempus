@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { EnvelopeIcon, PlusIcon } from "@heroicons/react/24/outline";
 import { usersApi, type UserCreate, type UserUpdate } from "../api/users";
 import apiClient from "../api/client";
+import { useAuthStore } from "../store/auth";
 import { Card, CardHeader } from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
@@ -40,6 +41,9 @@ function buildEditForm(user: User): EditFormState {
 }
 
 export default function UsersPage() {
+  const { user: currentUser } = useAuthStore();
+  const isAdmin = currentUser?.role === "admin";
+
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -54,6 +58,16 @@ export default function UsersPage() {
   const [editForm, setEditForm] = useState<EditFormState | null>(null);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+
+  // Delete state
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  // Reset password state
+  const [resetPasswordId, setResetPasswordId] = useState<number | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const [resetPasswordError, setResetPasswordError] = useState<string | null>(null);
+  const [resetPasswordSuccess, setResetPasswordSuccess] = useState<string | null>(null);
 
   // Invite form state
   const [showInviteForm, setShowInviteForm] = useState(false);
@@ -102,6 +116,48 @@ export default function UsersPage() {
   async function handleToggleActive(user: User) {
     await usersApi.update(user.id, { is_active: !user.is_active });
     await load();
+  }
+
+  // --- Delete user ---
+  async function handleDelete(user: User) {
+    if (!confirm(`Excluir permanentemente o usuário "${user.full_name}"? Esta ação não pode ser desfeita.`)) return;
+    setDeletingId(user.id);
+    try {
+      await usersApi.delete(user.id);
+      await load();
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      alert(detail ?? "Erro ao excluir usuário.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  // --- Reset password ---
+  async function handleResetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!resetPasswordId) return;
+    setResetPasswordError(null);
+    setResetPasswordSuccess(null);
+    if (newPassword.length < 8) {
+      setResetPasswordError("A senha deve ter pelo menos 8 caracteres.");
+      return;
+    }
+    setResettingPassword(true);
+    try {
+      await usersApi.resetPassword(resetPasswordId, newPassword);
+      setResetPasswordSuccess("Senha redefinida com sucesso.");
+      setNewPassword("");
+      setTimeout(() => {
+        setResetPasswordId(null);
+        setResetPasswordSuccess(null);
+      }, 2000);
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setResetPasswordError(detail ?? "Erro ao redefinir senha.");
+    } finally {
+      setResettingPassword(false);
+    }
   }
 
   // --- Inline edit ---
@@ -359,7 +415,7 @@ export default function UsersPage() {
                           </Badge>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             {isEditing ? (
                               <span className="text-xs text-primary-600 font-medium">Editando...</span>
                             ) : (
@@ -378,11 +434,82 @@ export default function UsersPage() {
                                 >
                                   {u.is_active ? "Desativar" : "Ativar"}
                                 </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setResetPasswordId(u.id);
+                                    setNewPassword("");
+                                    setResetPasswordError(null);
+                                    setResetPasswordSuccess(null);
+                                  }}
+                                >
+                                  Senha
+                                </Button>
+                                {isAdmin && currentUser?.id !== u.id && (
+                                  <Button
+                                    variant="danger"
+                                    size="sm"
+                                    isLoading={deletingId === u.id}
+                                    onClick={() => handleDelete(u)}
+                                  >
+                                    Excluir
+                                  </Button>
+                                )}
                               </>
                             )}
                           </div>
                         </td>
                       </tr>
+
+                      {/* Inline reset-password row */}
+                      {resetPasswordId === u.id && (
+                        <tr key={`reset-${u.id}`} className="bg-blue-50">
+                          <td colSpan={5} className="px-6 py-4">
+                            <p className="text-sm font-medium text-gray-700 mb-3">
+                              Redefinir senha de <strong>{u.full_name}</strong>
+                            </p>
+                            {resetPasswordError && (
+                              <div className="mb-3">
+                                <Alert variant="error">{resetPasswordError}</Alert>
+                              </div>
+                            )}
+                            {resetPasswordSuccess && (
+                              <div className="mb-3">
+                                <Alert variant="success">{resetPasswordSuccess}</Alert>
+                              </div>
+                            )}
+                            <form onSubmit={handleResetPassword} className="flex items-end gap-3">
+                              <div className="flex-1 max-w-xs">
+                                <Input
+                                  label="Nova senha"
+                                  type="password"
+                                  value={newPassword}
+                                  onChange={(e) => setNewPassword(e.target.value)}
+                                  placeholder="Mínimo 8 caracteres"
+                                  required
+                                />
+                              </div>
+                              <Button type="submit" variant="primary" size="sm" isLoading={resettingPassword}>
+                                Salvar Senha
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => {
+                                  setResetPasswordId(null);
+                                  setNewPassword("");
+                                  setResetPasswordError(null);
+                                  setResetPasswordSuccess(null);
+                                }}
+                              >
+                                Cancelar
+                              </Button>
+                            </form>
+                          </td>
+                        </tr>
+                      )}
 
                       {/* Inline edit row */}
                       {isEditing && editForm && (

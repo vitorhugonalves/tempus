@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
 
     VITE_API_BASE_URL: str = "http://localhost:8000"
+    FRONTEND_URL: str = "http://localhost:5173"
 
     # Admin padrão criado automaticamente na primeira migration (RF-44)
     ADMIN_EMAIL: str = "admin@example.com"

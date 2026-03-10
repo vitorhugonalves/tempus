@@ -5,7 +5,8 @@ export interface CompetitionCreate {
   name: string;
   location?: string;
   event_date?: string;
-  modality?: string;
+  modality_id?: number;
+  duration_seconds?: number;
   max_athletes?: number;
   rules?: string;
 }

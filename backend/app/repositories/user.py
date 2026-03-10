@@ -66,7 +66,7 @@ class UserRepository:
             Objeto User com ID populado.
         """
         db.add(user)
-        await db.commit()
+        await db.flush()
         await db.refresh(user)
         logger.info("Usuário criado: id=%s, email=%s", user.id, user.email)
         return user
@@ -82,6 +82,6 @@ class UserRepository:
         Returns:
             Objeto User atualizado.
         """
-        await db.commit()
+        await db.flush()
         await db.refresh(user)
         return user

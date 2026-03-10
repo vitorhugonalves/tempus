@@ -373,6 +373,7 @@ class RankingService:
         Tempo final = elapsed_seconds + total de penalidades.
         Apenas timers com status finished ou stopped entram no ranking principal;
         timers running aparecem no final para visualização ao vivo.
+        remaining_seconds = duration_seconds - elapsed (se configurado e > 0).
 
         Args:
             db: Sessão assíncrona.
@@ -382,8 +383,12 @@ class RankingService:
         Returns:
             Lista de RankingEntry ordenada por final_seconds.
         """
+        from datetime import timezone
+
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
+
+        from app.models.competition import Competition
 
         query = (
             select(Timer)
@@ -401,8 +406,12 @@ class RankingService:
         result = await db.execute(query)
         timers = list(result.scalars().all())
 
-        from app.schemas.timer import TimerResponse
-        from datetime import timezone
+        # Duração configurada na competição (para calcular remaining_seconds)
+        comp_result = await db.execute(
+            select(Competition).where(Competition.id == competition_id)
+        )
+        competition = comp_result.scalar_one_or_none()
+        duration_seconds = competition.duration_seconds if competition else None
 
         entries: list[RankingEntry] = []
         for timer in timers:
@@ -413,7 +422,7 @@ class RankingService:
                 started = timer.started_at.replace(tzinfo=None) if timer.started_at.tzinfo else timer.started_at
                 elapsed += int((now - started).total_seconds())
 
-            # Nome do atleta ou equipe
+            # Nome do atleta individual
             if timer.user:
                 athlete_name = timer.user.full_name
             elif timer.team:
@@ -421,7 +430,15 @@ class RankingService:
             else:
                 athlete_name = f"Timer #{timer.id}"
 
+            # Nome da equipe (preenchido mesmo em timers individuais para consistência)
+            team_name = timer.team.name if timer.team else None
             category_name = timer.category.name if timer.category else None
+            infractions_count = len(timer.penalties)
+
+            # Tempo restante: só calculado se duração configurada e timer ativo
+            remaining: int | None = None
+            if duration_seconds and timer.status in (TimerStatus.running, TimerStatus.idle):
+                remaining = max(0, duration_seconds - elapsed)
 
             entries.append(
                 RankingEntry(
@@ -430,10 +447,13 @@ class RankingService:
                     user_id=timer.user_id,
                     team_id=timer.team_id,
                     athlete_name=athlete_name,
+                    team_name=team_name,
                     category_name=category_name,
                     elapsed_seconds=elapsed,
                     total_penalty_seconds=penalty_seconds,
                     final_seconds=elapsed + penalty_seconds,
+                    infractions_count=infractions_count,
+                    remaining_seconds=remaining,
                     status=timer.status,
                 )
             )

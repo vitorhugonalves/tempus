@@ -141,8 +141,11 @@ class RankingEntry(BaseModel):
     user_id: int | None
     team_id: int | None
     athlete_name: str
+    team_name: str | None
     category_name: str | None
     elapsed_seconds: int
     total_penalty_seconds: int
     final_seconds: int
+    infractions_count: int
+    remaining_seconds: int | None
     status: TimerStatus

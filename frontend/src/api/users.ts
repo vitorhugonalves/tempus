@@ -25,4 +25,11 @@ export const usersApi = {
 
   update: (id: number, data: UserUpdate) =>
     apiClient.patch<User>(`/api/v1/users/${id}`, data),
+
+  delete: (id: number) => apiClient.delete(`/api/v1/users/${id}`),
+
+  resetPassword: (id: number, newPassword: string) =>
+    apiClient.post(`/api/v1/users/${id}/reset-password`, {
+      new_password: newPassword,
+    }),
 };
