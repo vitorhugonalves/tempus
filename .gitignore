@@ -1,0 +1,55 @@
+# Claude
+.claude
+
+# Credenciais temporárias de primeiro acesso (RF-46)
+.temp_cred
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+.env
+*.db
+*.sqlite3
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+
+# Node / Frontend
+node_modules/
+dist/
+.cache/
+*.local
+
+# Vite
+frontend/dist/
+
+# Logs — manter diretório, ignorar arquivos
+logs/*.log
+logs/*.log.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+docker/nginx.conf~
+
+# OS
+.DS_Store
+Thumbs.db
