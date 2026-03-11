@@ -340,8 +340,10 @@ async def test_validacao_capacidade_bateria_com_membros_retorna_422(
 
 
 async def test_enviar_convite_com_team_id_retorna_201(
-    client: AsyncClient, admin_token: str
+    client: AsyncClient, admin_token: str, monkeypatch
 ):
+    from unittest.mock import AsyncMock
+    monkeypatch.setattr("app.services.email.send_competitor_invite", AsyncMock())
     comp = await _create_competition(client, admin_token)
     cat = await _create_category(client, admin_token, comp["id"])
     team = await _create_team(client, admin_token, comp["id"], cat["id"])
@@ -361,8 +363,10 @@ async def test_enviar_convite_com_team_id_retorna_201(
 
 
 async def test_enviar_convite_sem_team_id_retorna_201(
-    client: AsyncClient, admin_token: str
+    client: AsyncClient, admin_token: str, monkeypatch
 ):
+    from unittest.mock import AsyncMock
+    monkeypatch.setattr("app.services.email.send_competitor_invite", AsyncMock())
     r = await client.post(
         "/api/v1/auth/invite",
         json={"email": "atleta2@example.com"},

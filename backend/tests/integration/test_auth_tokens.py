@@ -83,8 +83,10 @@ async def test_reset_password_token_reutilizado_retorna_400(
 
 
 async def test_criar_convite_como_admin_retorna_201(
-    client: AsyncClient, admin_token
+    client: AsyncClient, admin_token, monkeypatch
 ):
+    from unittest.mock import AsyncMock
+    monkeypatch.setattr("app.services.email.send_competitor_invite", AsyncMock())
     response = await client.post(
         "/api/v1/auth/invite",
         json={"email": "novato@example.com"},
@@ -120,9 +122,11 @@ async def test_criar_convite_email_existente_retorna_409(
 
 
 async def test_register_via_invite_fluxo_completo(
-    client: AsyncClient, admin_token, db
+    client: AsyncClient, admin_token, db, monkeypatch
 ):
     """Convite criado → competidor se registra → login automático."""
+    from unittest.mock import AsyncMock
+    monkeypatch.setattr("app.services.email.send_competitor_invite", AsyncMock())
     # Cria convite
     invite_resp = await client.post(
         "/api/v1/auth/invite",
@@ -155,9 +159,11 @@ async def test_register_via_invite_fluxo_completo(
 
 
 async def test_register_via_invite_email_diferente_retorna_400(
-    client: AsyncClient, admin_token
+    client: AsyncClient, admin_token, monkeypatch
 ):
     """RN-07: convite é pessoal — e-mail deve coincidir."""
+    from unittest.mock import AsyncMock
+    monkeypatch.setattr("app.services.email.send_competitor_invite", AsyncMock())
     invite_resp = await client.post(
         "/api/v1/auth/invite",
         json={"email": "correto@example.com"},
@@ -192,9 +198,11 @@ async def test_register_via_invite_token_invalido_retorna_400(client: AsyncClien
 
 
 async def test_register_via_invite_sem_autenticacao(
-    client: AsyncClient, admin_token
+    client: AsyncClient, admin_token, monkeypatch
 ):
     """Rota de registro não requer autenticação (é pública)."""
+    from unittest.mock import AsyncMock
+    monkeypatch.setattr("app.services.email.send_competitor_invite", AsyncMock())
     invite_resp = await client.post(
         "/api/v1/auth/invite",
         json={"email": "publico@example.com"},

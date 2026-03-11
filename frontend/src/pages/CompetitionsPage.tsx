@@ -1738,6 +1738,13 @@ export default function CompetitionsPage() {
   // Which competition's panel is open (by id), null = none
   const [openPanelId, setOpenPanelId] = useState<number | null>(null);
 
+  // Edit form state
+  const [editingCompId, setEditingCompId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<CompetitionCreate>(INITIAL_FORM);
+  const [editDateDisplay, setEditDateDisplay] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
   // Per-row action loading states
   const [cloningId, setCloningId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -1813,8 +1820,56 @@ export default function CompetitionsPage() {
     }
   }
 
+  function openEditForm(comp: Competition) {
+    setEditingCompId(comp.id);
+    setEditForm({
+      name: comp.name,
+      location: comp.location ?? "",
+      event_date: comp.event_date ?? "",
+      modality_id: comp.modality_id ?? undefined,
+      duration_seconds: comp.duration_seconds ?? undefined,
+      max_athletes: comp.max_athletes,
+      rules: comp.rules ?? "",
+    });
+    setEditDateDisplay(comp.event_date ? isoToPtDate(comp.event_date) : "");
+    setEditError(null);
+    setOpenPanelId(null); // close management panel
+  }
+
+  async function handleEditSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingCompId) return;
+    setEditError(null);
+    setEditSaving(true);
+    try {
+      await competitionsApi.update(editingCompId, {
+        name: editForm.name,
+        location: editForm.location || undefined,
+        event_date: editForm.event_date || undefined,
+        modality_id: editForm.modality_id,
+        duration_seconds: editForm.duration_seconds,
+        max_athletes: editForm.max_athletes,
+        rules: editForm.rules || undefined,
+      });
+      setEditingCompId(null);
+      await load();
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+      if (typeof detail === "string") {
+        setEditError(detail);
+      } else if (Array.isArray(detail) && detail.length > 0) {
+        setEditError(String((detail[0] as { msg?: string })?.msg ?? "Erro ao salvar competição."));
+      } else {
+        setEditError("Erro ao salvar competição. Tente novamente.");
+      }
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
   function togglePanel(id: number) {
     setOpenPanelId((prev) => (prev === id ? null : id));
+    if (editingCompId) setEditingCompId(null);
   }
 
   return (
@@ -1902,17 +1957,19 @@ export default function CompetitionsPage() {
                 type="text"
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 placeholder="dd/mm/aaaa"
-                value={
-                  // If eventDateDisplay is empty but form.event_date has an ISO value, show it as pt-BR
-                  eventDateDisplay ||
-                  (form.event_date ? isoToPtDate(form.event_date) : "")
-                }
+                value={eventDateDisplay || (form.event_date ? isoToPtDate(form.event_date) : "")}
                 onChange={(e) => {
-                  const raw = e.target.value;
-                  setEventDateDisplay(raw);
-                  // Try to convert to ISO if it looks complete
-                  const iso = ptDateToIso(raw);
-                  setForm({ ...form, event_date: iso !== raw ? iso : raw });
+                  // Auto-mascara: strip non-digits, re-insere "/" nas posições certas
+                  let digits = e.target.value.replace(/\D/g, "").slice(0, 8);
+                  let masked = digits;
+                  if (digits.length > 4) {
+                    masked = digits.slice(0, 2) + "/" + digits.slice(2, 4) + "/" + digits.slice(4);
+                  } else if (digits.length > 2) {
+                    masked = digits.slice(0, 2) + "/" + digits.slice(2);
+                  }
+                  setEventDateDisplay(masked);
+                  const iso = ptDateToIso(masked);
+                  setForm({ ...form, event_date: iso !== masked ? iso : masked });
                 }}
                 maxLength={10}
               />
@@ -2057,6 +2114,18 @@ export default function CompetitionsPage() {
                                 )}
                               </Button>
                             )}
+                            {canManage && comp.status === "draft" && (
+                              <Button
+                                size="sm"
+                                variant={editingCompId === comp.id ? "primary" : "ghost"}
+                                onClick={() => {
+                                  if (editingCompId === comp.id) setEditingCompId(null);
+                                  else openEditForm(comp);
+                                }}
+                              >
+                                Editar
+                              </Button>
+                            )}
                             {canManage && (
                               <Button
                                 size="sm"
@@ -2102,6 +2171,120 @@ export default function CompetitionsPage() {
                               isAdmin={isAdmin}
                               onStatusChanged={load}
                             />
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* Inline edit form (only for draft competitions) */}
+                      {editingCompId === comp.id && comp.status === "draft" && (
+                        <tr>
+                          <td colSpan={8} className="p-0">
+                            <div className="bg-blue-50 dark:bg-blue-900/20 border-t border-blue-200 dark:border-blue-800 p-4">
+                              <p className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-3">Editar Competição</p>
+                              {editError && (
+                                <div className="mb-3 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-sm text-red-700 dark:text-red-400">
+                                  {editError}
+                                </div>
+                              )}
+                              <form onSubmit={handleEditSave} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                <div className="sm:col-span-2 lg:col-span-3">
+                                  <label className="block text-xs font-medium text-gray-700 mb-1">Nome *</label>
+                                  <input
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                    value={editForm.name}
+                                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                                    required
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-700 mb-1">Local</label>
+                                  <input
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                    value={editForm.location ?? ""}
+                                    onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                                    placeholder="Ex: São Paulo, SP"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-700 mb-1">Modalidade</label>
+                                  <select
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                    value={editForm.modality_id ?? ""}
+                                    onChange={(e) => {
+                                      const selectedId = e.target.value === "" ? undefined : Number(e.target.value);
+                                      const selectedModality = modalities.find((m) => m.id === selectedId);
+                                      setEditForm({
+                                        ...editForm,
+                                        modality_id: selectedId,
+                                        duration_seconds:
+                                          editForm.duration_seconds === undefined && selectedModality?.default_duration_seconds != null
+                                            ? selectedModality.default_duration_seconds
+                                            : editForm.duration_seconds,
+                                      });
+                                    }}
+                                  >
+                                    <option value="">Selecione...</option>
+                                    {modalities.map((m) => (
+                                      <option key={m.id} value={m.id}>{m.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-700 mb-1">Data do Evento</label>
+                                  <input
+                                    type="text"
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                    placeholder="dd/mm/aaaa"
+                                    value={editDateDisplay || (editForm.event_date ? isoToPtDate(editForm.event_date) : "")}
+                                    onChange={(e) => {
+                                      let digits = e.target.value.replace(/\D/g, "").slice(0, 8);
+                                      let masked = digits;
+                                      if (digits.length > 4) {
+                                        masked = digits.slice(0, 2) + "/" + digits.slice(2, 4) + "/" + digits.slice(4);
+                                      } else if (digits.length > 2) {
+                                        masked = digits.slice(0, 2) + "/" + digits.slice(2);
+                                      }
+                                      setEditDateDisplay(masked);
+                                      const iso = ptDateToIso(masked);
+                                      setEditForm({ ...editForm, event_date: iso !== masked ? iso : masked });
+                                    }}
+                                    maxLength={10}
+                                  />
+                                </div>
+                                <div>
+                                  <HmsDurationInput
+                                    label="Duração (HH:MM:SS)"
+                                    valueSeconds={editForm.duration_seconds}
+                                    onChange={(seconds) => setEditForm({ ...editForm, duration_seconds: seconds })}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-700 mb-1">Máx. Atletas</label>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={300}
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                    value={editForm.max_athletes ?? 300}
+                                    onChange={(e) => setEditForm({ ...editForm, max_athletes: Number(e.target.value) })}
+                                  />
+                                </div>
+                                <div className="sm:col-span-2 lg:col-span-3 flex justify-end gap-3 pt-1">
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => setEditingCompId(null)}
+                                    disabled={editSaving}
+                                  >
+                                    Cancelar
+                                  </Button>
+                                  <Button type="submit" variant="primary" size="sm" isLoading={editSaving}>
+                                    Salvar Alterações
+                                  </Button>
+                                </div>
+                              </form>
+                            </div>
                           </td>
                         </tr>
                       )}

@@ -235,6 +235,7 @@ class HeatService:
         """Inicia todos os timers da bateria simultaneamente.
 
         RN-01: competição deve estar ativa.
+        Auto-cria timers para equipes vinculadas que ainda não possuem timer.
         Apenas timers em estado idle ou stopped são iniciados.
 
         Args:
@@ -247,8 +248,10 @@ class HeatService:
 
         Raises:
             HTTPException 403: Competição não está ativa.
-            HTTPException 409: Bateria já foi finalizada.
+            HTTPException 409: Bateria já foi finalizada ou sem equipes/timers.
         """
+        from sqlalchemy import select
+
         from app.models.competition import CompetitionStatus
 
         heat = await HeatService.get_or_404(db, heat_id)
@@ -265,6 +268,27 @@ class HeatService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="A competição deve estar ativa para iniciar uma bateria (RN-01)",
             )
+
+        # Auto-criar timers para equipes que ainda não têm timer nesta competição
+        for ht in heat.heat_teams:
+            existing_result = await db.execute(
+                select(Timer).where(
+                    Timer.competition_id == heat.competition_id,
+                    Timer.team_id == ht.team_id,
+                )
+            )
+            if not existing_result.scalar_one_or_none():
+                new_timer = Timer(
+                    competition_id=heat.competition_id,
+                    team_id=ht.team_id,
+                    heat_id=heat_id,
+                )
+                db.add(new_timer)
+
+        await db.flush()
+
+        # Recarregar bateria para incluir os timers recém-criados
+        heat = await HeatService.get_or_404(db, heat_id)
 
         now = _utcnow()
         started_count = 0
@@ -286,10 +310,10 @@ class HeatService:
                 await TimerRepository.save(db, timer)
                 started_count += 1
 
-        if started_count == 0:
+        if started_count == 0 and not heat.heat_teams and not heat.timers:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Nenhum timer disponível para iniciar nesta bateria",
+                detail="Nenhuma equipe vinculada à bateria para iniciar",
             )
 
         heat.status = HeatStatus.running

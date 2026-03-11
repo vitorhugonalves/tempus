@@ -181,11 +181,17 @@ async def send_invite(
         if comp:
             comp_name = comp.name
 
-    try:
-        await send_competitor_invite(
-            str(payload.email), invite_link, comp_name, current_user.full_name
-        )
-    except Exception:
+    if settings.SMTP_USER:
+        try:
+            await send_competitor_invite(
+                str(payload.email), invite_link, comp_name, current_user.full_name
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Falha ao enviar e-mail de convite: {exc}",
+            )
+    else:
         logger.warning("SMTP não configurado — link de convite: %s", invite_link)
 
     logger.info("Convite criado para %s por user_id=%s", payload.email, current_user.id)

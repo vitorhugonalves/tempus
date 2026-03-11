@@ -9,7 +9,7 @@ const apiClient = axios.create({
 });
 
 // Rotas públicas que não devem ser redirecionadas para /login ao receber 401
-const PUBLIC_PATHS = ["/login", "/reset-password", "/forgot-password", "/register"];
+const PUBLIC_PATHS = ["/login", "/reset-password", "/forgot-password", "/register", "/ranking"];
 
 apiClient.interceptors.response.use(
   (response) => response,

@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from app.models.competition import CompetitionStatus
 
@@ -14,6 +14,14 @@ class CompetitionCreate(BaseModel):
     max_athletes: int = 300
     rules: str | None = None
 
+    @field_validator("event_date")
+    @classmethod
+    def event_date_not_in_past(cls, v: date | None) -> date | None:
+        """Rejeita datas de evento no passado."""
+        if v is not None and v < date.today():
+            raise ValueError("A data do evento não pode ser no passado")
+        return v
+
 
 class CompetitionUpdate(BaseModel):
     name: str | None = None
@@ -24,6 +32,14 @@ class CompetitionUpdate(BaseModel):
     max_athletes: int | None = None
     rules: str | None = None
     status: CompetitionStatus | None = None
+
+    @field_validator("event_date")
+    @classmethod
+    def event_date_not_in_past(cls, v: date | None) -> date | None:
+        """Rejeita datas de evento no passado."""
+        if v is not None and v < date.today():
+            raise ValueError("A data do evento não pode ser no passado")
+        return v
 
 
 class CompetitionResponse(BaseModel):
