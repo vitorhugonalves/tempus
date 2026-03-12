@@ -17,10 +17,19 @@ export const timersApi = {
   stop: (timerId: number, note?: string) =>
     apiClient.post<Timer>(`/api/v1/timers/${timerId}/stop`, { note }).then((r) => r.data),
 
+  pause: (timerId: number, note?: string) =>
+    apiClient.post<Timer>(`/api/v1/timers/${timerId}/pause`, { note }).then((r) => r.data),
+
+  resume: (timerId: number, note?: string) =>
+    apiClient.post<Timer>(`/api/v1/timers/${timerId}/resume`, { note }).then((r) => r.data),
+
   finish: (timerId: number, note?: string) =>
     apiClient.post<Timer>(`/api/v1/timers/${timerId}/finish`, { note }).then((r) => r.data),
 
   restart: (timerId: number, note: string) =>
+    apiClient.post<Timer>(`/api/v1/timers/${timerId}/restart`, { note }).then((r) => r.data),
+
+  reset: (timerId: number, note?: string) =>
     apiClient.post<Timer>(`/api/v1/timers/${timerId}/restart`, { note }).then((r) => r.data),
 
   events: (timerId: number) =>

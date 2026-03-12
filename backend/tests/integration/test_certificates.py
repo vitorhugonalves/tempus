@@ -23,7 +23,6 @@ async def _setup_finished_competition(db: AsyncSession, user_id: int) -> tuple[i
         competition_id=comp.id,
         user_id=user_id,
         status=TimerStatus.finished,
-        elapsed_seconds=3600,
     )
     db.add(timer)
     await db.flush()
@@ -43,8 +42,7 @@ async def _setup_active_competition(db: AsyncSession, user_id: int) -> tuple[int
     timer = Timer(
         competition_id=comp.id,
         user_id=user_id,
-        status=TimerStatus.idle,
-        elapsed_seconds=0,
+        status=TimerStatus.created,
     )
     db.add(timer)
     await db.flush()

@@ -1,8 +1,10 @@
 """Serviço de equipes."""
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.category import Category
 from app.models.team import Team, TeamMember
 from app.repositories.competition import CompetitionRepository
 from app.repositories.team import TeamRepository
@@ -128,6 +130,29 @@ class TeamService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Usuário já é membro desta equipe",
             )
+        # RN-17: um competidor não pode estar em mais de uma equipe na mesma competição
+        existing_in_competition = await TeamRepository.get_member_in_competition(
+            db, team.competition_id, data.user_id
+        )
+        if existing_in_competition:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Usuário já pertence a uma equipe nesta competição",
+            )
+        # Validação de capacidade: respeita max_team_size da categoria
+        category_result = await db.execute(
+            select(Category).where(Category.id == team.category_id)
+        )
+        category = category_result.scalar_one_or_none()
+        if category and category.max_team_size is not None:
+            if len(team.members) >= category.max_team_size:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        f"A equipe já atingiu o limite de {category.max_team_size} "
+                        f"membro(s) para a categoria '{category.name}'"
+                    ),
+                )
         member = TeamMember(team_id=team_id, user_id=data.user_id)
         return await TeamRepository.add_member(db, member)
 

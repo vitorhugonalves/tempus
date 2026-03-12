@@ -17,3 +17,7 @@ export function secondsToDisplay(seconds: number): string {
   }
   return secondsToHMS(seconds);
 }
+
+export function msToDisplay(ms: number): string {
+  return secondsToDisplay(Math.floor(ms / 1000));
+}

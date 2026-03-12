@@ -5,6 +5,8 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_roles
+from app.core.config import settings
+from app.core.redis import get_redis
 from app.db.session import get_db
 from app.models.competition import Competition, CompetitionStatus
 from app.models.user import User
@@ -22,6 +24,11 @@ from app.schemas.team import (
 )
 from app.services.category import CategoryService
 from app.services.heat import HeatService
+from app.services.registration import (
+    CompetitorRegisterRequest,
+    CompetitorRegisterResponse,
+    RegistrationService,
+)
 from app.services.team import TeamService
 
 logger = logging.getLogger(__name__)
@@ -255,6 +262,36 @@ async def delete_category(
     from app.schemas.category import CategoryUpdate as CU
     await CategoryService.update(db, competition_id, category_id, CU(is_active=False))
     logger.info("Categoria desativada: id=%s competition_id=%s", category.id, competition_id)
+
+
+# ── Auto-inscrição do competidor ──────────────────────────────────────────────
+
+
+@router.post(
+    "/competitions/{competition_id}/register",
+    response_model=CompetitorRegisterResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def self_register(
+    competition_id: int,
+    payload: CompetitorRegisterRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CompetitorRegisterResponse:
+    """Auto-inscrição do competidor em uma competição ativa.
+
+    Disponível para qualquer usuário autenticado. Cria a inscrição e a equipe
+    automaticamente. Para categorias de equipe, aceita lista de membros adicionais;
+    contas inexistentes são criadas e um e-mail de boas-vindas é enviado.
+    """
+    login_url = f"{settings.FRONTEND_URL}/login"
+    return await RegistrationService.register(
+        db=db,
+        current_user=current_user,
+        competition_id=competition_id,
+        data=payload,
+        login_url=login_url,
+    )
 
 
 # ── Clonagem de competição (RF-19) ────────────────────────────────────────────
@@ -532,12 +569,13 @@ async def start_heat(
     heat_id: int,
     current_user: User = Depends(require_roles("judge", "operator", "admin")),
     db: AsyncSession = Depends(get_db),
+    redis=Depends(get_redis),
 ) -> HeatResponse:
     """Inicia todos os timers da bateria simultaneamente (Judge/Operator/Admin)."""
     heat = await HeatService.get_or_404(db, heat_id)
     if heat.competition_id != competition_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bateria não encontrada")
-    updated_heat = await HeatService.start_all(db, heat_id, current_user)
+    updated_heat = await HeatService.start_all(db, heat_id, current_user, redis)
     logger.info(
         "Bateria iniciada: id=%s por user_id=%s", heat_id, current_user.id
     )

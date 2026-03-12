@@ -16,6 +16,7 @@ import CompetitionsPage from "./pages/CompetitionsPage";
 import UsersPage from "./pages/UsersPage";
 import TimersPage from "./pages/TimersPage";
 import RankingPage from "./pages/RankingPage";
+import RegistrationPage from "./pages/RegistrationPage";
 import NotFoundPage from "./pages/NotFoundPage";
 
 function AppLoader() {
@@ -82,7 +83,9 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<MainLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/ranking" element={<Navigate to="/competitions" replace />} />
+            <Route path="/ranking" element={<RankingPage />} />
+            <Route path="/inscricao" element={<RegistrationPage />} />
+            <Route path="/competitions/:competitionId/inscricao" element={<RegistrationPage />} />
 
             {/* Timers — judge, operator, admin */}
             <Route

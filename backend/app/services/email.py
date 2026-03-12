@@ -71,6 +71,47 @@ async def send_password_reset(to_email: str, reset_link: str) -> None:
     await _send(to_email, "Redefinição de Senha — Tempus", html)
 
 
+async def send_registration_welcome(
+    to_email: str,
+    full_name: str,
+    competition_name: str,
+    temporary_password: str,
+    login_url: str,
+) -> None:
+    """Envia e-mail de boas-vindas para novo participante criado automaticamente.
+
+    Args:
+        to_email: E-mail do novo usuário.
+        full_name: Nome completo do usuário.
+        competition_name: Nome da competição em que foi inscrito.
+        temporary_password: Senha temporária gerada automaticamente.
+        login_url: URL de login da plataforma.
+    """
+    html = f"""
+    <html><body style="font-family:Arial,sans-serif;max-width:480px;margin:auto">
+    <h2 style="color:#1a1a2e">Bem-vindo ao Tempus, {full_name}!</h2>
+    <p>Você foi inscrito em <strong>{competition_name}</strong>.</p>
+    <p>Sua conta foi criada automaticamente. Use as credenciais abaixo para acessar:</p>
+    <table style="background:#f4f4f8;padding:16px;border-radius:8px;width:100%;margin:16px 0">
+      <tr><td style="color:#555">E-mail:</td><td><strong>{to_email}</strong></td></tr>
+      <tr><td style="color:#555">Senha temporária:</td><td><strong>{temporary_password}</strong></td></tr>
+    </table>
+    <p style="text-align:center;margin:32px 0">
+      <a href="{login_url}"
+         style="background:#4f46e5;color:white;padding:12px 24px;border-radius:6px;
+                text-decoration:none;font-weight:bold">
+        Acessar Plataforma
+      </a>
+    </p>
+    <p style="color:#888;font-size:12px">
+      Recomendamos que você altere sua senha após o primeiro acesso.<br>
+      Link: {login_url}
+    </p>
+    </body></html>
+    """
+    await _send(to_email, f"Bem-vindo à {competition_name} — Tempus", html)
+
+
 async def send_competitor_invite(
     to_email: str,
     invite_link: str,

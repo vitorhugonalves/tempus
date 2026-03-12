@@ -1,10 +1,13 @@
 """Serviço de baterias (heats)."""
 
+import time
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.redis import publish_timer_event, set_timer_state
 from app.models.heat import Heat, HeatStatus
 from app.models.timer import Timer, TimerEvent, TimerEventType, TimerStatus
 from app.models.user import User
@@ -230,7 +233,7 @@ class HeatService:
 
     @staticmethod
     async def start_all(
-        db: AsyncSession, heat_id: int, current_user: User
+        db: AsyncSession, heat_id: int, current_user: User, redis: Redis
     ) -> Heat:
         """Inicia todos os timers da bateria simultaneamente.
 
@@ -291,23 +294,35 @@ class HeatService:
         heat = await HeatService.get_or_404(db, heat_id)
 
         now = _utcnow()
+        now_ms = int(time.time() * 1000)
         started_count = 0
 
         for timer in heat.timers:
-            if timer.status in (TimerStatus.idle, TimerStatus.stopped):
+            if timer.status in (TimerStatus.created, TimerStatus.ready, TimerStatus.paused):
                 timer.status = TimerStatus.running
-                timer.started_at = now
-                timer.stopped_at = None
                 await TimerRepository.add_event(
                     db,
                     TimerEvent(
                         timer_id=timer.id,
-                        event_type=TimerEventType.start,
+                        event_type=TimerEventType.started,
+                        event_at=now,
+                        accumulated_ms=0,
                         triggered_by_id=current_user.id,
                         note=f"Iniciado via bateria '{heat.name}'",
                     ),
                 )
                 await TimerRepository.save(db, timer)
+                await set_timer_state(redis, timer.id, {
+                    "status": "running",
+                    "accumulated_ms": 0,
+                    "started_at_ms": now_ms,
+                })
+                await publish_timer_event(redis, heat.competition_id, {
+                    "event_type": "started",
+                    "timer_id": timer.id,
+                    "accumulated_ms": 0,
+                    "started_at_ms": now_ms,
+                })
                 started_count += 1
 
         if started_count == 0 and not heat.heat_teams and not heat.timers:

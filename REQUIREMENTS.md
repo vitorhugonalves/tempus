@@ -1,7 +1,7 @@
 # REQUIREMENTS.md — Tempus
 
 > Documento de Requisitos do Projeto
-> Versão: 1.2.0 | Data: 2026-03-10
+> Versão: 1.3.3 | Data: 2026-03-12
 
 ---
 
@@ -81,11 +81,12 @@ Organizadores de eventos e competições esportivas com até **300 atletas por e
 
 #### 3.2.2 Competidores
 
-- **RF-11:** 🔲 Cadastro individual de competidor (nome, e-mail, documento, categoria)
-- **RF-12:** 🔲 Cadastro em grupo/equipe com vínculo entre membros
+- **RF-11:** ✅ Cadastro individual de competidor via página de inscrição (nome, e-mail, documento, categoria)
+- **RF-12:** ✅ Cadastro em grupo/equipe via página de inscrição — capitão + membros adicionais; contas inexistentes criadas automaticamente com e-mail de boas-vindas
 - **RF-13:** ✅ Envio de e-mail de convite com link para auto-cadastro
 - **RF-14:** 🔲 Edição de dados pelo próprio competidor ou por Operador
 - **RF-15:** ✅ Associação de competidor a uma ou mais categorias (modelo CompetitorRegistration)
+- **RF-71:** ✅ Limite de membros por equipe respeitado ao adicionar via painel (Operador) e via inscrição própria — erro 409 quando `max_team_size` da categoria é atingido
 
 #### 3.2.3 Modalidades
 
@@ -117,8 +118,9 @@ Organizadores de eventos e competições esportivas com até **300 atletas por e
 - **RF-55:** ✅ Listagem pública de equipes por competição
 - **RF-56:** ✅ Listagem pública de membros por equipe
 - **RF-66:** ✅ Interface para associar atletas (membros) a equipes no painel de gestão de competição
-- **RF-67:** ✅ Competidor pode visualizar suas equipes no perfil/dashboard
+- **RF-67:** ✅ Competidor visualiza apenas equipes de **competições ativas** no dashboard ("Minhas Equipes"); cada equipe exibe o nome da competição com link para o ranking
 - **RF-68:** ✅ Capitão pode renomear a própria equipe pelo dashboard (endpoint `PATCH /users/me/teams/{id}`)
+- **RF-70:** ✅ Um competidor não pode ser adicionado a mais de uma equipe na mesma competição (RN-17)
 
 #### 3.2.7 Baterias (Heats)
 
@@ -136,10 +138,17 @@ Organizadores de eventos e competições esportivas com até **300 atletas por e
 
 - **RF-26:** ✅ Criar timer e associá-lo a um atleta, equipe e competição
 - **RF-27:** ✅ Iniciar timer (Judge, Operador, Admin)
-- **RF-28:** ✅ Pausar/parar/finalizar timer (Judge, Operador, Admin)
+- **RF-28:** ✅ Iniciar individualmente, pausar, retomar e finalizar timer (Judge, Operador, Admin)
+  - Iniciar individual: botão "▶ Iniciar" no card quando `status === created | ready` (útil após reset)
+  - Pausar: `running → paused` — congela o tempo acumulado no Redis e publica evento
+  - Retomar: `paused → running` — reinicia contagem a partir do tempo acumulado e publica evento
+  - Finalizar: `running/paused → finished` — persiste resultado oficial imutável
 - **RF-29:** ✅ Reiniciar timer com registro de motivo obrigatório
-- **RF-30:** ✅ Visualização em tempo real do timer (acesso público, elapsed calculado on-the-fly)
-- **RF-31:** ✅ Histórico de eventos do timer (start, stop, restart, finish) com timestamp e usuário
+- **RF-30:** ✅ Visualização em tempo real do timer via WebSocket (acesso público)
+  - Contador ao vivo no frontend usa `requestAnimationFrame` + `started_at_ms` (epoch ms)
+  - `started_at_ms` é incluído na resposta REST e na mensagem `init` do WebSocket quando o timer está `running`
+  - Eventos WebSocket (`started`, `paused`, `resumed`, etc.) propagam o estado sem necessidade de reload
+- **RF-31:** ✅ Histórico de eventos do timer (start, pause, resume, reset, finish) com timestamp e usuário
 
 ### 3.4 Penalidades
 
@@ -154,6 +163,7 @@ Organizadores de eventos e competições esportivas com até **300 atletas por e
 - **RF-37:** ✅ Tempo final = tempo cronometrado + penalidades acumuladas
 - **RF-38:** ✅ Filtro de ranking por category_id
 - **RF-39:** ✅ Exibição pública do ranking sem necessidade de login
+- **RF-69:** ✅ Rota `/ranking` exibe seletor de competição para o usuário autenticado escolher qual ranking visualizar; ao selecionar, navega para `/competitions/{id}/ranking`
 - **RF-63:** ✅ Ranking exibe nome do time/equipe quando aplicável
 - **RF-64:** ✅ Ranking exibe quantidade de infrações (penalidades) por competidor
 - **RF-65:** ✅ Ranking exibe tempo restante (`remaining_seconds`) para competições com duração configurada
@@ -222,6 +232,7 @@ Organizadores de eventos e competições esportivas com até **300 atletas por e
 - **RN-14:** Link de convite pode incluir uma equipe de destino; ao registrar, o competidor é automaticamente adicionado como membro
 - **RN-15:** Para categoria individual sem equipe no convite, uma equipe solo é criada automaticamente com o e-mail do atleta como nome
 - **RN-16:** Apenas o capitão pode renomear a equipe
+- **RN-17:** Um competidor não pode pertencer a mais de uma equipe na mesma competição
 
 ---
 

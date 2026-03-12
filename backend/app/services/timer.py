@@ -1,20 +1,64 @@
 """Serviço de timers, penalidades e ranking (RF-26 a RF-39)."""
 
+import time
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.redis import (
+    delete_timer_state,
+    get_timer_state,
+    publish_timer_event,
+    set_timer_state,
+    timer_lock,
+)
 from app.models.competition import CompetitionStatus
-from app.models.timer import Penalty, PenaltyType, Timer, TimerEvent, TimerEventType, TimerStatus
+from app.models.timer import (
+    VALID_TRANSITIONS,
+    OfficialResult,
+    Penalty,
+    PenaltyType,
+    Timer,
+    TimerEvent,
+    TimerEventType,
+    TimerStatus,
+)
 from app.models.user import User
 from app.repositories.competition import CompetitionRepository
-from app.repositories.timer import PenaltyTypeRepository, TimerRepository
-from app.schemas.timer import PenaltyApply, PenaltyTypeCreate, RankingEntry, TimerCreate
+from app.repositories.timer import OfficialResultRepository, PenaltyTypeRepository, TimerRepository
+from app.schemas.timer import (
+    PenaltyApply,
+    PenaltyTypeCreate,
+    RankingEntry,
+    TimerCreate,
+    _compute_accumulated_ms,
+)
 
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _validate_transition(timer: Timer, target: TimerStatus) -> None:
+    """Valida transição de estado, lançando 409 em caso de transição inválida.
+
+    Args:
+        timer: Timer atual.
+        target: Estado destino.
+
+    Raises:
+        HTTPException 409: Transição inválida.
+    """
+    if target not in VALID_TRANSITIONS.get(timer.status, set()):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Transição inválida: {timer.status.value} → {target.value}. "
+                f"Permitidas: {[s.value for s in VALID_TRANSITIONS.get(timer.status, set())]}"
+            ),
+        )
 
 
 class TimerService:
@@ -30,7 +74,7 @@ class TimerService:
             current_user: Usuário autenticado.
 
         Returns:
-            Timer criado.
+            Timer criado com status `created`.
 
         Raises:
             HTTPException 404: Competição não encontrada.
@@ -43,7 +87,6 @@ class TimerService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Competição não encontrada")
 
         # Verifica duplicata
-        from sqlalchemy.ext.asyncio import AsyncSession as _AS
         query = select(Timer).where(Timer.competition_id == data.competition_id)
         if data.user_id:
             query = query.where(Timer.user_id == data.user_id)
@@ -65,190 +108,432 @@ class TimerService:
         return await TimerRepository.create(db, timer)
 
     @staticmethod
-    async def start(
+    async def mark_ready(
         db: AsyncSession, timer_id: int, note: str | None, current_user: User
+    ) -> Timer:
+        """Marca o timer como pronto para iniciar (created → ready).
+
+        Usado para preparar timers em lote antes da largada, por exemplo,
+        colocando todos os atletas de uma bateria em estado 'ready' antes
+        de acionar start_all.
+
+        Args:
+            db: Sessão assíncrona.
+            timer_id: ID do timer.
+            note: Observação opcional.
+            current_user: Usuário autenticado.
+
+        Returns:
+            Timer com status `ready`.
+
+        Raises:
+            HTTPException 404: Timer não encontrado.
+            HTTPException 409: Transição inválida.
+        """
+        timer = await TimerRepository.get_by_id(db, timer_id)
+        if not timer:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Timer não encontrado")
+
+        _validate_transition(timer, TimerStatus.ready)
+        timer.status = TimerStatus.ready
+
+        await TimerRepository.add_event(
+            db,
+            TimerEvent(
+                timer_id=timer.id,
+                event_type=TimerEventType.ready,
+                event_at=_utcnow(),
+                accumulated_ms=0,
+                triggered_by_id=current_user.id,
+                note=note,
+            ),
+        )
+        return await TimerRepository.save(db, timer)
+
+    @staticmethod
+    async def start(
+        db: AsyncSession, timer_id: int, note: str | None, current_user: User, redis: Redis
     ) -> Timer:
         """Inicia o timer (RF-27).
 
+        Aceita status `created` ou `ready` → `running`.
+        RN-01: a competição deve estar ativa.
+        Usa lock distribuído Redis para evitar race conditions.
+
         Args:
             db: Sessão assíncrona.
             timer_id: ID do timer.
             note: Observação opcional.
             current_user: Usuário autenticado.
+            redis: Conexão Redis.
 
         Returns:
-            Timer atualizado.
+            Timer com status `running`.
 
         Raises:
+            HTTPException 403: Competição não ativa (RN-01).
             HTTPException 404: Timer não encontrado.
-            HTTPException 409: Timer já está rodando ou finalizado.
-            HTTPException 403: Competição não está ativa (RN-01).
+            HTTPException 409: Transição inválida.
         """
-        timer = await TimerRepository.get_by_id(db, timer_id)
-        if not timer:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Timer não encontrado")
+        async with timer_lock(redis, timer_id):
+            timer = await TimerRepository.get_by_id(db, timer_id)
+            if not timer:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Timer não encontrado")
 
-        # RN-01: competição deve estar ativa
-        competition = await CompetitionRepository.get_by_id(db, timer.competition_id)
-        if not competition or competition.status != CompetitionStatus.active:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="O timer só pode ser iniciado com a competição ativa (RN-01)",
+            # RN-01: competição deve estar ativa
+            competition = await CompetitionRepository.get_by_id(db, timer.competition_id)
+            if not competition or competition.status != CompetitionStatus.active:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="O timer só pode ser iniciado com a competição ativa (RN-01)",
+                )
+
+            _validate_transition(timer, TimerStatus.running)
+
+            # accumulated_ms baseline: do último evento de pausa (0 se nunca pausou)
+            accumulated_ms = _compute_accumulated_ms_from_stopped_state(timer)
+            now = _utcnow()
+            now_ms = int(time.time() * 1000)
+
+            timer.status = TimerStatus.running
+            await TimerRepository.add_event(
+                db,
+                TimerEvent(
+                    timer_id=timer.id,
+                    event_type=TimerEventType.started,
+                    event_at=now,
+                    accumulated_ms=accumulated_ms,
+                    triggered_by_id=current_user.id,
+                    note=note,
+                ),
             )
+            saved = await TimerRepository.save(db, timer)
 
-        if timer.status == TimerStatus.running:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Timer já está em execução")
-        if timer.status == TimerStatus.finished:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Timer já finalizado")
-
-        timer.status = TimerStatus.running
-        timer.started_at = _utcnow()
-        timer.stopped_at = None
-
-        await TimerRepository.add_event(
-            db,
-            TimerEvent(
-                timer_id=timer.id,
-                event_type=TimerEventType.start,
-                triggered_by_id=current_user.id,
-                note=note,
-            ),
-        )
-        return await TimerRepository.save(db, timer)
+            # Escreve estado quente no Redis para leitura sub-segundo
+            await set_timer_state(redis, timer_id, {
+                "status": "running",
+                "accumulated_ms": accumulated_ms,
+                "started_at_ms": now_ms,
+            })
+            await publish_timer_event(redis, timer.competition_id, {
+                "event_type": "started",
+                "timer_id": timer_id,
+                "accumulated_ms": accumulated_ms,
+                "started_at_ms": now_ms,
+            })
+            return saved
 
     @staticmethod
-    async def stop(
-        db: AsyncSession, timer_id: int, note: str | None, current_user: User
+    async def pause(
+        db: AsyncSession, timer_id: int, note: str | None, current_user: User, redis: Redis
     ) -> Timer:
-        """Para o timer (RF-28).
+        """Pausa o timer (running → paused).
+
+        Lê o accumulated_ms preciso do Redis antes de remover o estado quente.
 
         Args:
             db: Sessão assíncrona.
             timer_id: ID do timer.
             note: Observação opcional.
             current_user: Usuário autenticado.
+            redis: Conexão Redis.
 
         Returns:
-            Timer atualizado.
+            Timer com status `paused`.
 
         Raises:
             HTTPException 404: Timer não encontrado.
-            HTTPException 409: Timer não está em execução.
+            HTTPException 409: Transição inválida.
         """
-        timer = await TimerRepository.get_by_id(db, timer_id)
-        if not timer:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Timer não encontrado")
-        if timer.status != TimerStatus.running:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Timer não está em execução")
+        async with timer_lock(redis, timer_id):
+            timer = await TimerRepository.get_by_id(db, timer_id)
+            if not timer:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Timer não encontrado")
 
-        now = _utcnow()
-        if timer.started_at:
-            started = timer.started_at.replace(tzinfo=None) if timer.started_at.tzinfo else timer.started_at
-            timer.elapsed_seconds += int((now - started).total_seconds())
+            _validate_transition(timer, TimerStatus.paused)
 
-        timer.status = TimerStatus.stopped
-        timer.stopped_at = now
+            # Lê accumulated_ms do Redis para precisão sub-segundo; fallback para eventos DB
+            redis_state = await get_timer_state(redis, timer_id)
+            if redis_state:
+                now_ms = int(time.time() * 1000)
+                accumulated_ms = redis_state["accumulated_ms"] + (now_ms - redis_state["started_at_ms"])
+            else:
+                accumulated_ms = _compute_accumulated_ms(timer)
+            now = _utcnow()
 
-        await TimerRepository.add_event(
-            db,
-            TimerEvent(
-                timer_id=timer.id,
-                event_type=TimerEventType.stop,
-                triggered_by_id=current_user.id,
-                note=note,
-            ),
-        )
-        return await TimerRepository.save(db, timer)
+            timer.status = TimerStatus.paused
+            await TimerRepository.add_event(
+                db,
+                TimerEvent(
+                    timer_id=timer.id,
+                    event_type=TimerEventType.paused,
+                    event_at=now,
+                    accumulated_ms=accumulated_ms,
+                    triggered_by_id=current_user.id,
+                    note=note,
+                ),
+            )
+            saved = await TimerRepository.save(db, timer)
+
+            # Remove estado quente do Redis (timer não está mais rodando)
+            await delete_timer_state(redis, timer_id)
+            await publish_timer_event(redis, timer.competition_id, {
+                "event_type": "paused",
+                "timer_id": timer_id,
+                "accumulated_ms": accumulated_ms,
+            })
+            return saved
+
+    @staticmethod
+    async def resume(
+        db: AsyncSession, timer_id: int, note: str | None, current_user: User, redis: Redis
+    ) -> Timer:
+        """Retoma o timer após pausa (paused → running).
+
+        Args:
+            db: Sessão assíncrona.
+            timer_id: ID do timer.
+            note: Observação opcional.
+            current_user: Usuário autenticado.
+            redis: Conexão Redis.
+
+        Returns:
+            Timer com status `running`.
+
+        Raises:
+            HTTPException 404: Timer não encontrado.
+            HTTPException 409: Transição inválida.
+        """
+        async with timer_lock(redis, timer_id):
+            timer = await TimerRepository.get_by_id(db, timer_id)
+            if not timer:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Timer não encontrado")
+
+            _validate_transition(timer, TimerStatus.running)
+
+            accumulated_ms = _compute_accumulated_ms_from_stopped_state(timer)
+            now = _utcnow()
+            now_ms = int(time.time() * 1000)
+
+            timer.status = TimerStatus.running
+            await TimerRepository.add_event(
+                db,
+                TimerEvent(
+                    timer_id=timer.id,
+                    event_type=TimerEventType.resumed,
+                    event_at=now,
+                    accumulated_ms=accumulated_ms,
+                    triggered_by_id=current_user.id,
+                    note=note,
+                ),
+            )
+            saved = await TimerRepository.save(db, timer)
+
+            await set_timer_state(redis, timer_id, {
+                "status": "running",
+                "accumulated_ms": accumulated_ms,
+                "started_at_ms": now_ms,
+            })
+            await publish_timer_event(redis, timer.competition_id, {
+                "event_type": "resumed",
+                "timer_id": timer_id,
+                "accumulated_ms": accumulated_ms,
+                "started_at_ms": now_ms,
+            })
+            return saved
 
     @staticmethod
     async def finish(
-        db: AsyncSession, timer_id: int, note: str | None, current_user: User
+        db: AsyncSession, timer_id: int, note: str | None, current_user: User, redis: Redis
     ) -> Timer:
-        """Finaliza o timer, marcando o tempo definitivo (RF-28, RN-04).
+        """Finaliza o timer com resultado oficial imediato (RF-28, RN-04).
+
+        Lê o accumulated_ms preciso do Redis, persiste o evento `finished` e
+        cria um registro em `official_results` automaticamente.
 
         Args:
             db: Sessão assíncrona.
             timer_id: ID do timer.
             note: Observação opcional.
             current_user: Usuário autenticado.
+            redis: Conexão Redis.
 
         Returns:
-            Timer finalizado.
+            Timer com status `finished`.
+
+        Raises:
+            HTTPException 404: Timer não encontrado.
+            HTTPException 409: Transição inválida.
         """
-        timer = await TimerRepository.get_by_id(db, timer_id)
-        if not timer:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Timer não encontrado")
-        if timer.status == TimerStatus.finished:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Timer já finalizado")
+        async with timer_lock(redis, timer_id):
+            timer = await TimerRepository.get_by_id(db, timer_id)
+            if not timer:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Timer não encontrado")
 
-        now = _utcnow()
-        if timer.status == TimerStatus.running and timer.started_at:
-            started = timer.started_at.replace(tzinfo=None) if timer.started_at.tzinfo else timer.started_at
-            timer.elapsed_seconds += int((now - started).total_seconds())
+            _validate_transition(timer, TimerStatus.finished)
 
-        timer.status = TimerStatus.finished
-        timer.stopped_at = now
+            # Lê ms preciso do Redis; fallback para cálculo por eventos
+            redis_state = await get_timer_state(redis, timer_id)
+            if redis_state:
+                now_ms = int(time.time() * 1000)
+                accumulated_ms = redis_state["accumulated_ms"] + (now_ms - redis_state["started_at_ms"])
+            else:
+                accumulated_ms = _compute_accumulated_ms(timer)
+            now = _utcnow()
 
-        await TimerRepository.add_event(
-            db,
-            TimerEvent(
-                timer_id=timer.id,
-                event_type=TimerEventType.finish,
-                triggered_by_id=current_user.id,
-                note=note,
-            ),
-        )
-        return await TimerRepository.save(db, timer)
+            timer.status = TimerStatus.finished
+            await TimerRepository.add_event(
+                db,
+                TimerEvent(
+                    timer_id=timer.id,
+                    event_type=TimerEventType.finished,
+                    event_at=now,
+                    accumulated_ms=accumulated_ms,
+                    triggered_by_id=current_user.id,
+                    note=note,
+                ),
+            )
+            saved = await TimerRepository.save(db, timer)
+
+            # Cria resultado oficial automaticamente (sem fluxo de aprovação)
+            await OfficialResultRepository.create(
+                db,
+                OfficialResult(
+                    timer_id=timer_id,
+                    final_time_ms=accumulated_ms,
+                    finished_by_user_id=current_user.id,
+                    finished_at=now,
+                ),
+            )
+
+            # Remove estado quente do Redis
+            await delete_timer_state(redis, timer_id)
+            await publish_timer_event(redis, timer.competition_id, {
+                "event_type": "finished",
+                "timer_id": timer_id,
+                "accumulated_ms": accumulated_ms,
+            })
+            return saved
 
     @staticmethod
-    async def restart(
-        db: AsyncSession, timer_id: int, note: str | None, current_user: User
+    async def cancel(
+        db: AsyncSession, timer_id: int, note: str | None, current_user: User, redis: Redis
     ) -> Timer:
-        """Reinicia o timer zerando o tempo acumulado (RF-29).
+        """Cancela o timer antes de iniciar (created/ready → cancelled).
 
         Args:
             db: Sessão assíncrona.
             timer_id: ID do timer.
-            note: Motivo do reinício (obrigatório por RF-29).
+            note: Observação opcional.
             current_user: Usuário autenticado.
+            redis: Conexão Redis.
 
         Returns:
-            Timer reiniciado.
+            Timer com status `cancelled`.
+
+        Raises:
+            HTTPException 404: Timer não encontrado.
+            HTTPException 409: Transição inválida.
         """
-        timer = await TimerRepository.get_by_id(db, timer_id)
-        if not timer:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Timer não encontrado")
-        if not note:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="O motivo do reinício é obrigatório (RF-29)",
+        async with timer_lock(redis, timer_id):
+            timer = await TimerRepository.get_by_id(db, timer_id)
+            if not timer:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Timer não encontrado")
+
+            _validate_transition(timer, TimerStatus.cancelled)
+
+            now = _utcnow()
+            timer.status = TimerStatus.cancelled
+            await TimerRepository.add_event(
+                db,
+                TimerEvent(
+                    timer_id=timer.id,
+                    event_type=TimerEventType.cancelled,
+                    event_at=now,
+                    accumulated_ms=0,
+                    triggered_by_id=current_user.id,
+                    note=note,
+                ),
             )
-        if timer.status == TimerStatus.finished:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Timer já finalizado")
+            saved = await TimerRepository.save(db, timer)
+            await delete_timer_state(redis, timer_id)
+            await publish_timer_event(redis, timer.competition_id, {
+                "event_type": "cancelled",
+                "timer_id": timer_id,
+            })
+            return saved
 
-        # RN-01: competição deve estar ativa
-        competition = await CompetitionRepository.get_by_id(db, timer.competition_id)
-        if not competition or competition.status != CompetitionStatus.active:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Competição não está ativa",
+    @staticmethod
+    async def reset(
+        db: AsyncSession, timer_id: int, note: str | None, current_user: User, redis: Redis
+    ) -> Timer:
+        """Reinicia o timer zerando o tempo acumulado (RF-29).
+
+        O timer volta ao estado `created`. Motivo é obrigatório por RF-29.
+        RN-01: competição deve estar ativa.
+
+        Args:
+            db: Sessão assíncrona.
+            timer_id: ID do timer.
+            note: Motivo do reinício (obrigatório).
+            current_user: Usuário autenticado.
+            redis: Conexão Redis.
+
+        Returns:
+            Timer com status `created` e accumulated_ms zerado.
+
+        Raises:
+            HTTPException 403: Competição não ativa.
+            HTTPException 404: Timer não encontrado.
+            HTTPException 409: Timer já finalizado.
+            HTTPException 422: Motivo não informado.
+        """
+        async with timer_lock(redis, timer_id):
+            timer = await TimerRepository.get_by_id(db, timer_id)
+            if not timer:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Timer não encontrado")
+            if not note:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="O motivo do reinício é obrigatório (RF-29)",
+                )
+            if timer.status in (TimerStatus.finished, TimerStatus.cancelled):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Timer {timer.status.value} não pode ser reiniciado",
+                )
+
+            # RN-01: competição deve estar ativa
+            competition = await CompetitionRepository.get_by_id(db, timer.competition_id)
+            if not competition or competition.status != CompetitionStatus.active:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Competição não está ativa",
+                )
+
+            timer.status = TimerStatus.created
+            await TimerRepository.add_event(
+                db,
+                TimerEvent(
+                    timer_id=timer.id,
+                    event_type=TimerEventType.reset,
+                    event_at=_utcnow(),
+                    accumulated_ms=0,
+                    triggered_by_id=current_user.id,
+                    note=note,
+                ),
             )
+            saved = await TimerRepository.save(db, timer)
+            await delete_timer_state(redis, timer_id)
+            await publish_timer_event(redis, timer.competition_id, {
+                "event_type": "reset",
+                "timer_id": timer_id,
+            })
+            return saved
 
-        timer.elapsed_seconds = 0
-        timer.status = TimerStatus.idle
-        timer.started_at = None
-        timer.stopped_at = None
-
-        await TimerRepository.add_event(
-            db,
-            TimerEvent(
-                timer_id=timer.id,
-                event_type=TimerEventType.restart,
-                triggered_by_id=current_user.id,
-                note=note,
-            ),
-        )
-        return await TimerRepository.save(db, timer)
+    # Manter backward compat: stop → pause, restart → reset
+    stop = pause  # type: ignore[assignment]
+    restart = reset  # type: ignore[assignment]
 
     @staticmethod
     async def get_or_404(db: AsyncSession, timer_id: int) -> Timer:
@@ -268,6 +553,25 @@ class TimerService:
         if not timer:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Timer não encontrado")
         return timer
+
+
+def _compute_accumulated_ms_from_stopped_state(timer: Timer) -> int:
+    """Retorna accumulated_ms do último evento de estado parado (paused/reset).
+
+    Usado ao iniciar ou retomar: garante que o accumulated_ms do novo evento
+    `started`/`resumed` começa do ponto correto.
+
+    Args:
+        timer: Timer com events carregados.
+
+    Returns:
+        Tempo acumulado em ms (0 se nunca pausou).
+    """
+    events = sorted(timer.events, key=lambda e: e.id)
+    for event in reversed(events):
+        if event.event_type in (TimerEventType.paused, TimerEventType.reset):
+            return event.accumulated_ms
+    return 0
 
 
 class PenaltyService:
@@ -317,13 +621,13 @@ class PenaltyService:
 
         Raises:
             HTTPException 404: Timer ou tipo de penalidade não encontrado.
-            HTTPException 409: Timer finalizado — competição encerrada, RN-04.
+            HTTPException 409: Competição encerrada (RN-04).
         """
         timer = await TimerRepository.get_by_id(db, timer_id)
         if not timer:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Timer não encontrado")
 
-        # RN-04: tempo final imutável após encerramento
+        # RN-04: tempo final imutável após encerramento da competição
         competition = await CompetitionRepository.get_by_id(db, timer.competition_id)
         if competition and competition.status == CompetitionStatus.finished:
             raise HTTPException(
@@ -351,6 +655,7 @@ class PenaltyService:
         # Carrega relacionamento para response
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
+
         result = await db.execute(
             select(Penalty)
             .options(selectinload(Penalty.penalty_type))
@@ -370,10 +675,10 @@ class RankingService:
     ) -> list[RankingEntry]:
         """Retorna ranking ordenado pelo tempo final (RF-36, RF-37).
 
-        Tempo final = elapsed_seconds + total de penalidades.
-        Apenas timers com status finished ou stopped entram no ranking principal;
-        timers running aparecem no final para visualização ao vivo.
-        remaining_seconds = duration_seconds - elapsed (se configurado e > 0).
+        Tempo final = accumulated_ms // 1000 + total de penalidades.
+        Apenas timers `finished` entram no ranking principal;
+        timers `running` e `paused` aparecem depois para visualização ao vivo.
+        remaining_seconds = duration_seconds - elapsed (se configurado).
 
         Args:
             db: Sessão assíncrona.
@@ -383,8 +688,6 @@ class RankingService:
         Returns:
             Lista de RankingEntry ordenada por final_seconds.
         """
-        from datetime import timezone
-
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
 
@@ -397,6 +700,7 @@ class RankingService:
                 selectinload(Timer.user),
                 selectinload(Timer.team),
                 selectinload(Timer.category),
+                selectinload(Timer.events),
             )
             .where(Timer.competition_id == competition_id)
         )
@@ -406,7 +710,6 @@ class RankingService:
         result = await db.execute(query)
         timers = list(result.scalars().all())
 
-        # Duração configurada na competição (para calcular remaining_seconds)
         comp_result = await db.execute(
             select(Competition).where(Competition.id == competition_id)
         )
@@ -416,13 +719,9 @@ class RankingService:
         entries: list[RankingEntry] = []
         for timer in timers:
             penalty_seconds = sum(p.seconds_added for p in timer.penalties)
-            elapsed = timer.elapsed_seconds
-            if timer.status == TimerStatus.running and timer.started_at:
-                now = datetime.now(timezone.utc).replace(tzinfo=None)
-                started = timer.started_at.replace(tzinfo=None) if timer.started_at.tzinfo else timer.started_at
-                elapsed += int((now - started).total_seconds())
+            accumulated_ms = _compute_accumulated_ms(timer)
+            elapsed_seconds = accumulated_ms // 1000
 
-            # Nome do atleta individual
             if timer.user:
                 athlete_name = timer.user.full_name
             elif timer.team:
@@ -430,50 +729,54 @@ class RankingService:
             else:
                 athlete_name = f"Timer #{timer.id}"
 
-            # Nome da equipe (preenchido mesmo em timers individuais para consistência)
             team_name = timer.team.name if timer.team else None
             category_name = timer.category.name if timer.category else None
             infractions_count = len(timer.penalties)
 
-            # Tempo restante: só calculado se duração configurada e timer ativo
             remaining: int | None = None
-            if duration_seconds and timer.status in (TimerStatus.running, TimerStatus.idle):
-                remaining = max(0, duration_seconds - elapsed)
+            if duration_seconds and timer.status in (
+                TimerStatus.running, TimerStatus.created, TimerStatus.ready
+            ):
+                remaining = max(0, duration_seconds - elapsed_seconds)
 
             entries.append(
                 RankingEntry(
-                    position=0,  # será preenchido após ordenação
+                    position=0,
                     timer_id=timer.id,
                     user_id=timer.user_id,
                     team_id=timer.team_id,
                     athlete_name=athlete_name,
                     team_name=team_name,
                     category_name=category_name,
-                    elapsed_seconds=elapsed,
+                    accumulated_ms=accumulated_ms,
+                    elapsed_seconds=elapsed_seconds,
                     total_penalty_seconds=penalty_seconds,
-                    final_seconds=elapsed + penalty_seconds,
+                    final_seconds=elapsed_seconds + penalty_seconds,
                     infractions_count=infractions_count,
                     remaining_seconds=remaining,
                     status=timer.status,
                 )
             )
 
-        # Ordenar: finished/stopped primeiro (por final_seconds), running depois, idle por último
+        # Ordenar: finished primeiro (por final_seconds), paused, running, ready, created
+        _order = {
+            TimerStatus.finished: 0,
+            TimerStatus.paused: 1,
+            TimerStatus.running: 2,
+            TimerStatus.ready: 3,
+            TimerStatus.created: 4,
+            TimerStatus.cancelled: 5,
+        }
+
         def sort_key(e: RankingEntry) -> tuple:
-            order = {
-                TimerStatus.finished: 0,
-                TimerStatus.stopped: 1,
-                TimerStatus.running: 2,
-                TimerStatus.idle: 3,
-            }
-            return (order.get(e.status, 9), e.final_seconds)
+            return (_order.get(e.status, 9), e.final_seconds)
 
         entries.sort(key=sort_key)
 
-        # Atribuir posições (apenas finished/stopped recebem posição numerada)
+        # Posições (apenas timers finalizados recebem posição numerada)
         pos = 1
         for entry in entries:
-            if entry.status in (TimerStatus.finished, TimerStatus.stopped):
+            if entry.status == TimerStatus.finished:
                 entry.position = pos
                 pos += 1
 

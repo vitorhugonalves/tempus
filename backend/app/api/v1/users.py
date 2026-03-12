@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import get_current_user, require_roles
 from app.core.security import hash_password
 from app.db.session import get_db
+from app.models.competition import Competition, CompetitionStatus
 from app.models.team import Team, TeamMember
 from app.models.user import User
 from app.repositories.user import UserRepository
@@ -167,6 +168,7 @@ class CompetitorTeamInfo(BaseModel):
     team_id: int
     team_name: str
     competition_id: int
+    competition_name: str
     category_id: int
     is_captain: bool
 
@@ -182,14 +184,21 @@ async def get_my_teams(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[CompetitorTeamInfo]:
-    """Retorna as equipes em que o usuário autenticado é membro.
+    """Retorna as equipes em que o usuário autenticado é membro em competições ativas.
 
-    Disponível para todos os perfis.
+    Disponível para todos os perfis. Filtra apenas competições com status `active`.
     """
     result = await db.execute(
         select(TeamMember)
-        .options(selectinload(TeamMember.team))
-        .where(TeamMember.user_id == current_user.id)
+        .join(Team, TeamMember.team_id == Team.id)
+        .join(Competition, Team.competition_id == Competition.id)
+        .options(
+            selectinload(TeamMember.team).selectinload(Team.competition)
+        )
+        .where(
+            TeamMember.user_id == current_user.id,
+            Competition.status == CompetitionStatus.active,
+        )
     )
     memberships = result.scalars().all()
     return [
@@ -197,6 +206,7 @@ async def get_my_teams(
             team_id=m.team_id,
             team_name=m.team.name,
             competition_id=m.team.competition_id,
+            competition_name=m.team.competition.name,
             category_id=m.team.category_id,
             is_captain=m.team.captain_id == current_user.id,
         )
@@ -218,7 +228,7 @@ async def update_my_team_name(
     # Verifica que o usuário é membro da equipe
     member_result = await db.execute(
         select(TeamMember)
-        .options(selectinload(TeamMember.team))
+        .options(selectinload(TeamMember.team).selectinload(Team.competition))
         .where(TeamMember.team_id == team_id, TeamMember.user_id == current_user.id)
     )
     membership = member_result.scalar_one_or_none()
@@ -235,15 +245,17 @@ async def update_my_team_name(
             detail="Apenas o capitão pode renomear a equipe",
         )
 
+    # Captura antes do flush para evitar lazy-load após refresh
+    competition_name = team.competition.name
     team.name = payload.name
     await db.flush()
-    await db.refresh(team)
     logger.info("Equipe %s renomeada para '%s' pelo capitão user_id=%s", team_id, payload.name, current_user.id)
 
     return CompetitorTeamInfo(
         team_id=team.id,
-        team_name=team.name,
+        team_name=payload.name,
         competition_id=team.competition_id,
+        competition_name=competition_name,
         category_id=team.category_id,
         is_captain=True,
     )

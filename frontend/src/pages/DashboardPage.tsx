@@ -19,6 +19,7 @@ interface MyTeamInfo {
   team_id: number;
   team_name: string;
   competition_id: number;
+  competition_name: string;
   category_id: number;
   is_captain: boolean;
 }
@@ -193,6 +194,14 @@ export default function DashboardPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-gray-900">{t.team_name}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          <Link
+                            to={`/competitions/${t.competition_id}/ranking`}
+                            className="hover:text-primary-600 hover:underline"
+                          >
+                            {t.competition_name}
+                          </Link>
+                        </p>
                         {t.is_captain && (
                           <span className="text-xs text-primary-600 font-medium">Capitão</span>
                         )}

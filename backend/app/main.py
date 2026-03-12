@@ -1,19 +1,33 @@
 import logging
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from app.api.v1 import auth, competitions, judges, modalities, reports, timers, users
+from app.api.v1 import auth, competitions, judges, modalities, reports, timers, users, websocket
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.core.logging_config import setup_logging
+from app.core.redis import close_redis_pool, get_redis_pool
 
 setup_logging(settings.APP_ENV)
 logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Ciclo de vida da aplicação — inicializa e encerra recursos."""
+    # Startup
+    logger.info("Inicializando conexão Redis em %s...", settings.REDIS_URL)
+    await get_redis_pool()
+    logger.info("Redis conectado.")
+    yield
+    # Shutdown
+    await close_redis_pool()
+
 
 app = FastAPI(
     title="Tempus API",
@@ -21,6 +35,7 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 app.state.limiter = limiter
@@ -48,6 +63,7 @@ app.include_router(competitions.router, prefix="/api/v1", tags=["competitions"])
 app.include_router(timers.router, prefix="/api/v1", tags=["timers"])
 app.include_router(judges.router, prefix="/api/v1", tags=["judges"])
 app.include_router(reports.router, prefix="/api/v1", tags=["reports"])
+app.include_router(websocket.router, tags=["websocket"])
 
 
 @app.get("/health", tags=["health"])

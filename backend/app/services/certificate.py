@@ -60,15 +60,21 @@ async def _get_athlete_result(
 
     result_timer = await db.execute(
         select(Timer)
-        .options(selectinload(Timer.penalties).selectinload(Penalty.penalty_type), selectinload(Timer.category))
+        .options(
+            selectinload(Timer.penalties).selectinload(Penalty.penalty_type),
+            selectinload(Timer.category),
+            selectinload(Timer.events),
+        )
         .where(Timer.competition_id == competition_id, Timer.user_id == user_id)
     )
     timer = result_timer.scalar_one_or_none()
     if not timer:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Timer não encontrado para este atleta")
 
+    from app.schemas.timer import _compute_accumulated_ms
+
     penalty_seconds = sum(p.seconds_added for p in timer.penalties)
-    final_seconds = timer.elapsed_seconds + penalty_seconds
+    final_seconds = _compute_accumulated_ms(timer) // 1000 + penalty_seconds
 
     # Posição no ranking
     ranking = await RankingService.get_ranking(db, competition_id)

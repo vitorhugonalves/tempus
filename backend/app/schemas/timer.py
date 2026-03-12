@@ -79,8 +79,21 @@ class TimerEventResponse(BaseModel):
     id: int
     timer_id: int
     event_type: TimerEventType
+    event_at: datetime
+    accumulated_ms: int
     triggered_by_id: int | None
     note: str | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class OfficialResultResponse(BaseModel):
+    id: int
+    timer_id: int
+    final_time_ms: int
+    finished_by_user_id: int | None
+    finished_at: datetime
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -92,9 +105,13 @@ class TimerResponse(BaseModel):
     category_id: int | None
     user_id: int | None
     team_id: int | None
+    heat_id: int | None
     status: TimerStatus
-    started_at: datetime | None
-    stopped_at: datetime | None
+    accumulated_ms: int
+    # started_at_ms: epoch ms de quando o segmento atual de execução iniciou.
+    # Presente apenas quando status=running (necessário para o contador ao vivo no frontend).
+    started_at_ms: int | None = None
+    # elapsed_seconds é calculado a partir de accumulated_ms para compatibilidade
     elapsed_seconds: int
     total_penalty_seconds: int
     final_seconds: int
@@ -104,19 +121,28 @@ class TimerResponse(BaseModel):
     model_config = {"from_attributes": True}
 
     @classmethod
-    def from_orm(cls, timer: object) -> "TimerResponse":
-        """Calcula campos derivados ao construir a resposta."""
-        from datetime import timezone
+    def from_orm(cls, timer: object, redis_state: dict | None = None) -> "TimerResponse":
+        """Constrói resposta calculando tempo acumulado.
 
+        Para timers `running`, usa o estado Redis (sub-segundo de precisão).
+        Fallback para cálculo por eventos quando Redis não disponível.
+
+        Args:
+            timer: Instância ORM Timer com events e penalties carregados.
+            redis_state: Estado Redis do timer (opcional). Chaves esperadas:
+                ``accumulated_ms`` e ``started_at_ms`` quando em execução.
+        """
         t = timer  # type: ignore[assignment]
-        penalty_seconds = sum(p.seconds_added for p in t.penalties)
 
-        # Tempo corrido atual (se running, inclui tempo desde started_at)
-        elapsed = t.elapsed_seconds
-        if t.status == TimerStatus.running and t.started_at:
-            now = datetime.now(timezone.utc).replace(tzinfo=None)
-            started = t.started_at.replace(tzinfo=None) if t.started_at.tzinfo else t.started_at
-            elapsed += int((now - started).total_seconds())
+        if redis_state and t.status == TimerStatus.running:
+            accumulated_ms = _compute_accumulated_ms_from_redis(redis_state)
+            started_at_ms: int | None = redis_state.get("started_at_ms")
+        else:
+            accumulated_ms = _compute_accumulated_ms(t)
+            started_at_ms = None
+
+        elapsed_seconds = accumulated_ms // 1000
+        penalty_seconds = sum(p.seconds_added for p in t.penalties)
 
         return cls(
             id=t.id,
@@ -124,12 +150,13 @@ class TimerResponse(BaseModel):
             category_id=t.category_id,
             user_id=t.user_id,
             team_id=t.team_id,
+            heat_id=t.heat_id,
             status=t.status,
-            started_at=t.started_at,
-            stopped_at=t.stopped_at,
-            elapsed_seconds=elapsed,
+            accumulated_ms=accumulated_ms,
+            started_at_ms=started_at_ms,
+            elapsed_seconds=elapsed_seconds,
             total_penalty_seconds=penalty_seconds,
-            final_seconds=elapsed + penalty_seconds,
+            final_seconds=elapsed_seconds + penalty_seconds,
             created_at=t.created_at,
             updated_at=t.updated_at,
         )
@@ -143,9 +170,76 @@ class RankingEntry(BaseModel):
     athlete_name: str
     team_name: str | None
     category_name: str | None
+    accumulated_ms: int
     elapsed_seconds: int
     total_penalty_seconds: int
     final_seconds: int
     infractions_count: int
     remaining_seconds: int | None
     status: TimerStatus
+
+
+# ---------------------------------------------------------------------------
+# Helpers: cálculo de tempo acumulado (Redis e DB-events)
+# ---------------------------------------------------------------------------
+
+
+def _compute_accumulated_ms_from_redis(redis_state: dict) -> int:
+    """Calcula tempo acumulado atual a partir do estado Redis de um timer running.
+
+    Args:
+        redis_state: Dict com ``accumulated_ms`` (baseline) e ``started_at_ms``
+            (epoch ms de quando o segmento de execução começou).
+
+    Returns:
+        Tempo acumulado total em milissegundos.
+    """
+    import time
+
+    now_ms = int(time.time() * 1000)
+    return redis_state["accumulated_ms"] + (now_ms - redis_state["started_at_ms"])
+
+
+def _compute_accumulated_ms(timer: object) -> int:
+    """Calcula o tempo acumulado em ms a partir do histórico de eventos.
+
+    Estratégia (DB-based, pré-Redis):
+    - Percorre eventos em ordem cronológica reversa.
+    - Para `paused`, `finished`, `reset`, `cancelled`: retorna accumulated_ms gravado.
+    - Para `started`, `resumed`: timer está rodando — calcula elapsed desde event_at.
+    - Sem eventos relevantes (created/ready): retorna 0.
+
+    Em Etapa 3, para timers `running`, esta função será substituída por leitura
+    direta do Redis (sem hit no banco), mas o resultado será idêntico.
+
+    Args:
+        timer: Instância ORM Timer com events carregados.
+
+    Returns:
+        Tempo acumulado em milissegundos.
+    """
+    from datetime import timezone
+
+    from app.models.timer import TimerEventType as ET
+
+    events = sorted(timer.events, key=lambda e: e.id)  # type: ignore[attr-defined]
+
+    for event in reversed(events):
+        if event.event_type in (ET.paused, ET.finished, ET.reset, ET.cancelled, ET.adjusted):
+            return event.accumulated_ms
+        if event.event_type in (ET.started, ET.resumed):
+            # Timer está rodando desde este evento — adiciona tempo decorrido
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            event_at = (
+                event.event_at.replace(tzinfo=None)
+                if event.event_at.tzinfo
+                else event.event_at
+            )
+            elapsed_since_ms = int((now - event_at).total_seconds() * 1000)
+            return event.accumulated_ms + elapsed_since_ms
+
+    return 0  # created / ready — nunca iniciado
+
+
+# Importação local para evitar circular no módulo de schemas
+from datetime import datetime  # noqa: E402 (reexported for _compute_accumulated_ms)

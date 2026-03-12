@@ -121,6 +121,27 @@ class TeamRepository:
         return result.scalar_one_or_none()
 
     @staticmethod
+    async def get_member_in_competition(
+        db: AsyncSession, competition_id: int, user_id: int
+    ) -> TeamMember | None:
+        """Retorna a participação do usuário em qualquer equipe da competição.
+
+        Args:
+            db: Sessão assíncrona.
+            competition_id: ID da competição.
+            user_id: ID do usuário.
+
+        Returns:
+            TeamMember ou None se o usuário não estiver em nenhuma equipe da competição.
+        """
+        result = await db.execute(
+            select(TeamMember)
+            .join(Team)
+            .where(Team.competition_id == competition_id, TeamMember.user_id == user_id)
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
     async def remove_member(db: AsyncSession, member: TeamMember) -> None:
         """Remove membro de uma equipe.
 

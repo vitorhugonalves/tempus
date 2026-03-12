@@ -63,8 +63,8 @@ async def test_criar_timer_como_admin_retorna_201(
     )
     assert resp.status_code == 201
     data = resp.json()
-    assert data["status"] == "idle"
-    assert data["elapsed_seconds"] == 0
+    assert data["status"] == "created"
+    assert data["accumulated_ms"] == 0
 
 
 async def test_criar_timer_como_competidor_retorna_403(
@@ -167,7 +167,7 @@ async def test_parar_timer_running_retorna_200(
     await client.post(f"/api/v1/timers/{timer_id}/start", json={}, cookies={"session_id": judge_token})
     resp = await client.post(f"/api/v1/timers/{timer_id}/stop", json={}, cookies={"session_id": judge_token})
     assert resp.status_code == 200
-    assert resp.json()["status"] == "stopped"
+    assert resp.json()["status"] == "paused"
 
 
 async def test_parar_timer_nao_running_retorna_409(
@@ -217,8 +217,8 @@ async def test_reiniciar_timer_com_motivo_zera_tempo(
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["status"] == "idle"
-    assert data["elapsed_seconds"] == 0
+    assert data["status"] == "created"
+    assert data["accumulated_ms"] == 0
 
 
 # ── Eventos ───────────────────────────────────────────────────────────────────
@@ -238,8 +238,8 @@ async def test_historico_eventos_timer(
     assert resp.status_code == 200
     events = resp.json()
     event_types = [e["event_type"] for e in events]
-    assert "start" in event_types
-    assert "stop" in event_types
+    assert "started" in event_types
+    assert "paused" in event_types
 
 
 # ── Penalidades ───────────────────────────────────────────────────────────────

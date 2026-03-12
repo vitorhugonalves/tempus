@@ -1,11 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeftIcon, TrophyIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import { competitionsApi } from "../api/competitions";
 import { rankingApi } from "../api/timers";
 import { categoriesApi } from "../api/categories";
 import { Card } from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
+import Button from "../components/ui/Button";
 import type { Category, Competition, RankingEntry } from "../types";
 import { secondsToDisplay } from "../utils/time";
 import { useAuthStore } from "../store/auth";
@@ -32,10 +33,85 @@ function formatRemaining(seconds: number | null): string {
   return [h, m, s].map((v) => String(v).padStart(2, "0")).join(":");
 }
 
+// ─── RankingSelectPage (sem competitionId na URL) ────────────────────────────
+
+function RankingSelector() {
+  const navigate = useNavigate();
+  const [competitions, setCompetitions] = useState<Competition[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedId, setSelectedId] = useState<number | "">("");
+
+  useEffect(() => {
+    competitionsApi
+      .list()
+      .then(({ data }) => setCompetitions(data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <header className="bg-gray-900 text-white">
+        <div className="max-w-5xl mx-auto px-4 py-6">
+          <div className="flex items-center gap-3 mb-2">
+            <TrophyIcon className="h-7 w-7 text-yellow-400" />
+            <h1 className="text-2xl font-bold">Ranking</h1>
+          </div>
+          <p className="text-gray-400 text-sm">Selecione uma competição para visualizar o ranking.</p>
+        </div>
+      </header>
+
+      <main className="max-w-5xl mx-auto px-4 py-10">
+        <Card>
+          {loading ? (
+            <p className="text-gray-400 text-sm text-center py-8">Carregando competições...</p>
+          ) : competitions.length === 0 ? (
+            <p className="text-gray-400 text-sm text-center py-8">Nenhuma competição encontrada.</p>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">Competição</p>
+              <div className="flex items-center gap-3">
+                <select
+                  value={selectedId}
+                  onChange={(e) => setSelectedId(e.target.value ? Number(e.target.value) : "")}
+                  className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                >
+                  <option value="">Selecione uma competição...</option>
+                  {competitions.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                      {c.status === "active" ? " — Ao Vivo" : c.status === "finished" ? " — Encerrada" : " — Rascunho"}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={selectedId === ""}
+                  onClick={() => { if (selectedId !== "") navigate(`/competitions/${selectedId}/ranking`); }}
+                >
+                  Ver Ranking
+                </Button>
+              </div>
+            </div>
+          )}
+        </Card>
+      </main>
+    </div>
+  );
+}
+
+// ─── RankingPage ──────────────────────────────────────────────────────────────
+
 export default function RankingPage() {
   const { competitionId } = useParams<{ competitionId: string }>();
   const id = Number(competitionId);
   const { user } = useAuthStore();
+
+  // Quando acessado em /ranking (sem parâmetro), exibe seletor de competição
+  if (!competitionId) {
+    return <RankingSelector />;
+  }
 
   const [competition, setCompetition] = useState<Competition | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);

@@ -87,7 +87,13 @@ export interface Team {
   updated_at: string;
 }
 
-export type TimerStatus = "idle" | "running" | "stopped" | "finished";
+export type TimerStatus =
+  | "created"
+  | "ready"
+  | "running"
+  | "paused"
+  | "finished"
+  | "cancelled";
 
 export interface Timer {
   id: number;
@@ -97,16 +103,25 @@ export interface Timer {
   team_id: number | null;
   heat_id: number | null;
   status: TimerStatus;
-  started_at: string | null;
-  stopped_at: string | null;
   elapsed_seconds: number;
+  accumulated_ms: number;
+  started_at_ms: number | null;
   total_penalty_seconds: number;
   final_seconds: number;
   created_at: string;
   updated_at: string;
 }
 
-export type TimerEventType = "start" | "stop" | "restart" | "finish";
+export type TimerEventType =
+  | "started"
+  | "paused"
+  | "resumed"
+  | "finished"
+  | "reset"
+  | "cancelled"
+  | "ready"
+  | "adjusted"
+  | "split";
 
 export interface TimerEvent {
   id: number;

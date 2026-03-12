@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   Bars3Icon,
   ChartBarIcon,
+  ClipboardDocumentCheckIcon,
   ClockIcon,
   HomeIcon,
   TrophyIcon,
@@ -37,6 +38,12 @@ const NAV_ITEMS: NavItem[] = [
     href: "/timers",
     Icon: ClockIcon,
     roles: ["judge", "operator", "admin"],
+  },
+  {
+    label: "Inscrição",
+    href: "/inscricao",
+    Icon: ClipboardDocumentCheckIcon,
+    roles: ["competitor"],
   },
   {
     label: "Ranking",

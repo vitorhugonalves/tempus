@@ -1,28 +1,33 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { timersApi, penaltyTypesApi } from "../api/timers";
 import { competitionsApi } from "../api/competitions";
 import { teamsApi } from "../api/teams";
 import { heatsApi } from "../api/heats";
 import { useAuthStore } from "../store/auth";
-import { secondsToDisplay } from "../utils/time";
+import { msToDisplay, secondsToDisplay } from "../utils/time";
+import { useCompetitionSocket, WsStatus } from "../hooks/useCompetitionSocket";
 import type { Timer, PenaltyType, Competition, Heat, TimerEvent } from "../types";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 
 const STATUS_COLORS: Record<string, "green" | "yellow" | "red" | "gray" | "blue" | "purple"> = {
-  idle: "gray",
+  created: "gray",
+  ready: "blue",
   running: "green",
-  stopped: "yellow",
+  paused: "yellow",
   finished: "gray",
+  cancelled: "red",
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  idle: "Aguardando",
+  created: "Aguardando",
+  ready: "Pronto",
   running: "Em andamento",
-  stopped: "Parado",
+  paused: "Pausado",
   finished: "Finalizado",
+  cancelled: "Cancelado",
 };
 
 const HEAT_STATUS_COLORS: Record<string, "green" | "yellow" | "red" | "gray"> = {
@@ -38,11 +43,33 @@ const HEAT_STATUS_LABELS: Record<string, string> = {
 };
 
 const EVENT_LABELS: Record<string, string> = {
-  start: "Iniciado",
-  stop: "Parado",
-  restart: "Reiniciado",
-  finish: "Finalizado",
+  started: "Iniciado",
+  paused: "Pausado",
+  resumed: "Retomado",
+  finished: "Finalizado",
+  reset: "Reiniciado",
+  cancelled: "Cancelado",
+  ready: "Pronto",
+  adjusted: "Ajustado",
+  split: "Split",
 };
+
+// ─── WsStatusBadge ────────────────────────────────────────────────────────────
+
+function WsStatusBadge({ status }: { status: WsStatus }) {
+  const map: Record<WsStatus, { label: string; color: string }> = {
+    connected: { label: "Ao vivo", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+    connecting: { label: "Conectando…", color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" },
+    disconnected: { label: "Desconectado", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+  };
+  const { label, color } = map[status];
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${color}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${status === "connected" ? "bg-green-500 animate-pulse" : status === "connecting" ? "bg-yellow-500 animate-pulse" : "bg-red-500"}`} />
+      {label}
+    </span>
+  );
+}
 
 // ─── TimerHistory ────────────────────────────────────────────────────────────
 
@@ -91,7 +118,7 @@ interface TeamTimerCardProps {
   penaltyTypes: PenaltyType[];
   durationSeconds: number | null;
   canControl: boolean;
-  onAction: (action: "stop" | "finish" | "restart", timerId: number, note?: string) => Promise<void>;
+  onAction: (action: "start" | "pause" | "resume" | "finish" | "reset", timerId: number, note?: string) => Promise<void>;
   onPenalty: (timerId: number, penaltyTypeId: number, justification: string) => Promise<void>;
 }
 
@@ -105,31 +132,56 @@ function TeamTimerCard({
   onAction,
   onPenalty,
 }: TeamTimerCardProps) {
-  const [elapsed, setElapsed] = useState(timer.elapsed_seconds);
-  const [restartNote, setRestartNote] = useState("");
+  // Live ms via requestAnimationFrame — updates display only when seconds change
+  const [displayMs, setDisplayMs] = useState(() =>
+    timer.status === "running" && timer.started_at_ms != null
+      ? timer.accumulated_ms + (Date.now() - timer.started_at_ms)
+      : timer.accumulated_ms
+  );
+  const rafRef = useRef<number | null>(null);
+  const prevSecondsRef = useRef(-1);
+
+  useEffect(() => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+
+    if (timer.status !== "running" || timer.started_at_ms == null) {
+      setDisplayMs(timer.accumulated_ms);
+      prevSecondsRef.current = -1;
+      return;
+    }
+
+    const tick = () => {
+      const live = timer.accumulated_ms + (Date.now() - timer.started_at_ms!);
+      const secs = Math.floor(live / 1000);
+      if (secs !== prevSecondsRef.current) {
+        prevSecondsRef.current = secs;
+        setDisplayMs(live);
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    };
+  }, [timer.status, timer.accumulated_ms, timer.started_at_ms]);
+
+  const [resetNote, setResetNote] = useState("");
   const [penaltyTypeId, setPenaltyTypeId] = useState<number | "">("");
   const [justification, setJustification] = useState("");
   const [showPenaltyForm, setShowPenaltyForm] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (timer.status !== "running") {
-      setElapsed(timer.elapsed_seconds);
-      return;
-    }
-    // Sync to server elapsed time on every update
-    setElapsed(timer.elapsed_seconds);
-    const interval = setInterval(() => setElapsed((prev) => prev + 1), 1000);
-    return () => clearInterval(interval);
-  }, [timer.elapsed_seconds, timer.status]);
-
-  const handleAction = async (action: "stop" | "finish" | "restart") => {
-    if (action === "restart" && !restartNote.trim()) return;
+  const handleAction = async (action: "start" | "pause" | "resume" | "finish" | "reset") => {
+    if (action === "reset" && !resetNote.trim()) return;
     setLoading(true);
     try {
-      await onAction(action, timer.id, action === "restart" ? restartNote : undefined);
-      if (action === "restart") setRestartNote("");
+      await onAction(action, timer.id, action === "reset" ? resetNote : undefined);
+      if (action === "reset") setResetNote("");
     } finally {
       setLoading(false);
     }
@@ -148,9 +200,13 @@ function TeamTimerCard({
     }
   };
 
-  const finalTime = elapsed + timer.total_penalty_seconds;
-  const remaining = durationSeconds != null ? Math.max(0, durationSeconds - elapsed) : null;
+  const elapsedMs = displayMs;
+  const elapsedSeconds = Math.floor(elapsedMs / 1000);
+  const penaltySeconds = timer.total_penalty_seconds;
+  const finalSeconds = elapsedSeconds + penaltySeconds;
+  const remaining = durationSeconds != null ? Math.max(0, durationSeconds - elapsedSeconds) : null;
   const isRunning = timer.status === "running";
+  const isFinished = timer.status === "finished" || timer.status === "cancelled";
 
   return (
     <div>
@@ -165,33 +221,45 @@ function TeamTimerCard({
               </p>
             )}
           </div>
-          <Badge variant={STATUS_COLORS[timer.status]}>{STATUS_LABELS[timer.status]}</Badge>
+          <Badge variant={STATUS_COLORS[timer.status] ?? "gray"}>
+            {STATUS_LABELS[timer.status] ?? timer.status}
+          </Badge>
         </div>
 
-        {/* Elapsed time */}
+        {/* Live time display */}
         <div className="text-center my-3">
           <span className={`font-mono text-4xl font-bold ${isRunning ? "text-green-500" : "text-gray-800 dark:text-gray-100"}`}>
-            {secondsToDisplay(elapsed)}
+            {msToDisplay(elapsedMs)}
           </span>
           {remaining !== null && isRunning && (
             <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
               Restante: {secondsToDisplay(remaining)}
             </p>
           )}
-          {timer.total_penalty_seconds > 0 && (
+          {penaltySeconds > 0 && (
             <p className="text-xs text-red-500 mt-1">
-              +{timer.total_penalty_seconds}s penalidade → {secondsToDisplay(finalTime)} total
+              +{penaltySeconds}s penalidade → {secondsToDisplay(finalSeconds)} total
             </p>
           )}
         </div>
 
         {/* Controls */}
-        {canControl && timer.status !== "finished" && (
+        {canControl && !isFinished && (
           <>
             <div className="flex flex-wrap gap-2 justify-center">
-              {(timer.status === "running") && (
-                <Button size="sm" variant="secondary" onClick={() => handleAction("stop")} disabled={loading}>
-                  ⏸ Parar
+              {(timer.status === "created" || timer.status === "ready") && (
+                <Button size="sm" variant="primary" onClick={() => handleAction("start")} disabled={loading}>
+                  ▶ Iniciar
+                </Button>
+              )}
+              {isRunning && (
+                <Button size="sm" variant="secondary" onClick={() => handleAction("pause")} disabled={loading}>
+                  ⏸ Pausar
+                </Button>
+              )}
+              {timer.status === "paused" && (
+                <Button size="sm" variant="primary" onClick={() => handleAction("resume")} disabled={loading}>
+                  ▶ Retomar
                 </Button>
               )}
               <Button size="sm" variant="secondary" onClick={() => handleAction("finish")} disabled={loading}>
@@ -208,11 +276,11 @@ function TeamTimerCard({
               <input
                 type="text"
                 placeholder="Motivo para reiniciar..."
-                value={restartNote}
-                onChange={(e) => setRestartNote(e.target.value)}
+                value={resetNote}
+                onChange={(e) => setResetNote(e.target.value)}
                 className="flex-1 text-sm border rounded px-2 py-1 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               />
-              <Button size="sm" variant="secondary" onClick={() => handleAction("restart")} disabled={loading || !restartNote.trim()}>
+              <Button size="sm" variant="secondary" onClick={() => handleAction("reset")} disabled={loading || !resetNote.trim()}>
                 ↺ Reiniciar
               </Button>
             </div>
@@ -253,7 +321,7 @@ function TeamTimerCard({
         )}
       </Card>
 
-      {timer.status !== "idle" && (
+      {timer.status !== "created" && (
         <div className="mt-1 px-1">
           <button
             type="button"
@@ -280,7 +348,7 @@ interface HeatSectionProps {
   durationSeconds: number | null;
   canControl: boolean;
   onStartHeat: (heatId: number) => Promise<void>;
-  onTimerAction: (action: "stop" | "finish" | "restart", timerId: number, note?: string) => Promise<void>;
+  onTimerAction: (action: "start" | "pause" | "resume" | "finish" | "reset", timerId: number, note?: string) => Promise<void>;
   onPenalty: (timerId: number, penaltyTypeId: number, justification: string) => Promise<void>;
 }
 
@@ -426,12 +494,15 @@ export default function TimersPage() {
 
   const compId = competitionId ? Number(competitionId) : NaN;
   const noCompetition = isNaN(compId);
+  const wsCompId = noCompetition ? null : compId;
+
+  // WebSocket — timer state em tempo real
+  const { timers, wsStatus, refreshFromRest } = useCompetitionSocket(wsCompId);
 
   const [allCompetitions, setAllCompetitions] = useState<Competition[]>([]);
   const [competitionsLoading, setCompetitionsLoading] = useState(false);
   const [competition, setCompetition] = useState<Competition | null>(null);
   const [heats, setHeats] = useState<Heat[]>([]);
-  const [timers, setTimers] = useState<Timer[]>([]);
   const [penaltyTypes, setPenaltyTypes] = useState<PenaltyType[]>([]);
   const [membersByTeam, setMembersByTeam] = useState<Map<number, string[]>>(new Map());
   const [teamNameById, setTeamNameById] = useState<Map<number, string>>(new Map());
@@ -450,6 +521,11 @@ export default function TimersPage() {
       .finally(() => setCompetitionsLoading(false));
   }, [noCompetition]);
 
+  /**
+   * Carrega dados estruturais (competição, baterias, tipos de penalidade).
+   * Timers são carregados apenas para semear o estado do WS — o WS é a
+   * fonte de verdade para atualizações em tempo real.
+   */
   const loadData = useCallback(async () => {
     if (noCompetition) return;
     try {
@@ -461,13 +537,16 @@ export default function TimersPage() {
       ]);
       setCompetition(comp);
       setHeats(heatList);
-      setTimers(timerList);
+      // Semeia o hook WS com dados REST; o próximo "init" do WS substituirá
+      refreshFromRest(timerList);
       setPenaltyTypes(ptList);
     } catch {
       setError("Erro ao carregar dados da competição");
     } finally {
       setLoading(false);
     }
+  // refreshFromRest é estável (é setTimers do useState), não precisa declarar
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compId, noCompetition]);
 
   // Load team members (only once per competition)
@@ -497,32 +576,34 @@ export default function TimersPage() {
     })();
   }, [compId, noCompetition]);
 
+  // Carga inicial (sem polling — WS mantém timers atualizados)
   useEffect(() => {
     setLoading(true);
     loadData();
-    const interval = setInterval(loadData, 5000);
-    return () => clearInterval(interval);
   }, [loadData]);
 
   const handleStartHeat = async (heatId: number) => {
     await heatsApi.start(compId, heatId);
+    // Recarrega dados estruturais e resemeia timer state após criação de novos timers
     await loadData();
   };
 
   const handleTimerAction = async (
-    action: "stop" | "finish" | "restart",
+    action: "start" | "pause" | "resume" | "finish" | "reset",
     timerId: number,
     note?: string
   ) => {
+    // Mapeamento para nomes de API (os endpoints do backend usam os mesmos nomes)
     const fn = timersApi[action] as (id: number, note?: string) => Promise<Timer>;
-    const updated = await fn(timerId, note);
-    setTimers((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    await fn(timerId, note);
+    // O WS receberá o evento e atualizará automaticamente o estado local
   };
 
   const handlePenalty = async (timerId: number, penaltyTypeId: number, justification: string) => {
     await timersApi.applyPenalty(timerId, { penalty_type_id: penaltyTypeId, justification });
+    // Atualiza penalty_seconds via REST (o WS não carrega esse campo em eventos)
     const updated = await timersApi.get(timerId);
-    setTimers((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    refreshFromRest(timers.map((t) => (t.id === updated.id ? updated : t)));
   };
 
   // Timers not associated to any heat
@@ -558,10 +639,13 @@ export default function TimersPage() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {competition?.name ?? "Competição"}
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {competition?.name ?? "Competição"}
+            </h1>
+            <WsStatusBadge status={wsStatus} />
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
             {heats.length} bateria(s) · {timers.length} timer(s) · {runningCount} em andamento
           </p>
         </div>

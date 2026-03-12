@@ -1,6 +1,25 @@
 import apiClient from "./client";
 import type { Competition, RankingEntry } from "../types";
 
+export interface MemberInput {
+  full_name: string;
+  email: string;
+}
+
+export interface CompetitorRegisterRequest {
+  category_id: number;
+  document?: string;
+  team_name?: string;
+  additional_members?: MemberInput[];
+}
+
+export interface CompetitorRegisterResponse {
+  registration_id: number;
+  team_id: number;
+  team_name: string;
+  accounts_created: number;
+}
+
 export interface CompetitionCreate {
   name: string;
   location?: string;
@@ -40,4 +59,7 @@ export const competitionsApi = {
     apiClient.get<RankingEntry[]>(`/api/v1/competitions/${id}/ranking`, {
       params: categoryId ? { category_id: categoryId } : undefined,
     }),
+
+  register: (id: number, data: CompetitorRegisterRequest) =>
+    apiClient.post<CompetitorRegisterResponse>(`/api/v1/competitions/${id}/register`, data),
 };

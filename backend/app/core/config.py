@@ -14,6 +14,9 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = "sqlite+aiosqlite:///./tempus.db"
 
+    REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_TIMER_TTL_SECONDS: int = 86400  # 24h — expira estado de timers inativos
+
     SMTP_HOST: str = "smtp.example.com"
     SMTP_PORT: int = 587
     SMTP_USER: str = ""

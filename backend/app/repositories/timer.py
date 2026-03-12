@@ -2,7 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.timer import Penalty, PenaltyType, Timer, TimerEvent
+from app.models.timer import OfficialResult, Penalty, PenaltyType, Timer, TimerEvent
 
 
 class TimerRepository:
@@ -26,6 +26,7 @@ class TimerRepository:
                 selectinload(Timer.events),
             )
             .where(Timer.id == timer_id)
+            .execution_options(populate_existing=True)
         )
         return result.scalar_one_or_none()
 
@@ -157,3 +158,39 @@ class PenaltyTypeRepository:
         await db.flush()
         await db.refresh(penalty_type)
         return penalty_type
+
+
+class OfficialResultRepository:
+    """Acesso ao banco para resultados oficiais."""
+
+    @staticmethod
+    async def create(db: AsyncSession, result: OfficialResult) -> OfficialResult:
+        """Persiste um resultado oficial.
+
+        Args:
+            db: Sessão assíncrona.
+            result: Instância ORM não persistida.
+
+        Returns:
+            OfficialResult persistido.
+        """
+        db.add(result)
+        await db.flush()
+        await db.refresh(result)
+        return result
+
+    @staticmethod
+    async def get_by_timer(db: AsyncSession, timer_id: int) -> OfficialResult | None:
+        """Retorna resultado oficial de um timer.
+
+        Args:
+            db: Sessão assíncrona.
+            timer_id: ID do timer.
+
+        Returns:
+            OfficialResult ou None.
+        """
+        result = await db.execute(
+            select(OfficialResult).where(OfficialResult.timer_id == timer_id)
+        )
+        return result.scalar_one_or_none()
