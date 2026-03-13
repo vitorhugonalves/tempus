@@ -266,13 +266,7 @@ pip install -e .
 alembic upgrade head
 
 # Inicie com Gunicorn + workers Uvicorn
-gunicorn app.main:app \
-  -w 4 \
-  -k uvicorn.workers.UvicornWorker \
-  --bind 0.0.0.0:8000 \
-  --access-logfile logs/access.log \
-  --error-logfile logs/error.log \
-  --daemon
+uvicorn app.main:app --workers 4 --host 0.0.0.0 --port 8000
 ```
 
 Para gerenciamento do processo, use **systemd** ou **supervisor**. Exemplo de unit systemd:
