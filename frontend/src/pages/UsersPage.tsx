@@ -262,10 +262,18 @@ export default function UsersPage() {
 
   async function handleBulkDelete() {
     if (selectedIds.size === 0) return;
-    if (!confirm(`Excluir permanentemente ${selectedIds.size} usuário(s)? Esta ação não pode ser desfeita.`)) return;
+    const deletable = [...selectedIds].filter((id) => {
+      const u = users.find((u) => u.id === id);
+      return u && u.role !== "admin";
+    });
+    if (deletable.length === 0) {
+      alert("Nenhum usuário selecionado pode ser excluído (administradores não podem ser removidos).");
+      return;
+    }
+    if (!confirm(`Excluir permanentemente ${deletable.length} usuário(s)? Esta ação não pode ser desfeita.`)) return;
     setBulkLoading(true);
     try {
-      await Promise.all([...selectedIds].map((id) => usersApi.delete(id)));
+      await Promise.all(deletable.map((id) => usersApi.delete(id)));
       setSelectedIds(new Set());
       await load();
     } catch (err: unknown) {
@@ -539,7 +547,7 @@ export default function UsersPage() {
                                 >
                                   Senha
                                 </Button>
-                                {isAdmin && currentUser?.id !== u.id && (
+                                {isAdmin && currentUser?.id !== u.id && u.role !== "admin" && (
                                   <Button
                                     variant="danger"
                                     size="sm"

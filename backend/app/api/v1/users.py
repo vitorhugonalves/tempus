@@ -68,7 +68,15 @@ async def delete_me(
     db: AsyncSession = Depends(get_db),
     session_id: str | None = Cookie(default=None),
 ) -> None:
-    """Remove a própria conta (LGPD — direito ao esquecimento)."""
+    """Remove a própria conta (LGPD — direito ao esquecimento).
+
+    Administradores não podem remover a própria conta.
+    """
+    if current_user.role.value == "admin":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Usuários administradores não podem remover a própria conta",
+        )
     if session_id:
         await invalidate_session(db, session_id)
     response.delete_cookie("session_id")
@@ -177,6 +185,11 @@ async def delete_user(
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado"
+        )
+    if user.role.value == "admin":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Usuários administradores não podem ser removidos",
         )
     await db.delete(user)
     await db.flush()

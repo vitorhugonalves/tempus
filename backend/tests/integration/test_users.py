@@ -109,6 +109,18 @@ async def test_delete_me_invalida_sessao_apos_exclusao(
     assert me_resp.status_code == 401
 
 
+async def test_delete_me_como_admin_retorna_409(
+    client: AsyncClient, admin_token: str
+):
+    """Admin não pode remover a própria conta."""
+    response = await client.delete(
+        "/api/v1/users/me",
+        cookies={"session_id": admin_token},
+    )
+    assert response.status_code == 409
+    assert "administrador" in response.json()["detail"].lower()
+
+
 async def test_delete_me_sem_autenticacao_retorna_401(client: AsyncClient):
     """DELETE /users/me sem sessão deve retornar 401."""
     response = await client.delete("/api/v1/users/me")
@@ -209,6 +221,32 @@ async def test_excluir_usuario_como_judge_retorna_403(
         cookies={"session_id": judge_token},
     )
     assert response.status_code == 403
+
+
+async def test_excluir_usuario_admin_retorna_409(
+    client: AsyncClient, admin_token: str, db
+):
+    """Usuário com role admin não pode ser excluído por outro admin."""
+    from app.core.security import hash_password
+    from app.models.user import User, UserRole
+
+    # Cria um segundo admin diretamente no banco
+    second_admin = User(
+        full_name="Segundo Admin",
+        email="second_admin@example.com",
+        hashed_password=hash_password("admin-senha-123"),
+        role=UserRole.admin,
+    )
+    db.add(second_admin)
+    await db.commit()
+    await db.refresh(second_admin)
+
+    response = await client.delete(
+        f"/api/v1/users/{second_admin.id}",
+        cookies={"session_id": admin_token},
+    )
+    assert response.status_code == 409
+    assert "administrador" in response.json()["detail"].lower()
 
 
 async def test_excluir_usuario_inexistente_retorna_404(

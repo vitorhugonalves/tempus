@@ -101,8 +101,8 @@ export default function ProfilePage() {
         </form>
       </Card>
 
-      {/* Delete account */}
-      <Card>
+      {/* Delete account — admins não podem excluir a própria conta */}
+      {user?.role !== "admin" && <Card>
         <CardHeader
           title="Excluir Conta"
           description="Esta ação é permanente e não pode ser desfeita. Todos os seus dados serão removidos."
@@ -126,7 +126,7 @@ export default function ProfilePage() {
             </div>
           </div>
         )}
-      </Card>
+      </Card>}
     </div>
   );
 }
