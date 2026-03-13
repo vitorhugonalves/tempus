@@ -50,14 +50,14 @@ function RankingSelector() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <header className="bg-gray-900 text-white">
+    <div className="min-h-screen bg-gray-50 dark:bg-primary-700">
+      <header className="bg-primary-700 text-white">
         <div className="max-w-5xl mx-auto px-4 py-6">
           <div className="flex items-center gap-3 mb-2">
             <TrophyIcon className="h-7 w-7 text-yellow-400" />
             <h1 className="text-2xl font-bold">Ranking</h1>
           </div>
-          <p className="text-gray-400 text-sm">Selecione uma competição para visualizar o ranking.</p>
+          <p className="text-primary-200 text-sm">Selecione uma competição para visualizar o ranking.</p>
         </div>
       </header>
 
@@ -163,7 +163,7 @@ export default function RankingPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-primary-700 flex items-center justify-center">
         <p className="text-gray-400 text-sm">Carregando ranking...</p>
       </div>
     );
@@ -171,7 +171,7 @@ export default function RankingPage() {
 
   if (notFound || !competition) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center gap-4">
+      <div className="min-h-screen bg-gray-50 dark:bg-primary-700 flex flex-col items-center justify-center gap-4">
         <TrophyIcon className="h-12 w-12 text-gray-300" />
         <p className="text-gray-500 font-medium">Competição não encontrada.</p>
         <Link to="/" className="text-primary-600 hover:text-primary-700 text-sm font-medium">
@@ -185,8 +185,8 @@ export default function RankingPage() {
   const hasRemaining = ranking.some((e) => e.remaining_seconds !== null);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <header className="bg-gray-900 text-white">
+    <div className="min-h-screen bg-gray-50 dark:bg-primary-700">
+      <header className="bg-primary-700 text-white">
         <div className="max-w-5xl mx-auto px-4 py-6">
           <Link to="/" className="inline-flex items-center gap-2 text-gray-400 hover:text-white text-sm mb-4 transition-colors">
             <ArrowLeftIcon className="h-4 w-4" />
@@ -195,7 +195,7 @@ export default function RankingPage() {
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
               <h1 className="text-2xl font-bold">{competition.name}</h1>
-              <p className="text-gray-400 text-sm mt-1">
+              <p className="text-primary-200 text-sm mt-1">
                 {competition.modality_name ?? "—"} · {competition.location ?? "—"}
               </p>
             </div>
@@ -203,14 +203,14 @@ export default function RankingPage() {
               <Badge variant={variant}>{label}</Badge>
               <a
                 href={rankingApi.exportCsvUrl(id)}
-                className="inline-flex items-center gap-1 text-xs text-gray-300 hover:text-white border border-gray-600 px-3 py-1.5 rounded transition-colors"
+                className="inline-flex items-center gap-1 text-xs text-primary-100 hover:text-white border border-primary-400 px-3 py-1.5 rounded transition-colors"
               >
                 <ArrowDownTrayIcon className="h-3.5 w-3.5" />
                 CSV
               </a>
               <a
                 href={rankingApi.exportPdfUrl(id)}
-                className="inline-flex items-center gap-1 text-xs text-gray-300 hover:text-white border border-gray-600 px-3 py-1.5 rounded transition-colors"
+                className="inline-flex items-center gap-1 text-xs text-primary-100 hover:text-white border border-primary-400 px-3 py-1.5 rounded transition-colors"
               >
                 <ArrowDownTrayIcon className="h-3.5 w-3.5" />
                 PDF
@@ -222,7 +222,7 @@ export default function RankingPage() {
             <div className="mt-4 flex flex-wrap gap-2">
               <button
                 onClick={() => setSelectedCategory(undefined)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${!selectedCategory ? "bg-white text-gray-900" : "bg-gray-700 text-gray-300 hover:bg-gray-600"}`}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${!selectedCategory ? "bg-white text-primary-700" : "bg-primary-600 text-white hover:bg-primary-500"}`}
               >
                 Todas
               </button>
@@ -230,7 +230,7 @@ export default function RankingPage() {
                 <button
                   key={cat.id}
                   onClick={() => setSelectedCategory(cat.id)}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${selectedCategory === cat.id ? "bg-white text-gray-900" : "bg-gray-700 text-gray-300 hover:bg-gray-600"}`}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${selectedCategory === cat.id ? "bg-white text-primary-700" : "bg-primary-600 text-white hover:bg-primary-500"}`}
                 >
                   {cat.name}
                 </button>

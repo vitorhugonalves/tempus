@@ -15,6 +15,11 @@ export interface UserUpdate {
   is_active?: boolean;
 }
 
+export interface UpdateMeRequest {
+  full_name?: string;
+  email?: string;
+}
+
 export const usersApi = {
   list: (skip = 0, limit = 100) =>
     apiClient.get<User[]>("/api/v1/users", { params: { skip, limit } }),
@@ -32,4 +37,10 @@ export const usersApi = {
     apiClient.post(`/api/v1/users/${id}/reset-password`, {
       new_password: newPassword,
     }),
+
+  getMe: () => apiClient.get<User>("/api/v1/users/me"),
+
+  updateMe: (data: UpdateMeRequest) => apiClient.patch<User>("/api/v1/users/me", data),
+
+  deleteMe: () => apiClient.delete("/api/v1/users/me"),
 };

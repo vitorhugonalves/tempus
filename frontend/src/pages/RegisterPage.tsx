@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useAuthStore } from "../store/auth";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
@@ -19,31 +19,26 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!token) {
-    return (
-      <>
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Link inválido</h2>
-        <Alert variant="error">
-          Este link de convite é inválido ou expirou. Solicite um novo convite ao organizador.
-        </Alert>
-      </>
-    );
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
 
     try {
-      await authApi.registerViaInvite({ token, full_name: fullName, email, password });
+      if (token) {
+        await authApi.registerViaInvite({ token, full_name: fullName, email, password });
+      } else {
+        await authApi.signup({ full_name: fullName, email, password });
+      }
       await initialize();
       navigate("/dashboard", { replace: true });
     } catch (err: unknown) {
-      const message =
-        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-        "Erro ao realizar cadastro. Verifique os dados e tente novamente.";
-      setError(message);
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      setError(
+        detail ??
+        (status === 409 ? "E-mail já cadastrado. Tente fazer login." : "Erro ao realizar cadastro. Tente novamente.")
+      );
     } finally {
       setIsLoading(false);
     }
@@ -53,7 +48,9 @@ export default function RegisterPage() {
     <>
       <h2 className="text-2xl font-bold text-gray-900 mb-1">Criar conta</h2>
       <p className="text-sm text-gray-500 mb-6">
-        Preencha os dados abaixo para concluir seu cadastro.
+        {token
+          ? "Preencha os dados abaixo para concluir seu cadastro via convite."
+          : "Cadastre-se gratuitamente como competidor."}
       </p>
 
       {error && (
@@ -104,6 +101,13 @@ export default function RegisterPage() {
           Criar conta
         </Button>
       </form>
+
+      <p className="mt-6 text-center text-sm text-gray-500">
+        Já tem uma conta?{" "}
+        <Link to="/login" className="text-primary-600 hover:underline font-medium">
+          Entrar
+        </Link>
+      </p>
     </>
   );
 }

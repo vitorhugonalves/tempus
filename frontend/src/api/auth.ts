@@ -8,6 +8,12 @@ interface RegisterViaInviteRequest {
   password: string;
 }
 
+interface SignupRequest {
+  full_name: string;
+  email: string;
+  password: string;
+}
+
 export const authApi = {
   login: (data: LoginRequest) =>
     apiClient.post<LoginResponse>("/api/v1/auth/login", data),
@@ -27,4 +33,7 @@ export const authApi = {
 
   sendInvite: (email: string, competition_id?: number, category_id?: number, team_id?: number) =>
     apiClient.post("/api/v1/auth/invite", { email, competition_id, category_id, team_id }),
+
+  signup: (data: SignupRequest) =>
+    apiClient.post<LoginResponse>("/api/v1/auth/signup", data),
 };

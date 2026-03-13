@@ -18,6 +18,7 @@ import TimersPage from "./pages/TimersPage";
 import RankingPage from "./pages/RankingPage";
 import RegistrationPage from "./pages/RegistrationPage";
 import NotFoundPage from "./pages/NotFoundPage";
+import ProfilePage from "./pages/ProfilePage";
 
 function AppLoader() {
   return (
@@ -86,6 +87,7 @@ export default function App() {
             <Route path="/ranking" element={<RankingPage />} />
             <Route path="/inscricao" element={<RegistrationPage />} />
             <Route path="/competitions/:competitionId/inscricao" element={<RegistrationPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
 
             {/* Timers — judge, operator, admin */}
             <Route

@@ -29,6 +29,7 @@ export default function RegistrationPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [alreadyRegistered, setAlreadyRegistered] = useState(false);
 
   // Carrega competições ativas
   useEffect(() => {
@@ -40,6 +41,18 @@ export default function RegistrationPage() {
       }
     });
   }, [competitionId]);
+
+  // Verifica se já está inscrito quando competição é selecionada
+  useEffect(() => {
+    if (!selectedCompetitionId) {
+      setAlreadyRegistered(false);
+      return;
+    }
+    competitionsApi
+      .getMyRegistration(selectedCompetitionId)
+      .then(({ data }) => setAlreadyRegistered(data.is_registered))
+      .catch(() => setAlreadyRegistered(false));
+  }, [selectedCompetitionId]);
 
   // Carrega categorias quando competição é selecionada
   useEffect(() => {
@@ -118,7 +131,19 @@ export default function RegistrationPage() {
       {error && <Alert variant="error">{error}</Alert>}
       {success && <Alert variant="success">{success}</Alert>}
 
-      {!success && (
+      {alreadyRegistered && !success && (
+        <Alert variant="success" title="Você já está inscrito!">
+          Você já realizou sua inscrição nesta competição.{" "}
+          <button
+            className="text-green-700 underline font-medium"
+            onClick={() => navigate(`/competitions/${selectedCompetitionId}/ranking`)}
+          >
+            Ver ranking
+          </button>
+        </Alert>
+      )}
+
+      {!success && !alreadyRegistered && (
         <Card>
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Seleção de competição */}

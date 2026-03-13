@@ -2,6 +2,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_roles
@@ -9,6 +10,7 @@ from app.core.config import settings
 from app.core.redis import get_redis
 from app.db.session import get_db
 from app.models.competition import Competition, CompetitionStatus
+from app.models.competitor import CompetitorRegistration
 from app.models.user import User
 from app.repositories.competition import CompetitionRepository
 from app.repositories.modality import ModalityRepository
@@ -292,6 +294,23 @@ async def self_register(
         data=payload,
         login_url=login_url,
     )
+
+
+@router.get("/competitions/{competition_id}/my-registration")
+async def get_my_registration(
+    competition_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Verifica se o usuário autenticado está inscrito nesta competição."""
+    result = await db.execute(
+        select(CompetitorRegistration).where(
+            CompetitorRegistration.user_id == current_user.id,
+            CompetitorRegistration.competition_id == competition_id,
+        )
+    )
+    reg = result.scalar_one_or_none()
+    return {"is_registered": reg is not None, "competition_id": competition_id}
 
 
 # ── Clonagem de competição (RF-19) ────────────────────────────────────────────

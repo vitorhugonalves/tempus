@@ -62,4 +62,7 @@ export const competitionsApi = {
 
   register: (id: number, data: CompetitorRegisterRequest) =>
     apiClient.post<CompetitorRegisterResponse>(`/api/v1/competitions/${id}/register`, data),
+
+  getMyRegistration: (id: number) =>
+    apiClient.get<{ is_registered: boolean; competition_id: number }>(`/api/v1/competitions/${id}/my-registration`),
 };

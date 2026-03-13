@@ -2,6 +2,122 @@ import pytest
 from httpx import AsyncClient
 
 
+# ── GET /users/me ──────────────────────────────────────────────────────────────
+
+
+async def test_get_me_autenticado_retorna_200_com_dados_do_usuario(
+    client: AsyncClient, competitor_token: str, competitor_user
+):
+    """GET /users/me retorna os dados do usuário autenticado com status 200."""
+    response = await client.get(
+        "/api/v1/users/me",
+        cookies={"session_id": competitor_token},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["email"] == competitor_user.email
+    assert data["full_name"] == competitor_user.full_name
+    assert data["role"] == "competitor"
+    assert "id" in data
+
+
+async def test_get_me_sem_autenticacao_retorna_401(client: AsyncClient):
+    """GET /users/me sem sessão deve retornar 401."""
+    response = await client.get("/api/v1/users/me")
+    assert response.status_code == 401
+
+
+# ── PATCH /users/me ───────────────────────────────────────────────────────────
+
+
+async def test_update_me_atualiza_nome_retorna_200(
+    client: AsyncClient, competitor_token: str
+):
+    """PATCH /users/me com nome válido atualiza e retorna 200."""
+    response = await client.patch(
+        "/api/v1/users/me",
+        json={"full_name": "Nome Atualizado"},
+        cookies={"session_id": competitor_token},
+    )
+    assert response.status_code == 200
+    assert response.json()["full_name"] == "Nome Atualizado"
+
+
+async def test_update_me_atualiza_email_retorna_200(
+    client: AsyncClient, competitor_token: str
+):
+    """PATCH /users/me com novo e-mail válido atualiza e retorna 200."""
+    response = await client.patch(
+        "/api/v1/users/me",
+        json={"email": "novo-email@example.com"},
+        cookies={"session_id": competitor_token},
+    )
+    assert response.status_code == 200
+    assert response.json()["email"] == "novo-email@example.com"
+
+
+async def test_update_me_email_duplicado_retorna_409(
+    client: AsyncClient, competitor_token: str, admin_user
+):
+    """PATCH /users/me com e-mail já em uso por outro usuário deve retornar 409."""
+    response = await client.patch(
+        "/api/v1/users/me",
+        json={"email": "admin@example.com"},
+        cookies={"session_id": competitor_token},
+    )
+    assert response.status_code == 409
+    assert "e-mail" in response.json()["detail"].lower()
+
+
+async def test_update_me_sem_autenticacao_retorna_401(client: AsyncClient):
+    """PATCH /users/me sem sessão deve retornar 401."""
+    response = await client.patch(
+        "/api/v1/users/me",
+        json={"full_name": "Fantasma"},
+    )
+    assert response.status_code == 401
+
+
+# ── DELETE /users/me ──────────────────────────────────────────────────────────
+
+
+async def test_delete_me_remove_conta_e_retorna_204(
+    client: AsyncClient, competitor_token: str
+):
+    """DELETE /users/me remove a conta do usuário autenticado e retorna 204."""
+    response = await client.delete(
+        "/api/v1/users/me",
+        cookies={"session_id": competitor_token},
+    )
+    assert response.status_code == 204
+
+
+async def test_delete_me_invalida_sessao_apos_exclusao(
+    client: AsyncClient, competitor_token: str
+):
+    """Após DELETE /users/me a sessão anterior deve ser inválida (401 no /users/me)."""
+    delete_resp = await client.delete(
+        "/api/v1/users/me",
+        cookies={"session_id": competitor_token},
+    )
+    assert delete_resp.status_code == 204
+
+    me_resp = await client.get(
+        "/api/v1/users/me",
+        cookies={"session_id": competitor_token},
+    )
+    assert me_resp.status_code == 401
+
+
+async def test_delete_me_sem_autenticacao_retorna_401(client: AsyncClient):
+    """DELETE /users/me sem sessão deve retornar 401."""
+    response = await client.delete("/api/v1/users/me")
+    assert response.status_code == 401
+
+
+# ── Listagem e CRUD de usuários (Admin/Operator) ──────────────────────────────
+
+
 async def test_listar_usuarios_como_admin_retorna_200(
     client: AsyncClient, admin_token: str
 ):

@@ -85,6 +85,13 @@ export default function LoginPage() {
           Esqueci minha senha
         </Link>
       </p>
+
+      <p className="mt-3 text-center text-sm text-gray-500">
+        Não tem conta?{" "}
+        <Link to="/register" className="text-primary-600 hover:underline font-medium">
+          Criar conta
+        </Link>
+      </p>
     </>
   );
 }

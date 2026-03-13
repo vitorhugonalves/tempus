@@ -1,13 +1,14 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user, require_roles
 from app.core.security import hash_password
+from app.core.session import invalidate_session
 from app.db.session import get_db
 from app.models.competition import Competition, CompetitionStatus
 from app.models.team import Team, TeamMember
@@ -22,6 +23,61 @@ router = APIRouter()
 
 class ChangePasswordRequest(BaseModel):
     new_password: str = Field(..., min_length=8)
+
+
+class UpdateMeRequest(BaseModel):
+    full_name: str | None = Field(None, min_length=2, max_length=200)
+    email: EmailStr | None = None
+
+
+# ── Perfil do usuário autenticado ─────────────────────────────────────────────
+
+
+@router.get("/users/me", response_model=UserResponse)
+async def get_me(current_user: User = Depends(get_current_user)) -> UserResponse:
+    """Retorna os dados do usuário autenticado (RF-14, LGPD)."""
+    return UserResponse.model_validate(current_user)
+
+
+@router.patch("/users/me", response_model=UserResponse)
+async def update_me(
+    payload: UpdateMeRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UserResponse:
+    """Permite ao usuário editar seus próprios dados (RF-14, LGPD)."""
+    if payload.email is not None:
+        existing = await UserRepository.get_by_email(db, str(payload.email))
+        if existing and existing.id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="E-mail já em uso por outro usuário",
+            )
+        current_user.email = str(payload.email)
+    if payload.full_name is not None:
+        current_user.full_name = payload.full_name
+    updated = await UserRepository.update(db, current_user)
+    logger.info("Perfil atualizado pelo próprio usuário: id=%s", current_user.id)
+    return UserResponse.model_validate(updated)
+
+
+@router.delete("/users/me", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_me(
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    session_id: str | None = Cookie(default=None),
+) -> None:
+    """Remove a própria conta (LGPD — direito ao esquecimento)."""
+    if session_id:
+        await invalidate_session(db, session_id)
+    response.delete_cookie("session_id")
+    await db.delete(current_user)
+    await db.flush()
+    logger.info("Conta removida pelo próprio usuário: id=%s", current_user.id)
+
+
+# ── CRUD de usuários (Operador/Admin) ─────────────────────────────────────────
 
 
 @router.get("/users", response_model=list[UserResponse])

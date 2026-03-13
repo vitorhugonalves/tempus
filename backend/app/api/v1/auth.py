@@ -7,9 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, require_roles
 from app.core.config import settings
 from app.core.limiter import limiter as _limiter
+from app.core.security import hash_password
 from app.core.session import create_session, invalidate_session
 from app.db.session import get_db
-from app.models.user import User
+from app.models.user import User, UserRole
+from app.repositories.user import UserRepository
 from app.schemas.auth import LoginRequest, LoginResponse
 
 logger = logging.getLogger(__name__)
@@ -38,6 +40,12 @@ class InviteRequest(BaseModel):
 
 class RegisterViaInviteRequest(BaseModel):
     token: str
+    full_name: str = Field(..., min_length=2, max_length=200)
+    email: EmailStr
+    password: str = Field(..., min_length=8)
+
+
+class SignupRequest(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=200)
     email: EmailStr
     password: str = Field(..., min_length=8)
@@ -225,4 +233,48 @@ async def register_via_invite(
     )
 
     logger.info("Competidor registrado via convite: user_id=%s", user.id)
+    return LoginResponse.model_validate(user)
+
+
+# ── Cadastro aberto (RF-XX) ───────────────────────────────────────────────────
+
+
+@router.post("/auth/signup", response_model=LoginResponse, status_code=status.HTTP_201_CREATED)
+async def signup(
+    payload: SignupRequest,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+) -> LoginResponse:
+    """Cadastro aberto para novos competidores sem convite.
+
+    Sempre atribui a role `competitor`. Inicia sessão automaticamente.
+    """
+    existing = await UserRepository.get_by_email(db, str(payload.email))
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="E-mail já cadastrado",
+        )
+
+    user = User(
+        full_name=payload.full_name,
+        email=str(payload.email),
+        hashed_password=hash_password(payload.password),
+        role=UserRole.competitor,
+    )
+    db.add(user)
+    await db.flush()
+    await db.refresh(user)
+
+    token = await create_session(db, user.id)
+    response.set_cookie(
+        key="session_id",
+        value=token,
+        httponly=True,
+        secure=settings.APP_ENV == "production",
+        samesite="lax",
+        max_age=settings.SESSION_TTL_SECONDS,
+    )
+
+    logger.info("Novo competidor cadastrado via signup: user_id=%s", user.id)
     return LoginResponse.model_validate(user)

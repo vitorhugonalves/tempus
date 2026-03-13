@@ -366,3 +366,54 @@ async def test_add_member_acima_max_team_size_retorna_409(
     )
     assert r3.status_code == 409
     assert "limite" in r3.json()["detail"].lower()
+
+
+# ── GET /competitions/{id}/my-registration ───────────────────────────────────
+
+
+async def test_get_my_registration_nao_inscrito_retorna_is_registered_false(
+    client: AsyncClient,
+    active_competition: dict,
+    competitor_token: str,
+):
+    """Competidor que não está inscrito deve receber is_registered=false."""
+    resp = await client.get(
+        f"/api/v1/competitions/{active_competition['id']}/my-registration",
+        cookies={"session_id": competitor_token},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["is_registered"] is False
+    assert data["competition_id"] == active_competition["id"]
+
+
+async def test_get_my_registration_inscrito_retorna_is_registered_true(
+    client: AsyncClient,
+    active_competition: dict,
+    individual_category: dict,
+    competitor_token: str,
+):
+    """Competidor já inscrito deve receber is_registered=true."""
+    # Realiza inscrição primeiro
+    register_resp = await client.post(
+        f"/api/v1/competitions/{active_competition['id']}/register",
+        json={"category_id": individual_category["id"]},
+        cookies={"session_id": competitor_token},
+    )
+    assert register_resp.status_code == 201
+
+    # Verifica status de inscrição
+    resp = await client.get(
+        f"/api/v1/competitions/{active_competition['id']}/my-registration",
+        cookies={"session_id": competitor_token},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["is_registered"] is True
+    assert data["competition_id"] == active_competition["id"]
+
+
+async def test_get_my_registration_sem_autenticacao_retorna_401(client: AsyncClient):
+    """GET /my-registration sem sessão deve retornar 401. Auth check ocorre antes do 404."""
+    resp = await client.get("/api/v1/competitions/999/my-registration")
+    assert resp.status_code == 401

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
   Bars3Icon,
   ChartBarIcon,
@@ -69,6 +69,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
 function Sidebar({ onClose }: { onClose?: () => void }) {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const visibleItems = NAV_ITEMS.filter(
     (item) => user && item.roles.includes(user.role)
@@ -128,6 +129,18 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
             </p>
           </div>
         </div>
+        <Link
+          to="/profile"
+          onClick={onClose}
+          className={[
+            "block rounded-lg px-3 py-2 text-sm transition-colors mb-1",
+            location.pathname === "/profile"
+              ? "bg-primary-600 text-white"
+              : "text-gray-400 hover:bg-gray-800 hover:text-white",
+          ].join(" ")}
+        >
+          Meu Perfil
+        </Link>
         <button
           onClick={handleLogout}
           className="w-full rounded-lg px-3 py-2 text-left text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"

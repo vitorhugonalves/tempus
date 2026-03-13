@@ -76,6 +76,10 @@ export default function UsersPage() {
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
 
+  // Multi-select state
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
+
   async function load() {
     setLoading(true);
     try {
@@ -225,6 +229,53 @@ export default function UsersPage() {
     }
   }
 
+  // --- Multi-select helpers ---
+  function toggleSelect(id: number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === users.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(users.map((u) => u.id)));
+    }
+  }
+
+  async function handleBulkActivate(activate: boolean) {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`${activate ? "Ativar" : "Desativar"} ${selectedIds.size} usuário(s) selecionado(s)?`)) return;
+    setBulkLoading(true);
+    try {
+      await Promise.all([...selectedIds].map((id) => usersApi.update(id, { is_active: activate })));
+      setSelectedIds(new Set());
+      await load();
+    } finally {
+      setBulkLoading(false);
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Excluir permanentemente ${selectedIds.size} usuário(s)? Esta ação não pode ser desfeita.`)) return;
+    setBulkLoading(true);
+    try {
+      await Promise.all([...selectedIds].map((id) => usersApi.delete(id)));
+      setSelectedIds(new Set());
+      await load();
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      alert(detail ?? "Erro ao excluir usuários.");
+    } finally {
+      setBulkLoading(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Page header */}
@@ -252,6 +303,31 @@ export default function UsersPage() {
           </Button>
         </div>
       </div>
+
+      {/* Bulk action toolbar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 rounded-lg border border-primary-200 bg-primary-50 px-4 py-3">
+          <span className="text-sm font-medium text-primary-700">
+            {selectedIds.size} usuário(s) selecionado(s)
+          </span>
+          <div className="flex items-center gap-2 ml-auto">
+            <Button variant="secondary" size="sm" isLoading={bulkLoading} onClick={() => handleBulkActivate(true)}>
+              Ativar
+            </Button>
+            <Button variant="secondary" size="sm" isLoading={bulkLoading} onClick={() => handleBulkActivate(false)}>
+              Desativar
+            </Button>
+            {isAdmin && (
+              <Button variant="danger" size="sm" isLoading={bulkLoading} onClick={handleBulkDelete}>
+                Excluir selecionados
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Invite form */}
       {showInviteForm && (
@@ -382,6 +458,15 @@ export default function UsersPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-t border-gray-100 bg-gray-50">
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      checked={users.length > 0 && selectedIds.size === users.length}
+                      onChange={toggleSelectAll}
+                      title="Selecionar todos"
+                    />
+                  </th>
                   {["Nome", "E-mail", "Perfil", "Status", "Ações"].map((h) => (
                     <th
                       key={h}
@@ -404,6 +489,14 @@ export default function UsersPage() {
                         key={u.id}
                         className={isEditing ? "bg-primary-50" : "hover:bg-gray-50 transition-colors"}
                       >
+                        <td className="px-4 py-4">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                            checked={selectedIds.has(u.id)}
+                            onChange={() => toggleSelect(u.id)}
+                          />
+                        </td>
                         <td className="px-6 py-4 font-medium text-gray-900">{u.full_name}</td>
                         <td className="px-6 py-4 text-gray-500">{u.email}</td>
                         <td className="px-6 py-4">
@@ -465,7 +558,7 @@ export default function UsersPage() {
                       {/* Inline reset-password row */}
                       {resetPasswordId === u.id && (
                         <tr key={`reset-${u.id}`} className="bg-blue-50">
-                          <td colSpan={5} className="px-6 py-4">
+                          <td colSpan={6} className="px-6 py-4">
                             <p className="text-sm font-medium text-gray-700 mb-3">
                               Redefinir senha de <strong>{u.full_name}</strong>
                             </p>
@@ -514,7 +607,7 @@ export default function UsersPage() {
                       {/* Inline edit row */}
                       {isEditing && editForm && (
                         <tr key={`edit-${u.id}`} className="bg-gray-50">
-                          <td colSpan={5} className="px-6 py-4">
+                          <td colSpan={6} className="px-6 py-4">
                             {editError && (
                               <div className="mb-4">
                                 <Alert variant="error">{editError}</Alert>
