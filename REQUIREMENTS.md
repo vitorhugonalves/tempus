@@ -76,7 +76,7 @@ Organizadores de eventos e competições esportivas com até **300 atletas por e
 - **RF-08:** ✅ Atribuição e alteração de roles por Operador ou Admin
 - **RF-09:** ✅ Ativação/desativação de conta sem exclusão permanente
 - **RF-10:** ✅ Campos obrigatórios: nome completo, e-mail, role, senha
-- **RF-47:** ✅ Exclusão permanente de usuário (Admin apenas; não pode excluir a si mesmo)
+- **RF-47:** ✅ Exclusão permanente de usuário (Admin apenas; não pode excluir usuários com role `admin`)
 - **RF-48:** ✅ Redefinição de senha pelo próprio usuário ou por Operador/Admin
 
 #### 3.2.2 Competidores
@@ -223,7 +223,7 @@ Organizadores de eventos e competições esportivas com até **300 atletas por e
 - **RN-05:** Apenas o Administrador pode reabrir uma competição encerrada
 - **RN-06:** Certificado e imagem para redes sociais só são gerados após encerramento oficial da competição
 - **RN-07:** Link de convite é pessoal e não pode ser usado por outro e-mail diferente do destinatário
-- **RN-08:** Admin não pode excluir a si mesmo
+- **RN-08:** Usuários com role `admin` não podem ser excluídos — nem por si mesmos (`DELETE /users/me`) nem por outros administradores (`DELETE /users/{id}`)
 - **RN-09:** Modalidade com competições vinculadas não pode ser removida
 - **RN-10:** Bateria já finalizada não pode ser reiniciada
 - **RN-11:** Timer só pode ser vinculado a uma bateria da mesma competição; se já vinculado a outra bateria, retorna conflito
