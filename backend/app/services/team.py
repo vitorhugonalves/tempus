@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.category import Category
+from app.models.competitor import CompetitorRegistration
 from app.models.team import Team, TeamMember
 from app.repositories.competition import CompetitionRepository
 from app.repositories.team import TeamRepository
@@ -91,13 +92,30 @@ class TeamService:
 
     @staticmethod
     async def delete(db: AsyncSession, team_id: int) -> None:
-        """Remove equipe.
+        """Remove equipe e cancela as inscrições de todos os seus membros.
+
+        Para cada membro da equipe, apaga o registro em `CompetitorRegistration`
+        para a competição desta equipe, cancelando a inscrição do competidor.
 
         Args:
             db: Sessão assíncrona.
             team_id: ID da equipe.
         """
         team = await TeamService.get_or_404(db, team_id)
+
+        # Cancela inscrições de todos os membros nesta competição
+        member_ids = [m.user_id for m in team.members]
+        if member_ids:
+            regs = await db.execute(
+                select(CompetitorRegistration).where(
+                    CompetitorRegistration.user_id.in_(member_ids),
+                    CompetitorRegistration.competition_id == team.competition_id,
+                )
+            )
+            for reg in regs.scalars().all():
+                await db.delete(reg)
+            await db.flush()
+
         await TeamRepository.delete(db, team)
 
     @staticmethod

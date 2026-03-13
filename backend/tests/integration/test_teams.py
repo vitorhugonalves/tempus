@@ -1,5 +1,7 @@
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 # ── Fixtures helpers ──────────────────────────────────────────────────────────
@@ -215,3 +217,64 @@ async def test_remover_membro_retorna_204(
         cookies={"session_id": admin_token},
     )
     assert response.status_code == 204
+
+
+# ── Cancelamento de inscrição ao deletar equipe ───────────────────────────────
+
+async def test_excluir_equipe_cancela_inscricoes_dos_membros(
+    client: AsyncClient,
+    admin_token: str,
+    competitor_token: str,
+    db: AsyncSession,
+):
+    """Ao excluir uma equipe, as inscrições de seus membros devem ser removidas."""
+    from app.models.competitor import CompetitorRegistration
+
+    # Cria competição ativa e categoria
+    comp_resp = await client.post(
+        "/api/v1/competitions",
+        json={"name": "Copa Cancelamento"},
+        cookies={"session_id": admin_token},
+    )
+    comp_id = comp_resp.json()["id"]
+    await client.patch(
+        f"/api/v1/competitions/{comp_id}",
+        json={"status": "active"},
+        cookies={"session_id": admin_token},
+    )
+    cat_resp = await client.post(
+        f"/api/v1/competitions/{comp_id}/categories",
+        json={"name": "Individual", "category_type": "individual"},
+        cookies={"session_id": admin_token},
+    )
+    cat_id = cat_resp.json()["id"]
+
+    # Competidor se inscreve (cria equipe + inscrição)
+    reg_resp = await client.post(
+        f"/api/v1/competitions/{comp_id}/register",
+        json={"category_id": cat_id},
+        cookies={"session_id": competitor_token},
+    )
+    assert reg_resp.status_code == 201
+    team_id = reg_resp.json()["team_id"]
+
+    # Verifica que inscrição existe antes da deleção
+    me_resp = await client.get(
+        f"/api/v1/competitions/{comp_id}/my-registration",
+        cookies={"session_id": competitor_token},
+    )
+    assert me_resp.json()["is_registered"] is True
+
+    # Admin deleta a equipe
+    del_resp = await client.delete(
+        f"/api/v1/competitions/{comp_id}/teams/{team_id}",
+        cookies={"session_id": admin_token},
+    )
+    assert del_resp.status_code == 204
+
+    # Inscrição deve ter sido cancelada
+    me_after = await client.get(
+        f"/api/v1/competitions/{comp_id}/my-registration",
+        cookies={"session_id": competitor_token},
+    )
+    assert me_after.json()["is_registered"] is False
