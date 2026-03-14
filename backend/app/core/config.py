@@ -8,26 +8,24 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    APP_ENV: str = "development"
-    SECRET_KEY: str = "troque-isso-por-um-valor-seguro"
-    SESSION_TTL_SECONDS: int = 28800  # 8 horas
+    APP_ENV: str
+    SECRET_KEY: str
+    SESSION_TTL_SECONDS: int
 
-    DATABASE_URL: str = "sqlite+aiosqlite:///./tempus.db"
+    DATABASE_URL: str
 
-    REDIS_URL: str = "redis://localhost:6379/0"
-    REDIS_TIMER_TTL_SECONDS: int = 86400  # 24h — expira estado de timers inativos
+    REDIS_URL: str
+    REDIS_TIMER_TTL_SECONDS: int
 
-    SMTP_HOST: str = "smtp.example.com"
-    SMTP_PORT: int = 587
-    SMTP_USER: str = ""
-    SMTP_PASSWORD: str = ""
+    SMTP_HOST: str
+    SMTP_PORT: int
+    SMTP_USER: str
+    SMTP_PASSWORD: str
 
-    VITE_API_BASE_URL: str = "http://localhost:8000"
-    FRONTEND_URL: str = "http://localhost:5173"
+    FRONTEND_URL: str
 
-    # Admin padrão criado automaticamente na primeira migration (RF-44)
-    ADMIN_EMAIL: str = "admin@example.com"
-    ADMIN_FULL_NAME: str = "Administrador"
+    ADMIN_EMAIL: str
+    ADMIN_FULL_NAME: str
 
 
 settings = Settings()

@@ -42,11 +42,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
-_cors_origins = (
-    [settings.VITE_API_BASE_URL, "http://localhost:5173", "http://localhost:3000"]
-    if settings.APP_ENV == "development"
-    else []
-)
+_cors_origins = [settings.FRONTEND_URL] if settings.APP_ENV == "development" else []
 
 app.add_middleware(
     CORSMiddleware,

@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 
 const LOG_DIR = path.resolve(__dirname, "../logs");
@@ -23,13 +23,16 @@ function appendProxyError(req: { method?: string; url?: string }, err: Error) {
   console.error(`[vite.proxy] ${method} ${url} → ${err.message}`);
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), "");
+
+  return {
   plugins: [react()],
   server: {
-    port: 5173,
+    port: Number(env.PORT),
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:8000",
+        target: env.BACKEND_URL,
         changeOrigin: true,
         configure(proxy) {
           proxy.on("error", (err, req) => {
@@ -38,7 +41,7 @@ export default defineConfig({
         },
       },
       "/ws": {
-        target: "http://127.0.0.1:8000",
+        target: env.BACKEND_URL,
         changeOrigin: true,
         ws: true,
       },
@@ -59,4 +62,5 @@ export default defineConfig({
       },
     },
   },
+  };
 });
