@@ -28,17 +28,29 @@ async def _send(to_email: str, subject: str, html_body: str) -> None:
     msg["To"] = to_email
     msg.attach(MIMEText(html_body, "html", "utf-8"))
 
+    if not settings.smtp_enabled:
+        logger.warning(
+            "SMTP não configurado — e-mail para %s ignorado | assunto: %s",
+            to_email,
+            subject,
+        )
+        return
+
     try:
         await aiosmtplib.send(
             msg,
             hostname=settings.SMTP_HOST,
             port=settings.SMTP_PORT,
-            username=settings.SMTP_USER or None,
-            password=settings.SMTP_PASSWORD or None,
+            username=settings.SMTP_USER,
+            password=settings.SMTP_PASSWORD,
             start_tls=settings.SMTP_PORT == 587,
         )
         logger.info("E-mail enviado para %s | assunto: %s", to_email, subject)
     except Exception as exc:
+        logger.info(settings.SMTP_HOST)
+        logger.info(settings.SMTP_PORT)
+        logger.info(settings.SMTP_USER)
+        logger.info(settings.SMTP_PASSWORD)
         logger.error("Falha ao enviar e-mail para %s: %s", to_email, exc)
         raise
 
