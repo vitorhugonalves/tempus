@@ -107,14 +107,16 @@ Carlos Alves;carlos@example.com;operator`}
               Cabeçalho é opcional.
             </p>
             <pre className="bg-gray-50 rounded p-3 text-xs text-gray-700 overflow-x-auto">
-{`id_competicao;categoria_equipe;nome_equipe;email_competidor_01;email_competidor_02
-1;Dupla Mista;Equipe Alpha;joao@example.com;maria@example.com
-1;Dupla Mista;Equipe Beta;carlos@example.com;ana@example.com`}
+{`id_competicao;categoria_equipe;nome_equipe;box_name;email_competidor_01;email_competidor_02
+1;Dupla Mista;Equipe Alpha;CrossFit Centro;joao@example.com;maria@example.com
+1;Dupla Mista;Equipe Beta;;carlos@example.com;ana@example.com`}
             </pre>
             <p className="text-xs text-gray-400 mt-2">
-              Validações: competição deve existir; categoria deve pertencer à competição; nome da
-              equipe deve ser único; todos os e-mails devem ser de usuários cadastrados; a
-              quantidade de e-mails deve ser igual ao tamanho máximo da categoria.
+              <strong>box_name</strong> (Box / Centro de Treinamento) é opcional — deixe vazio entre
+              os pontos-e-vírgula para omitir. Validações: competição deve existir; categoria deve
+              pertencer à competição; nome da equipe deve ser único; todos os e-mails devem ser de
+              usuários cadastrados; a quantidade de e-mails deve ser igual ao tamanho máximo da
+              categoria.
             </p>
           </>
         )}

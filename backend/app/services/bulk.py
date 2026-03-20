@@ -137,7 +137,13 @@ class BulkService:
     async def import_teams(csv_content: str, db: AsyncSession) -> BulkImportResult:
         """Importa equipes em lote a partir de conteúdo CSV.
 
-        Formato: id_competicao;categoria_equipe;nome_equipe;email1;email2;...
+        Formato novo: id_competicao;categoria_equipe;nome_equipe;box_name;email1;email2;...
+        Formato legado: id_competicao;categoria_equipe;nome_equipe;email1;email2;...
+
+        O formato é detectado automaticamente: se a coluna de índice 3 contiver '@',
+        é tratada como e-mail (formato legado, sem box_name). Caso contrário, é tratada
+        como box_name (pode ser vazia) e os e-mails começam a partir do índice 4.
+
         O número de e-mails de competidores deve ser igual a category.max_team_size.
 
         Args:
@@ -165,7 +171,7 @@ class BulkService:
                     BulkError(
                         row=row_num,
                         identifier=row[2].strip() if len(row) > 2 else "",
-                        reason="Linha incompleta — esperado: id_competicao;categoria_equipe;nome_equipe;email1;...",
+                        reason="Linha incompleta — esperado: id_competicao;categoria_equipe;nome_equipe;box_name;email1;...",
                     )
                 )
                 continue
@@ -173,7 +179,14 @@ class BulkService:
             competition_id_str = row[0].strip()
             category_name = row[1].strip()
             team_name = row[2].strip()
-            email_columns = [e.strip().lower() for e in row[3:] if e.strip()]
+
+            # Detecção automática de formato: coluna 3 com '@' → formato legado (sem box_name)
+            if "@" in row[3]:
+                box_name: str | None = None
+                email_columns = [e.strip().lower() for e in row[3:] if e.strip()]
+            else:
+                box_name = row[3].strip() or None
+                email_columns = [e.strip().lower() for e in row[4:] if e.strip()]
 
             # 1. Valida ID de competição
             try:
@@ -268,6 +281,7 @@ class BulkService:
                 competition_id=competition_id,
                 category_id=category.id,
                 name=team_name,
+                box_name=box_name,
                 captain_id=member_users[0].id if member_users else None,
             )
             db.add(team)

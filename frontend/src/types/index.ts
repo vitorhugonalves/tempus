@@ -162,6 +162,7 @@ export interface RankingEntry {
   team_id: number | null;
   athlete_name: string;
   team_name: string | null;
+  box_name: string | null;
   category_name: string | null;
   elapsed_seconds: number;
   total_penalty_seconds: number;

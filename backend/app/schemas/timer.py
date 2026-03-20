@@ -174,6 +174,7 @@ class RankingEntry(BaseModel):
     team_id: int | None
     athlete_name: str
     team_name: str | None
+    box_name: str | None
     category_name: str | None
     accumulated_ms: int
     elapsed_seconds: int

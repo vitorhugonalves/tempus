@@ -232,6 +232,93 @@ async def test_bulk_import_teams_wrong_member_count_adds_to_errors(
 
 
 @pytest.mark.asyncio
+async def test_bulk_import_teams_with_box_name_persists_box(
+    client: AsyncClient,
+    admin_token: str,
+    active_competition: Competition,
+    team_category: Category,
+    competitor_a: User,
+    competitor_b: User,
+    db: AsyncSession,
+):
+    """CSV com box_name (formato novo) persiste o campo na equipe criada."""
+    from sqlalchemy import select
+    from app.models.team import Team
+
+    csv_content = _csv([
+        f"{active_competition.id};Dupla Mista;Equipe Box;CrossFit Downtown;comp_a@example.com;comp_b@example.com",
+    ])
+    response = await client.post(
+        "/api/v1/admin/bulk/teams",
+        files={"file": ("teams.csv", csv_content, "text/csv")},
+        cookies={"session_id": admin_token},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["created_count"] == 1
+    assert data["errors"] == []
+
+    result = await db.execute(select(Team).where(Team.name == "Equipe Box"))
+    team = result.scalar_one()
+    assert team.box_name == "CrossFit Downtown"
+
+
+@pytest.mark.asyncio
+async def test_bulk_import_teams_empty_box_name_stores_none(
+    client: AsyncClient,
+    admin_token: str,
+    active_competition: Competition,
+    team_category: Category,
+    competitor_a: User,
+    competitor_b: User,
+    db: AsyncSession,
+):
+    """CSV com box_name vazio (;;) armazena None na equipe criada."""
+    from sqlalchemy import select
+    from app.models.team import Team
+
+    csv_content = _csv([
+        f"{active_competition.id};Dupla Mista;Equipe SemBox;;comp_a@example.com;comp_b@example.com",
+    ])
+    response = await client.post(
+        "/api/v1/admin/bulk/teams",
+        files={"file": ("teams.csv", csv_content, "text/csv")},
+        cookies={"session_id": admin_token},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["created_count"] == 1
+
+    result = await db.execute(select(Team).where(Team.name == "Equipe SemBox"))
+    team = result.scalar_one()
+    assert team.box_name is None
+
+
+@pytest.mark.asyncio
+async def test_bulk_import_teams_legacy_format_without_box_name(
+    client: AsyncClient,
+    admin_token: str,
+    active_competition: Competition,
+    team_category: Category,
+    competitor_a: User,
+    competitor_b: User,
+):
+    """Formato legado (sem coluna box_name, email direto no índice 3) ainda funciona."""
+    csv_content = _csv([
+        f"{active_competition.id};Dupla Mista;Equipe Legacy;comp_a@example.com;comp_b@example.com",
+    ])
+    response = await client.post(
+        "/api/v1/admin/bulk/teams",
+        files={"file": ("teams.csv", csv_content, "text/csv")},
+        cookies={"session_id": admin_token},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["created_count"] == 1
+    assert data["errors"] == []
+
+
+@pytest.mark.asyncio
 async def test_bulk_import_teams_as_non_admin_returns_403(
     client: AsyncClient, judge_token: str
 ):

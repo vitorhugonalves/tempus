@@ -199,6 +199,7 @@ export default function RankingPage() {
 
   const { label, variant } = STATUS_BADGE[competition.status] ?? STATUS_BADGE.draft;
   const hasRemaining = ranking.some((e) => e.remaining_seconds !== null);
+  const hasBoxName = ranking.some((e) => e.box_name != null && e.box_name !== "");
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-primary-700">
@@ -295,6 +296,7 @@ export default function RankingPage() {
                       "Pos.",
                       "Atleta / Equipe",
                       "Categoria",
+                      ...(hasBoxName ? ["Box / CT"] : []),
                       "Cronometrado",
                       "Penalidades",
                       "Infrações",
@@ -339,6 +341,11 @@ export default function RankingPage() {
                         <td className="px-4 py-4 text-gray-500 dark:text-gray-400">
                           {entry.category_name ?? "—"}
                         </td>
+                        {hasBoxName && (
+                          <td className="px-4 py-4 text-gray-500 dark:text-gray-400">
+                            {entry.box_name ?? "—"}
+                          </td>
+                        )}
                         <td className="px-4 py-4 font-mono text-gray-700 dark:text-gray-300">
                           {secondsToDisplay(entry.elapsed_seconds)}
                         </td>

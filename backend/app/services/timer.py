@@ -730,6 +730,7 @@ class RankingService:
                 athlete_name = f"Timer #{timer.id}"
 
             team_name = timer.team.name if timer.team else None
+            box_name = timer.team.box_name if timer.team else None
             category_name = timer.category.name if timer.category else None
             infractions_count = len(timer.penalties)
 
@@ -747,6 +748,7 @@ class RankingService:
                     team_id=timer.team_id,
                     athlete_name=athlete_name,
                     team_name=team_name,
+                    box_name=box_name,
                     category_name=category_name,
                     accumulated_ms=accumulated_ms,
                     elapsed_seconds=elapsed_seconds,
