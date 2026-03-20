@@ -135,7 +135,12 @@ class TimerResponse(BaseModel):
         t = timer  # type: ignore[assignment]
 
         if redis_state and t.status == TimerStatus.running:
-            accumulated_ms = _compute_accumulated_ms_from_redis(redis_state)
+            # Retorna o baseline e o anchor separados — o frontend calcula o tempo
+            # vivo com: accumulated_ms + (Date.now() - started_at_ms).
+            # NÃO pré-computar o elapsed aqui, pois isso causaria double-counting:
+            # o frontend somaria (T_agora - T_start) sobre um valor que já inclui
+            # (T_resposta - T_start), inflando o display progressivamente.
+            accumulated_ms = redis_state["accumulated_ms"]
             started_at_ms: int | None = redis_state.get("started_at_ms")
         else:
             accumulated_ms = _compute_accumulated_ms(t)
