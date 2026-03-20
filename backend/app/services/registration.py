@@ -36,6 +36,7 @@ class CompetitorRegisterRequest(BaseModel):
 
     category_id: int
     document: str | None = Field(None, max_length=30)
+    box_name: str | None = Field(None, max_length=200)
     # Campos para categoria do tipo equipe
     team_name: str | None = Field(None, min_length=1, max_length=200)
     additional_members: list[MemberInput] = []
@@ -168,6 +169,7 @@ class RegistrationService:
             category_id=data.category_id,
             name=team_name,
             captain_id=current_user.id,
+            box_name=data.box_name,
         )
         db.add(team)
         await db.flush()

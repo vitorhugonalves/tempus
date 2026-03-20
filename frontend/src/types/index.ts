@@ -81,6 +81,7 @@ export interface Team {
   competition_id: number;
   category_id: number;
   name: string;
+  box_name: string | null;
   captain_id: number | null;
   member_count: number;
   created_at: string;

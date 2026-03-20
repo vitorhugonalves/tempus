@@ -9,6 +9,7 @@ export interface MemberInput {
 export interface CompetitorRegisterRequest {
   category_id: number;
   document?: string;
+  box_name?: string;
   team_name?: string;
   additional_members?: MemberInput[];
 }

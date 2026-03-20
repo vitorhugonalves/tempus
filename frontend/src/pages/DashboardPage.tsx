@@ -7,6 +7,7 @@ import {
   UsersIcon,
 } from "@heroicons/react/24/outline";
 import { competitionsApi } from "../api/competitions";
+import { adminApi } from "../api/admin";
 import apiClient from "../api/client";
 import { useAuthStore } from "../store/auth";
 import { Card } from "../components/ui/Card";
@@ -43,6 +44,8 @@ export default function DashboardPage() {
   const { user } = useAuthStore();
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [myTeams, setMyTeams] = useState<MyTeamInfo[]>([]);
+  const [hasLogo, setHasLogo] = useState(false);
+  const [boxName, setBoxName] = useState<string | null>(null);
   const [editingTeamId, setEditingTeamId] = useState<number | null>(null);
   const [editTeamName, setEditTeamName] = useState("");
   const [teamSaving, setTeamSaving] = useState(false);
@@ -54,6 +57,10 @@ export default function DashboardPage() {
     if (user?.role === "competitor") {
       apiClient.get<MyTeamInfo[]>("/api/v1/users/me/teams").then((r) => setMyTeams(r.data)).catch(() => {});
     }
+    adminApi.getSettings().then(({ data }) => {
+      setHasLogo(data.has_logo);
+      setBoxName(data.name || null);
+    }).catch(() => {});
   }, [user?.role]);
 
   const active = competitions.filter((c) => c.status === "active");
@@ -91,6 +98,13 @@ export default function DashboardPage() {
     <div className="space-y-6">
       {/* Page header */}
       <div>
+        {hasLogo && (
+          <img
+            src={`${adminApi.getLogoUrl()}?t=${Date.now()}`}
+            alt={boxName ?? "Logo"}
+            className="h-12 object-contain mb-3"
+          />
+        )}
         <h1 className="text-2xl font-bold text-gray-900">
           {user ? ROLE_GREETINGS[user.role] : "Dashboard"}
         </h1>

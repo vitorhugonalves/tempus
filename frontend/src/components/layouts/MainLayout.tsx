@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Link, NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
+  ArrowUpTrayIcon,
   Bars3Icon,
   ChartBarIcon,
   ClipboardDocumentCheckIcon,
   ClockIcon,
+  Cog6ToothIcon,
   HomeIcon,
   TrophyIcon,
   UsersIcon,
@@ -56,6 +58,18 @@ const NAV_ITEMS: NavItem[] = [
     href: "/users",
     Icon: UsersIcon,
     roles: ["operator", "admin"],
+  },
+  {
+    label: "Administração",
+    href: "/admin",
+    Icon: Cog6ToothIcon,
+    roles: ["admin"],
+  },
+  {
+    label: "Importação em Lote",
+    href: "/admin/bulk",
+    Icon: ArrowUpTrayIcon,
+    roles: ["admin"],
   },
 ];
 
