@@ -24,7 +24,7 @@ Este documento descreve como configurar o ambiente de desenvolvimento, executar 
 | Node.js | 18 | Recomendado: 20+ |
 | npm | 9+ | |
 | Git | qualquer | |
-| Docker + Docker Compose | 24+ | Apenas para deploy com containers |
+| Docker + Docker Compose | 24+ | Necessário para PostgreSQL e Redis via containers |
 
 ---
 
@@ -213,10 +213,22 @@ Acesse: `http://localhost:5173`
 
 ```bash
 # Na raiz do projeto
-docker compose -f docker/docker-compose.yml up --build
+
+# 1. Configure as variáveis obrigatórias (pode ser em docker/.env ou exportando no shell)
+cp docker/.env.example docker/.env
+# Edite docker/.env com a senha do PostgreSQL
+
+# 2. Suba todos os serviços (PostgreSQL, Redis, backend, frontend)
+docker compose -f docker/docker-compose.yml up --build -d
+
+# 3. Aguarde o backend ficar healthy e aplique as migrações
+docker compose -f docker/docker-compose.yml exec backend alembic upgrade head
+
+# 4. Verifique os logs
+docker compose -f docker/docker-compose.yml logs -f backend
 ```
 
-Acesse: `http://localhost:5173` (frontend) e `http://localhost:8000` (API)
+Acesse: `http://localhost` (frontend via Nginx) e `http://localhost:8000` (API)
 
 ---
 
@@ -235,21 +247,25 @@ Acesse: `http://localhost:5173` (frontend) e `http://localhost:8000` (API)
 git clone <repo-url> tempus
 cd tempus
 
-# 2. Configure as variáveis de ambiente
+# 2. Configure as variáveis de ambiente da aplicação
 cp backend/.env.example backend/.env
-# Edite backend/.env com os valores de produção
+# Edite backend/.env com os valores de produção (SECRET_KEY, SMTP, etc.)
 
-# 3. Build e deploy
-docker compose -f docker/docker-compose.yml \
-  -f docker/docker-compose.prod.yml \
-  up -d --build
+# 3. Configure as variáveis do Docker Compose (PostgreSQL)
+cp docker/.env.example docker/.env
+# Edite docker/.env — defina POSTGRES_PASSWORD com uma senha forte
 
-# 4. Execute as migrações
-docker compose exec backend alembic upgrade head
+# 4. Build e deploy
+docker compose -f docker/docker-compose.yml up -d --build
 
-# 5. Verifique os logs
-docker compose logs -f
+# 5. Execute as migrações (aguarde o backend estar healthy)
+docker compose -f docker/docker-compose.yml exec backend alembic upgrade head
+
+# 6. Verifique os logs
+docker compose -f docker/docker-compose.yml logs -f
 ```
+
+> **Nota:** O `DATABASE_URL` no `.env` do backend é **ignorado quando rodando via Docker Compose**, pois o compose injeta a variável `DATABASE_URL` diretamente no container apontando para o serviço `tempus-postgres`. Para desenvolvimento local sem Docker, configure `DATABASE_URL` no `backend/.env` normalmente.
 
 ### Opção B: Deploy manual (bare metal)
 
@@ -352,17 +368,29 @@ server {
 
 Copie `backend/.env.example` para `backend/.env` e ajuste os valores:
 
+### `backend/.env` — Variáveis da aplicação
+
 | Variável | Obrigatória | Exemplo | Descrição |
 |---|---|---|---|
 | `APP_ENV` | Sim | `production` | `development` ou `production` |
 | `SECRET_KEY` | Sim | `<string aleatória longa>` | Chave de assinatura de cookies — gere com `python -c "import secrets; print(secrets.token_hex(32))"` |
-| `DATABASE_URL` | Sim | `postgresql+asyncpg://user:pass@host/db` | SQLite para dev, PostgreSQL para produção |
+| `DATABASE_URL` | Sim* | `postgresql+asyncpg://user:pass@host/db` | *Ignorada pelo Docker Compose (sobrescrita pelo compose). Necessária para execução local sem Docker. |
 | `SESSION_TTL_SECONDS` | Não | `28800` | Duração da sessão (padrão: 8 horas) |
 | `SMTP_HOST` | Não | `smtp.gmail.com` | Servidor SMTP para envio de e-mails |
 | `SMTP_PORT` | Não | `587` | Porta SMTP (padrão: 587 com STARTTLS) |
 | `SMTP_USER` | Não | `noreply@seudominio.com` | Usuário SMTP |
 | `SMTP_PASSWORD` | Não | `senha-app` | Senha SMTP |
-| `VITE_API_BASE_URL` | Sim | `https://api.seudominio.com` | URL base da API (usada no backend para gerar links de e-mail) |
+| `FRONTEND_URL` | Sim | `https://seudominio.com` | URL base do frontend (usada no backend para gerar links de e-mail) |
+| `ADMIN_EMAIL` | Sim | `admin@seudominio.com` | E-mail do administrador inicial (seed) |
+| `ADMIN_FULL_NAME` | Não | `Administrador` | Nome do administrador inicial |
+
+### `docker/.env` — Variáveis do Docker Compose (PostgreSQL)
+
+| Variável | Obrigatória | Padrão | Descrição |
+|---|---|---|---|
+| `POSTGRES_DB` | Não | `tempus` | Nome do banco de dados PostgreSQL |
+| `POSTGRES_USER` | Não | `tempus` | Usuário do banco de dados |
+| `POSTGRES_PASSWORD` | **Sim** | — | Senha do banco — **nunca use valores fracos em produção** |
 
 > **Segurança:** Nunca comite o arquivo `.env`. Ele já está no `.gitignore`.
 

@@ -49,7 +49,12 @@ logs/*.log.*
 
 # Docker
 docker/nginx.conf~
+docker/.env
 
 # OS
 .DS_Store
 Thumbs.db
+
+*.csv
+*.pdf
+*.xlsx
