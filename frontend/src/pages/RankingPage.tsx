@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeftIcon, TrophyIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import { competitionsApi } from "../api/competitions";
+import { adminApi } from "../api/admin";
 import { rankingApi } from "../api/timers";
 import { categoriesApi } from "../api/categories";
 import { Card } from "../components/ui/Card";
@@ -40,6 +41,7 @@ function RankingSelector() {
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<number | "">("");
+  const [hasLogo, setHasLogo] = useState(false);
 
   useEffect(() => {
     competitionsApi
@@ -47,12 +49,21 @@ function RankingSelector() {
       .then(({ data }) => setCompetitions(data))
       .catch(() => {})
       .finally(() => setLoading(false));
+    adminApi.getSettings().then(({ data }) => setHasLogo(data.has_logo)).catch(() => {});
   }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-primary-700">
       <header className="bg-primary-700 text-white">
         <div className="max-w-5xl mx-auto px-4 py-6">
+          {hasLogo && (
+            <img
+              src={adminApi.getLogoUrl()}
+              alt="Logo"
+              className="h-10 object-contain mb-3"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+          )}
           <div className="flex items-center gap-3 mb-2">
             <TrophyIcon className="h-7 w-7 text-yellow-400" />
             <h1 className="text-2xl font-bold">Ranking</h1>
@@ -114,6 +125,7 @@ export default function RankingPage() {
   }
 
   const [competition, setCompetition] = useState<Competition | null>(null);
+  const [hasLogo, setHasLogo] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<number | undefined>();
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
@@ -128,6 +140,10 @@ export default function RankingPage() {
       // silencioso — dados já exibidos
     }
   }, [id, selectedCategory]);
+
+  useEffect(() => {
+    adminApi.getSettings().then(({ data }) => setHasLogo(data.has_logo)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -183,11 +199,20 @@ export default function RankingPage() {
 
   const { label, variant } = STATUS_BADGE[competition.status] ?? STATUS_BADGE.draft;
   const hasRemaining = ranking.some((e) => e.remaining_seconds !== null);
+  const hasBoxName = ranking.some((e) => e.box_name != null && e.box_name !== "");
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-primary-700">
       <header className="bg-primary-700 text-white">
         <div className="max-w-5xl mx-auto px-4 py-6">
+          {hasLogo && (
+            <img
+              src={adminApi.getLogoUrl()}
+              alt="Logo"
+              className="h-10 object-contain mb-3"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+          )}
           <Link to="/" className="inline-flex items-center gap-2 text-gray-400 hover:text-white text-sm mb-4 transition-colors">
             <ArrowLeftIcon className="h-4 w-4" />
             Voltar
@@ -271,6 +296,7 @@ export default function RankingPage() {
                       "Pos.",
                       "Atleta / Equipe",
                       "Categoria",
+                      ...(hasBoxName ? ["Box / CT"] : []),
                       "Cronometrado",
                       "Penalidades",
                       "Infrações",
@@ -315,6 +341,11 @@ export default function RankingPage() {
                         <td className="px-4 py-4 text-gray-500 dark:text-gray-400">
                           {entry.category_name ?? "—"}
                         </td>
+                        {hasBoxName && (
+                          <td className="px-4 py-4 text-gray-500 dark:text-gray-400">
+                            {entry.box_name ?? "—"}
+                          </td>
+                        )}
                         <td className="px-4 py-4 font-mono text-gray-700 dark:text-gray-300">
                           {secondsToDisplay(entry.elapsed_seconds)}
                         </td>

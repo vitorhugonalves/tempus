@@ -19,6 +19,8 @@ import RankingPage from "./pages/RankingPage";
 import RegistrationPage from "./pages/RegistrationPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import ProfilePage from "./pages/ProfilePage";
+import AdminPage from "./pages/AdminPage";
+import BulkActionsPage from "./pages/BulkActionsPage";
 
 function AppLoader() {
   return (
@@ -103,6 +105,12 @@ export default function App() {
             >
               <Route path="/competitions" element={<CompetitionsPage />} />
               <Route path="/users" element={<UsersPage />} />
+            </Route>
+
+            {/* Administração — somente admin */}
+            <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
+              <Route path="/admin" element={<AdminPage />} />
+              <Route path="/admin/bulk" element={<BulkActionsPage />} />
             </Route>
           </Route>
         </Route>

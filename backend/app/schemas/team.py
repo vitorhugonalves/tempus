@@ -7,12 +7,14 @@ class TeamCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     category_id: int
     captain_id: int | None = None
+    box_name: str | None = Field(None, max_length=200)
 
 
 class TeamUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=200)
     category_id: int | None = None
     captain_id: int | None = None
+    box_name: str | None = Field(None, max_length=200)
 
 
 class TeamMemberAdd(BaseModel):
@@ -34,6 +36,7 @@ class TeamResponse(BaseModel):
     competition_id: int
     category_id: int
     name: str
+    box_name: str | None = None
     captain_id: int | None
     member_count: int
     created_at: datetime

@@ -7,7 +7,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from app.api.v1 import auth, competitions, judges, modalities, reports, timers, users, websocket
+from app.api.v1 import admin, auth, bulk, competitions, judges, modalities, reports, timers, users, websocket
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.core.logging_config import setup_logging
@@ -52,6 +52,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(admin.router, prefix="/api/v1", tags=["admin"])
+app.include_router(bulk.router, prefix="/api/v1", tags=["admin"])
 app.include_router(auth.router, prefix="/api/v1", tags=["auth"])
 app.include_router(users.router, prefix="/api/v1", tags=["users"])
 app.include_router(modalities.router, prefix="/api/v1", tags=["modalities"])

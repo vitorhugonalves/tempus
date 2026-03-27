@@ -22,6 +22,7 @@ class Team(Base):
         ForeignKey("categories.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    box_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     captain_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

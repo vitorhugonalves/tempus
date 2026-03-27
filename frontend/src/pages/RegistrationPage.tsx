@@ -24,6 +24,7 @@ export default function RegistrationPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [document, setDocument] = useState("");
+  const [boxName, setBoxName] = useState("");
   const [teamName, setTeamName] = useState("");
   const [additionalMembers, setAdditionalMembers] = useState<MemberInput[]>([]);
   const [loading, setLoading] = useState(false);
@@ -100,6 +101,7 @@ export default function RegistrationPage() {
       const payload: CompetitorRegisterRequest = {
         category_id: selectedCategoryId,
         document: document || undefined,
+        box_name: boxName || undefined,
         team_name: isTeam ? teamName : undefined,
         additional_members: isTeam ? additionalMembers : [],
       };
@@ -216,6 +218,21 @@ export default function RegistrationPage() {
                   onChange={(e) => setDocument(e.target.value)}
                   placeholder="000.000.000-00"
                   maxLength={30}
+                />
+              </div>
+            )}
+
+            {/* Box / Centro de Treinamento (opcional) */}
+            {selectedCategoryId && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Box / Centro de Treinamento (opcional)
+                </label>
+                <Input
+                  value={boxName}
+                  onChange={(e) => setBoxName(e.target.value)}
+                  placeholder="Ex: CrossFit Oceania"
+                  maxLength={200}
                 />
               </div>
             )}
