@@ -16,7 +16,7 @@ from app.repositories.competition import CompetitionRepository
 from app.repositories.modality import ModalityRepository
 from app.schemas.category import CategoryCreate, CategoryResponse, CategoryUpdate
 from app.schemas.competition import CompetitionCreate, CompetitionResponse, CompetitionUpdate
-from app.schemas.heat import HeatCreate, HeatResponse, HeatTeamResponse, HeatTimerAdd
+from app.schemas.heat import HeatCreate, HeatResponse, HeatTeamResponse, HeatTimerAdd, HeatUpdate
 from app.schemas.team import (
     TeamCreate,
     TeamMemberAdd,
@@ -52,6 +52,7 @@ def _heat_to_response(heat: object) -> HeatResponse:
         competition_id=h.competition_id,
         name=h.name,
         status=h.status,
+        sort_order=h.sort_order,
         scheduled_at=h.scheduled_at,
         max_participants=h.max_participants,
         timer_count=len(h.timers),
@@ -523,6 +524,25 @@ async def create_heat(
     return _heat_to_response(heat)
 
 
+@router.patch(
+    "/competitions/{competition_id}/heats/{heat_id}",
+    response_model=HeatResponse,
+)
+async def update_heat(
+    competition_id: int,
+    heat_id: int,
+    payload: HeatUpdate,
+    _current_user: User = Depends(require_roles("operator", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> HeatResponse:
+    """Atualiza o nome de uma bateria (Operador/Admin)."""
+    heat = await HeatService.get_or_404(db, heat_id)
+    if heat.competition_id != competition_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bateria não encontrada")
+    updated = await HeatService.update(db, heat_id, payload)
+    return _heat_to_response(updated)
+
+
 @router.delete(
     "/competitions/{competition_id}/heats/{heat_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -646,3 +666,52 @@ async def remove_team_from_heat(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bateria não encontrada")
     await HeatService.remove_team(db, heat_id, team_id)
     logger.info("Equipe %s removida da bateria %s", team_id, heat_id)
+
+
+@router.post(
+    "/competitions/{competition_id}/heats/{heat_id}/teams/{team_id}/start",
+    response_model=HeatResponse,
+)
+async def start_team_in_heat(
+    competition_id: int,
+    heat_id: int,
+    team_id: int,
+    current_user: User = Depends(require_roles("judge", "operator", "admin")),
+    db: AsyncSession = Depends(get_db),
+    redis=Depends(get_redis),
+) -> HeatResponse:
+    """Cria e inicia o timer de uma única equipe da bateria (Judge/Operator/Admin)."""
+    heat = await HeatService.get_or_404(db, heat_id)
+    if heat.competition_id != competition_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bateria não encontrada")
+    updated_heat = await HeatService.start_team(db, heat_id, team_id, current_user, redis)
+    logger.info("Timer da equipe %s iniciado na bateria %s por user_id=%s", team_id, heat_id, current_user.id)
+    return _heat_to_response(updated_heat)
+
+
+class HeatMovePayload(BaseModel):
+    direction: str  # "up" | "down"
+
+
+@router.patch(
+    "/competitions/{competition_id}/heats/{heat_id}/move",
+    response_model=list[HeatResponse],
+)
+async def move_heat(
+    competition_id: int,
+    heat_id: int,
+    payload: HeatMovePayload,
+    _current_user: User = Depends(require_roles("operator", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> list[HeatResponse]:
+    """Move uma bateria para cima ou para baixo na ordem (Operador/Admin)."""
+    if payload.direction not in ("up", "down"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="direction deve ser 'up' ou 'down'",
+        )
+    heat = await HeatService.get_or_404(db, heat_id)
+    if heat.competition_id != competition_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bateria não encontrada")
+    reordered = await HeatService.move(db, competition_id, heat_id, payload.direction)
+    return [_heat_to_response(h) for h in reordered]

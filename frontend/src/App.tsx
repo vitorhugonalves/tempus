@@ -15,6 +15,7 @@ import DashboardPage from "./pages/DashboardPage";
 import CompetitionsPage from "./pages/CompetitionsPage";
 import UsersPage from "./pages/UsersPage";
 import TimersPage from "./pages/TimersPage";
+import LivePage from "./pages/LivePage";
 import RankingPage from "./pages/RankingPage";
 import RegistrationPage from "./pages/RegistrationPage";
 import NotFoundPage from "./pages/NotFoundPage";
@@ -97,6 +98,7 @@ export default function App() {
             >
               <Route path="/timers" element={<TimersPage />} />
               <Route path="/competitions/:competitionId/timers" element={<TimersPage />} />
+              <Route path="/competitions/:competitionId/live" element={<LivePage />} />
             </Route>
 
             {/* Gestão — operator, admin */}

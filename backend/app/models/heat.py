@@ -31,6 +31,7 @@ class Heat(Base):
     status: Mapped[HeatStatus] = mapped_column(
         Enum(HeatStatus), nullable=False, default=HeatStatus.pending
     )
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     max_participants: Mapped[int | None] = mapped_column(Integer, nullable=True)
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())

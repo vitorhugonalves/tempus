@@ -7,13 +7,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpango-1.0-0 libharfbuzz0b libpangoft2-1.0-0 libharfbuzz-subset0 curl telnet \
     && rm -rf /var/lib/apt/lists/*
 
-# Copiar e instalar dependências Python
-COPY pyproject.toml .
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir ".[dev]"
-
-# Copiar código-fonte
+# Copiar código-fonte e instalar pacote (editable para que alembic e app usem o mesmo source)
 COPY . .
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -e ".[dev]"
 
 EXPOSE 8000
 

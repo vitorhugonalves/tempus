@@ -1,7 +1,7 @@
 """timer v2: nova máquina de estados, timer_events expandido, official_results e audit_logs
 
 Revision ID: 20260311_timer_v2
-Revises: 20260310_team_invite
+Revises: 20260310_invite_team
 Create Date: 2026-03-11
 
 Mudanças:
@@ -11,6 +11,11 @@ Mudanças:
 - timer_events: adiciona event_at, accumulated_ms, payload_json
 - Nova tabela: official_results
 - Nova tabela: audit_logs
+
+Notas de compatibilidade:
+- SQLite: ENUMs são VARCHAR — UPDATE direto funciona.
+- PostgreSQL: ENUMs são tipos reais — é necessário converter a coluna para text,
+  dropar o tipo antigo, atualizar os dados, criar o novo tipo e reconverter.
 """
 
 import sqlalchemy as sa
@@ -22,11 +27,32 @@ branch_labels = None
 depends_on = None
 
 
+def _is_postgres() -> bool:
+    return op.get_bind().dialect.name == "postgresql"
+
+
 def upgrade() -> None:
+    is_pg = _is_postgres()
+
     # ── 1. Atualizar valores de status em timers ──────────────────────────────
-    # idle → created, stopped → paused (VARCHAR no SQLite)
+    # idle → created, stopped → paused
+    # No PostgreSQL: converter para text → dropar tipo → update → novo tipo → reconverter
+    if is_pg:
+        op.execute("ALTER TABLE timers ALTER COLUMN status TYPE text")
+        op.execute("DROP TYPE timerstatus")
+
     op.execute("UPDATE timers SET status = 'created' WHERE status = 'idle'")
-    op.execute("UPDATE timers SET status = 'paused' WHERE status = 'stopped'")
+    op.execute("UPDATE timers SET status = 'paused'  WHERE status = 'stopped'")
+
+    if is_pg:
+        op.execute(
+            "CREATE TYPE timerstatus AS ENUM "
+            "('created', 'ready', 'running', 'paused', 'finished', 'cancelled')"
+        )
+        op.execute(
+            "ALTER TABLE timers ALTER COLUMN status "
+            "TYPE timerstatus USING status::timerstatus"
+        )
 
     # ── 2. Remover colunas de tempo do timer (movidas para Redis + TimerEvent) ─
     with op.batch_alter_table("timers") as batch_op:
@@ -35,10 +61,25 @@ def upgrade() -> None:
         batch_op.drop_column("elapsed_seconds")
 
     # ── 3. Atualizar event_type em timer_events ───────────────────────────────
+    # start→started, stop→paused, restart→reset, finish→finished
+    if is_pg:
+        op.execute("ALTER TABLE timer_events ALTER COLUMN event_type TYPE text")
+        op.execute("DROP TYPE timereventtype")
+
     op.execute("UPDATE timer_events SET event_type = 'started'  WHERE event_type = 'start'")
     op.execute("UPDATE timer_events SET event_type = 'paused'   WHERE event_type = 'stop'")
     op.execute("UPDATE timer_events SET event_type = 'reset'    WHERE event_type = 'restart'")
     op.execute("UPDATE timer_events SET event_type = 'finished' WHERE event_type = 'finish'")
+
+    if is_pg:
+        op.execute(
+            "CREATE TYPE timereventtype AS ENUM "
+            "('started', 'ready', 'resumed', 'paused', 'reset', 'finished', 'cancelled', 'adjusted', 'split')"
+        )
+        op.execute(
+            "ALTER TABLE timer_events ALTER COLUMN event_type "
+            "TYPE timereventtype USING event_type::timereventtype"
+        )
 
     # ── 4. Adicionar novos campos em timer_events ─────────────────────────────
     with op.batch_alter_table("timer_events") as batch_op:
@@ -58,7 +99,10 @@ def upgrade() -> None:
         )
 
     # Backfill: event_at = created_at para eventos existentes
-    op.execute("UPDATE timer_events SET event_at = created_at WHERE event_at IS NULL OR event_at = ''")
+    # No PostgreSQL o server_default já popula linhas existentes no ADD COLUMN;
+    # a comparação com '' é inválida para timestamp — skip.
+    if not is_pg:
+        op.execute("UPDATE timer_events SET event_at = created_at WHERE event_at IS NULL OR event_at = ''")
 
     # Índice em event_at para queries temporais
     op.create_index("ix_timer_events_event_at", "timer_events", ["event_at"])
@@ -112,6 +156,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    is_pg = _is_postgres()
+
     # Remover tabelas novas
     op.drop_index("ix_audit_logs_created_at", table_name="audit_logs")
     op.drop_index("ix_audit_logs_action", table_name="audit_logs")
@@ -131,10 +177,23 @@ def downgrade() -> None:
         batch_op.drop_column("event_at")
 
     # Reverter event_type
+    if is_pg:
+        op.execute("ALTER TABLE timer_events ALTER COLUMN event_type TYPE text")
+        op.execute("DROP TYPE timereventtype")
+
     op.execute("UPDATE timer_events SET event_type = 'start'   WHERE event_type = 'started'")
     op.execute("UPDATE timer_events SET event_type = 'stop'    WHERE event_type = 'paused'")
     op.execute("UPDATE timer_events SET event_type = 'restart' WHERE event_type = 'reset'")
     op.execute("UPDATE timer_events SET event_type = 'finish'  WHERE event_type = 'finished'")
+
+    if is_pg:
+        op.execute(
+            "CREATE TYPE timereventtype AS ENUM ('start', 'stop', 'restart', 'finish')"
+        )
+        op.execute(
+            "ALTER TABLE timer_events ALTER COLUMN event_type "
+            "TYPE timereventtype USING event_type::timereventtype"
+        )
 
     # Restaurar colunas de tempo em timers
     with op.batch_alter_table("timers") as batch_op:
@@ -145,5 +204,18 @@ def downgrade() -> None:
         batch_op.add_column(sa.Column("started_at", sa.DateTime(), nullable=True))
 
     # Reverter status
+    if is_pg:
+        op.execute("ALTER TABLE timers ALTER COLUMN status TYPE text")
+        op.execute("DROP TYPE timerstatus")
+
     op.execute("UPDATE timers SET status = 'idle'    WHERE status = 'created'")
     op.execute("UPDATE timers SET status = 'stopped' WHERE status = 'paused'")
+
+    if is_pg:
+        op.execute(
+            "CREATE TYPE timerstatus AS ENUM ('idle', 'running', 'stopped', 'finished')"
+        )
+        op.execute(
+            "ALTER TABLE timers ALTER COLUMN status "
+            "TYPE timerstatus USING status::timerstatus"
+        )

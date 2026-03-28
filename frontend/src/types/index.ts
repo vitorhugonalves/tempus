@@ -59,6 +59,7 @@ export interface Heat {
   competition_id: number;
   name: string;
   status: HeatStatus;
+  sort_order: number;
   scheduled_at: string | null;
   max_participants: number | null;
   timer_count: number;

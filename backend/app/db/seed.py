@@ -104,7 +104,7 @@ def create_default_admin(conn: sa.engine.Connection, cred_file: Path = _CRED_FIL
             "email": admin_email,
             "hashed_password": hashed,
             "role": "admin",
-            "is_active": 1,
+            "is_active": True,
         },
     )
 

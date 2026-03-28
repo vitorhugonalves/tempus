@@ -11,6 +11,10 @@ class HeatCreate(BaseModel):
     max_participants: int | None = Field(None, ge=1)
 
 
+class HeatUpdate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+
+
 class HeatTimerAdd(BaseModel):
     timer_id: int
 
@@ -27,6 +31,7 @@ class HeatResponse(BaseModel):
     competition_id: int
     name: str
     status: HeatStatus
+    sort_order: int
     scheduled_at: datetime | None
     max_participants: int | None
     timer_count: int
