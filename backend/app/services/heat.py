@@ -14,7 +14,7 @@ from app.models.user import User
 from app.repositories.competition import CompetitionRepository
 from app.repositories.heat import HeatRepository
 from app.repositories.timer import TimerRepository
-from app.schemas.heat import HeatCreate
+from app.schemas.heat import HeatCreate, HeatUpdate
 
 
 def _utcnow() -> datetime:
@@ -80,11 +80,13 @@ class HeatService:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Competição não encontrada"
             )
+        next_order = await HeatRepository.get_max_sort_order(db, competition_id) + 1
         heat = Heat(
             competition_id=competition_id,
             name=data.name,
             scheduled_at=data.scheduled_at,
             max_participants=data.max_participants,
+            sort_order=next_order,
         )
         return await HeatRepository.create(db, heat)
 
@@ -333,6 +335,185 @@ class HeatService:
 
         heat.status = HeatStatus.running
         return await HeatRepository.save(db, heat)
+
+    @staticmethod
+    async def update(db: AsyncSession, heat_id: int, data: HeatUpdate) -> Heat:
+        """Atualiza o nome da bateria.
+
+        Args:
+            db: Sessão assíncrona.
+            heat_id: ID da bateria.
+            data: Dados validados (nome).
+
+        Returns:
+            Heat atualizada.
+        """
+        heat = await HeatService.get_or_404(db, heat_id)
+        heat.name = data.name
+        return await HeatRepository.save(db, heat)
+
+    @staticmethod
+    async def start_team(
+        db: AsyncSession, heat_id: int, team_id: int, current_user: User, redis: Redis
+    ) -> Heat:
+        """Cria e inicia o timer de uma única equipe da bateria.
+
+        Args:
+            db: Sessão assíncrona.
+            heat_id: ID da bateria.
+            team_id: ID da equipe.
+            current_user: Usuário autenticado (judge/operator/admin).
+            redis: Conexão Redis.
+
+        Returns:
+            Heat atualizada.
+
+        Raises:
+            HTTPException 403: Competição não ativa.
+            HTTPException 404: Equipe não vinculada à bateria.
+            HTTPException 409: Bateria finalizada ou timer já existe.
+        """
+        from sqlalchemy import select
+
+        from app.models.competition import CompetitionStatus
+
+        heat = await HeatService.get_or_404(db, heat_id)
+
+        if heat.status == HeatStatus.finished:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Bateria já foi finalizada",
+            )
+
+        competition = await CompetitionRepository.get_by_id(db, heat.competition_id)
+        if not competition or competition.status != CompetitionStatus.active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="A competição deve estar ativa para iniciar um timer (RN-01)",
+            )
+
+        # Verifica se a equipe está vinculada a esta bateria
+        from app.repositories.heat import HeatRepository as HR
+
+        ht = await HR.get_heat_team(db, heat_id, team_id)
+        if not ht:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Equipe não está vinculada a esta bateria",
+            )
+
+        # Verifica se já existe timer para esta equipe
+        existing_result = await db.execute(
+            select(Timer).where(
+                Timer.competition_id == heat.competition_id,
+                Timer.team_id == team_id,
+            )
+        )
+        timer = existing_result.scalar_one_or_none()
+
+        if timer and timer.status == TimerStatus.running:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Timer da equipe já está em andamento",
+            )
+
+        if not timer:
+            timer = Timer(
+                competition_id=heat.competition_id,
+                team_id=team_id,
+                heat_id=heat_id,
+            )
+            db.add(timer)
+            await db.flush()
+            await db.refresh(timer)
+
+        # Inicia o timer se estiver em estado válido
+        if timer.status not in (TimerStatus.created, TimerStatus.ready, TimerStatus.paused):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Timer não pode ser iniciado no estado '{timer.status}'",
+            )
+
+        now = _utcnow()
+        now_ms = int(time.time() * 1000)
+        timer.status = TimerStatus.running
+        await TimerRepository.add_event(
+            db,
+            TimerEvent(
+                timer_id=timer.id,
+                event_type=TimerEventType.started,
+                event_at=now,
+                accumulated_ms=0,
+                triggered_by_id=current_user.id,
+                note=f"Iniciado individualmente na bateria '{heat.name}'",
+            ),
+        )
+        await TimerRepository.save(db, timer)
+        await set_timer_state(redis, timer.id, {
+            "status": "running",
+            "accumulated_ms": 0,
+            "started_at_ms": now_ms,
+        })
+        await publish_timer_event(redis, heat.competition_id, {
+            "event_type": "started",
+            "timer_id": timer.id,
+            "accumulated_ms": 0,
+            "started_at_ms": now_ms,
+        })
+
+        if heat.status == HeatStatus.pending:
+            heat.status = HeatStatus.running
+            await HeatRepository.save(db, heat)
+
+        return await HeatRepository.get_by_id(db, heat_id)  # type: ignore[return-value]
+
+    @staticmethod
+    async def move(db: AsyncSession, competition_id: int, heat_id: int, direction: str) -> list[Heat]:
+        """Move uma bateria para cima ou para baixo na ordem.
+
+        Args:
+            db: Sessão assíncrona.
+            competition_id: ID da competição.
+            heat_id: ID da bateria a mover.
+            direction: "up" ou "down".
+
+        Returns:
+            Lista de baterias reordenadas.
+
+        Raises:
+            HTTPException 404: Bateria não encontrada.
+            HTTPException 409: Bateria já está no limite da direção solicitada.
+        """
+        heats = await HeatRepository.get_by_competition(db, competition_id)
+        ids = [h.id for h in heats]
+
+        if heat_id not in ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Bateria não encontrada"
+            )
+
+        idx = ids.index(heat_id)
+
+        if direction == "up" and idx == 0:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Bateria já está no topo",
+            )
+        if direction == "down" and idx == len(heats) - 1:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Bateria já está no final",
+            )
+
+        neighbor_idx = idx - 1 if direction == "up" else idx + 1
+        target = heats[idx]
+        neighbor = heats[neighbor_idx]
+
+        # Troca os sort_order
+        target.sort_order, neighbor.sort_order = neighbor.sort_order, target.sort_order
+        await db.flush()
+
+        return await HeatRepository.get_by_competition(db, competition_id)
 
     @staticmethod
     async def delete(db: AsyncSession, heat_id: int) -> None:

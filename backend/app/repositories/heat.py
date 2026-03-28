@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -54,7 +54,7 @@ class HeatRepository:
                 .selectinload(Team.members),
             )
             .where(Heat.competition_id == competition_id)
-            .order_by(Heat.scheduled_at.nulls_last(), Heat.id)
+            .order_by(Heat.sort_order, Heat.id)
         )
         return list(result.scalars().all())
 
@@ -140,6 +140,22 @@ class HeatRepository:
         await db.flush()
         await db.refresh(ht)
         return ht
+
+    @staticmethod
+    async def get_max_sort_order(db: AsyncSession, competition_id: int) -> int:
+        """Retorna o maior sort_order das baterias da competição.
+
+        Args:
+            db: Sessão assíncrona.
+            competition_id: ID da competição.
+
+        Returns:
+            Maior sort_order ou 0 se não houver baterias.
+        """
+        result = await db.execute(
+            select(func.max(Heat.sort_order)).where(Heat.competition_id == competition_id)
+        )
+        return result.scalar_one_or_none() or 0
 
     @staticmethod
     async def remove_team(db: AsyncSession, ht: HeatTeam) -> None:

@@ -341,6 +341,8 @@ function TeamTimerCard({
 
 interface HeatSectionProps {
   heat: Heat;
+  isFirst: boolean;
+  isLast: boolean;
   timers: Timer[];
   penaltyTypes: PenaltyType[];
   membersByTeam: Map<number, string[]>;
@@ -348,12 +350,17 @@ interface HeatSectionProps {
   durationSeconds: number | null;
   canControl: boolean;
   onStartHeat: (heatId: number) => Promise<void>;
+  onStartTeam: (heatId: number, teamId: number) => Promise<void>;
   onTimerAction: (action: "start" | "pause" | "resume" | "finish" | "reset", timerId: number, note?: string) => Promise<void>;
   onPenalty: (timerId: number, penaltyTypeId: number, justification: string) => Promise<void>;
+  onRenameHeat: (heatId: number, name: string) => Promise<void>;
+  onMoveHeat: (heatId: number, direction: "up" | "down") => Promise<void>;
 }
 
 function HeatSection({
   heat,
+  isFirst,
+  isLast,
   timers,
   penaltyTypes,
   membersByTeam,
@@ -361,13 +368,25 @@ function HeatSection({
   durationSeconds,
   canControl,
   onStartHeat,
+  onStartTeam,
   onTimerAction,
   onPenalty,
+  onRenameHeat,
+  onMoveHeat,
 }: HeatSectionProps) {
   const [startingHeat, setStartingHeat] = useState(false);
+  const [startingTeam, setStartingTeam] = useState<number | null>(null);
   const [heatError, setHeatError] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState(heat.name);
+  const [savingName, setSavingName] = useState(false);
+  const [moving, setMoving] = useState(false);
 
   const heatTimers = timers.filter((t) => t.heat_id === heat.id);
+  // Teams without a timer yet
+  const teamsWithoutTimer = heat.teams.filter(
+    (ht) => !timers.some((t) => t.team_id === ht.team_id && t.heat_id === heat.id)
+  );
 
   const handleStartHeat = async () => {
     setHeatError(null);
@@ -382,11 +401,107 @@ function HeatSection({
     }
   };
 
+  const handleStartTeam = async (teamId: number) => {
+    setHeatError(null);
+    setStartingTeam(teamId);
+    try {
+      await onStartTeam(heat.id, teamId);
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setHeatError(detail ?? "Erro ao iniciar timer da equipe");
+    } finally {
+      setStartingTeam(null);
+    }
+  };
+
+  const handleSaveName = async () => {
+    if (!nameValue.trim() || nameValue === heat.name) {
+      setEditingName(false);
+      setNameValue(heat.name);
+      return;
+    }
+    setSavingName(true);
+    try {
+      await onRenameHeat(heat.id, nameValue.trim());
+      setEditingName(false);
+    } catch {
+      setNameValue(heat.name);
+      setEditingName(false);
+    } finally {
+      setSavingName(false);
+    }
+  };
+
+  const handleMove = async (direction: "up" | "down") => {
+    setMoving(true);
+    try {
+      await onMoveHeat(heat.id, direction);
+    } finally {
+      setMoving(false);
+    }
+  };
+
   return (
     <section className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">{heat.name}</h2>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {canControl && (
+            <div className="flex flex-col gap-0.5">
+              <button
+                type="button"
+                onClick={() => handleMove("up")}
+                disabled={isFirst || moving}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-25 disabled:cursor-not-allowed leading-none text-xs"
+                title="Mover para cima"
+              >
+                ▲
+              </button>
+              <button
+                type="button"
+                onClick={() => handleMove("down")}
+                disabled={isLast || moving}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-25 disabled:cursor-not-allowed leading-none text-xs"
+                title="Mover para baixo"
+              >
+                ▼
+              </button>
+            </div>
+          )}
+          {editingName ? (
+            <div className="flex items-center gap-1">
+              <input
+                autoFocus
+                type="text"
+                value={nameValue}
+                onChange={(e) => setNameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSaveName();
+                  if (e.key === "Escape") { setEditingName(false); setNameValue(heat.name); }
+                }}
+                className="text-lg font-semibold border rounded px-2 py-0.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              />
+              <Button size="sm" variant="primary" onClick={handleSaveName} isLoading={savingName} disabled={!nameValue.trim()}>
+                Salvar
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => { setEditingName(false); setNameValue(heat.name); }}>
+                Cancelar
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">{heat.name}</h2>
+              {canControl && (
+                <button
+                  type="button"
+                  onClick={() => setEditingName(true)}
+                  className="text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 text-sm"
+                  title="Editar nome da bateria"
+                >
+                  ✏
+                </button>
+              )}
+            </div>
+          )}
           <Badge variant={HEAT_STATUS_COLORS[heat.status]}>{HEAT_STATUS_LABELS[heat.status]}</Badge>
           <span className="text-sm text-gray-400">
             {heat.team_count} equipe(s) · {heatTimers.length} timer(s)
@@ -410,7 +525,29 @@ function HeatSection({
         </p>
       )}
 
-      {heatTimers.length === 0 ? (
+      {/* Teams without timer — individual start buttons */}
+      {canControl && heat.status !== "finished" && teamsWithoutTimer.length > 0 && (
+        <div className="space-y-1">
+          {teamsWithoutTimer.map((ht) => (
+            <div
+              key={ht.team_id}
+              className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700"
+            >
+              <span className="text-sm text-gray-700 dark:text-gray-300">{ht.team_name}</span>
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={() => handleStartTeam(ht.team_id)}
+                isLoading={startingTeam === ht.team_id}
+              >
+                ▶ Iniciar
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {heatTimers.length === 0 && teamsWithoutTimer.length === 0 ? (
         <p className="text-sm text-gray-400 italic">
           {heat.team_count === 0
             ? "Nenhuma equipe vinculada. Adicione equipes em Competições → Baterias."
@@ -588,6 +725,21 @@ export default function TimersPage() {
     await loadData();
   };
 
+  const handleStartTeam = async (heatId: number, teamId: number) => {
+    await heatsApi.startTeam(compId, heatId, teamId);
+    await loadData();
+  };
+
+  const handleRenameHeat = async (heatId: number, name: string) => {
+    const updated = await heatsApi.update(compId, heatId, name);
+    setHeats((prev) => prev.map((h) => (h.id === heatId ? { ...h, name: updated.name } : h)));
+  };
+
+  const handleMoveHeat = async (heatId: number, direction: "up" | "down") => {
+    const reordered = await heatsApi.move(compId, heatId, direction);
+    setHeats(reordered);
+  };
+
   const handleTimerAction = async (
     action: "start" | "pause" | "resume" | "finish" | "reset",
     timerId: number,
@@ -649,9 +801,14 @@ export default function TimersPage() {
             {heats.length} bateria(s) · {timers.length} timer(s) · {runningCount} em andamento
           </p>
         </div>
-        <Link to={`/competitions/${compId}/ranking`}>
-          <Button variant="secondary" size="sm">Ver Ranking</Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link to={`/competitions/${compId}/live`}>
+            <Button variant="secondary" size="sm">📺 Painel Ao Vivo</Button>
+          </Link>
+          <Link to={`/competitions/${compId}/ranking`}>
+            <Button variant="secondary" size="sm">Ver Ranking</Button>
+          </Link>
+        </div>
       </div>
 
       {/* Heats */}
@@ -661,10 +818,12 @@ export default function TimersPage() {
           <p className="text-sm mt-1">Crie baterias em <Link to="/competitions" className="text-primary-600 hover:underline">Competições</Link> e vincule equipes a elas.</p>
         </div>
       ) : (
-        heats.map((heat) => (
+        heats.map((heat, idx) => (
           <HeatSection
             key={heat.id}
             heat={heat}
+            isFirst={idx === 0}
+            isLast={idx === heats.length - 1}
             timers={timers}
             penaltyTypes={penaltyTypes}
             membersByTeam={membersByTeam}
@@ -672,8 +831,11 @@ export default function TimersPage() {
             durationSeconds={competition?.duration_seconds ?? null}
             canControl={canControl}
             onStartHeat={handleStartHeat}
+            onStartTeam={handleStartTeam}
             onTimerAction={handleTimerAction}
             onPenalty={handlePenalty}
+            onRenameHeat={handleRenameHeat}
+            onMoveHeat={handleMoveHeat}
           />
         ))
       )}

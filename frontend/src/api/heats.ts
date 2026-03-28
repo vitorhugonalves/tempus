@@ -53,4 +53,27 @@ export const heatsApi = {
         `/api/v1/competitions/${competitionId}/heats/${heatId}/start`
       )
       .then((r) => r.data),
+
+  startTeam: (competitionId: number, heatId: number, teamId: number) =>
+    apiClient
+      .post<Heat>(
+        `/api/v1/competitions/${competitionId}/heats/${heatId}/teams/${teamId}/start`
+      )
+      .then((r) => r.data),
+
+  update: (competitionId: number, heatId: number, name: string) =>
+    apiClient
+      .patch<Heat>(
+        `/api/v1/competitions/${competitionId}/heats/${heatId}`,
+        { name }
+      )
+      .then((r) => r.data),
+
+  move: (competitionId: number, heatId: number, direction: "up" | "down") =>
+    apiClient
+      .patch<Heat[]>(
+        `/api/v1/competitions/${competitionId}/heats/${heatId}/move`,
+        { direction }
+      )
+      .then((r) => r.data),
 };
