@@ -62,3 +62,28 @@ async def bulk_import_teams(
         )
     csv_text = content.decode("utf-8", errors="replace")
     return await BulkService.import_teams(csv_text, db)
+
+
+@router.post(
+    "/admin/bulk/heats",
+    response_model=BulkImportResult,
+    status_code=status.HTTP_200_OK,
+)
+async def bulk_import_heats(
+    file: UploadFile = File(...),
+    _current_user: User = Depends(require_roles("admin")),
+    db: AsyncSession = Depends(get_db),
+) -> BulkImportResult:
+    """Importa baterias em lote via CSV (somente admin).
+
+    Formato CSV: id_competicao;nome_bateria;max_participantes;nome_equipe_01;nome_equipe_02;...
+    max_participantes é opcional (deixe vazio). Equipes devem já existir na competição.
+    """
+    content = await file.read()
+    if len(content) > _MAX_CSV_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Arquivo CSV muito grande. Tamanho máximo: 1 MB",
+        )
+    csv_text = content.decode("utf-8", errors="replace")
+    return await BulkService.import_heats(csv_text, db)

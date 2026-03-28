@@ -1,4 +1,4 @@
-"""Serviço de importação em lote de usuários e equipes via CSV."""
+"""Serviço de importação em lote de usuários, equipes e baterias via CSV."""
 
 import csv
 import io
@@ -9,10 +9,12 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password
+from app.models.heat import Heat, HeatTeam
 from app.models.team import Team, TeamMember
 from app.models.user import User, UserRole
 from app.repositories.category import CategoryRepository
 from app.repositories.competition import CompetitionRepository
+from app.repositories.heat import HeatRepository
 from app.repositories.team import TeamRepository
 from app.repositories.user import UserRepository
 
@@ -319,6 +321,190 @@ class BulkService:
                     "Equipe importada em lote: name=%s competition_id=%s",
                     team_name,
                     competition_id,
+                )
+
+        return BulkImportResult(created_count=created_count, errors=errors)
+
+    @staticmethod
+    async def import_heats(csv_content: str, db: AsyncSession) -> BulkImportResult:
+        """Importa baterias em lote a partir de conteúdo CSV.
+
+        Formato esperado (separado por ponto-e-vírgula):
+            id_competicao;nome_bateria;max_participantes;nome_equipe_01;nome_equipe_02;...
+
+        - max_participantes: inteiro opcional — deixe vazio para sem limite.
+        - nome_equipe_*: nomes de equipes já cadastradas na competição para vincular (opcional).
+
+        O cabeçalho é ignorado se a primeira coluna for 'id_competicao' (case-insensitive).
+
+        Args:
+            csv_content: Conteúdo do arquivo CSV decodificado como string.
+            db: Sessão assíncrona.
+
+        Returns:
+            BulkImportResult com contagem de baterias criadas e lista de erros.
+        """
+        from sqlalchemy import select
+
+        errors: list[BulkError] = []
+        created_count = 0
+        reader = csv.reader(io.StringIO(csv_content.strip()), delimiter=";")
+        rows = list(reader)
+
+        for row_num, row in enumerate(rows, start=1):
+            # Ignorar cabeçalho
+            if row_num == 1 and row and row[0].strip().lower() in ("id_competicao", "competition_id"):
+                continue
+
+            if not row or all(c.strip() == "" for c in row):
+                continue
+
+            if len(row) < 2:
+                errors.append(
+                    BulkError(
+                        row=row_num,
+                        identifier=row[0].strip() if row else "",
+                        reason="Linha incompleta — esperado: id_competicao;nome_bateria;max_participantes;equipe_01;...",
+                    )
+                )
+                continue
+
+            competition_id_str = row[0].strip()
+            heat_name = row[1].strip()
+            max_participants_str = row[2].strip() if len(row) > 2 else ""
+            team_names = [t.strip() for t in row[3:] if t.strip()] if len(row) > 3 else []
+
+            if not heat_name:
+                errors.append(
+                    BulkError(row=row_num, identifier=competition_id_str, reason="Nome da bateria ausente")
+                )
+                continue
+
+            # 1. Valida ID de competição
+            try:
+                competition_id = int(competition_id_str)
+            except ValueError:
+                errors.append(
+                    BulkError(
+                        row=row_num,
+                        identifier=heat_name,
+                        reason=f"ID de competição inválido: '{competition_id_str}'",
+                    )
+                )
+                continue
+
+            # 2. Verifica se competição existe
+            competition = await CompetitionRepository.get_by_id(db, competition_id)
+            if competition is None:
+                errors.append(
+                    BulkError(
+                        row=row_num,
+                        identifier=heat_name,
+                        reason=f"Competição com ID {competition_id} não encontrada",
+                    )
+                )
+                continue
+
+            # 3. Valida max_participantes (opcional)
+            max_participants: int | None = None
+            if max_participants_str:
+                try:
+                    max_participants = int(max_participants_str)
+                    if max_participants < 1:
+                        raise ValueError
+                except ValueError:
+                    errors.append(
+                        BulkError(
+                            row=row_num,
+                            identifier=heat_name,
+                            reason=f"max_participantes inválido: '{max_participants_str}' (deve ser inteiro ≥ 1 ou vazio)",
+                        )
+                    )
+                    continue
+
+            # 4. Verifica unicidade do nome da bateria na competição
+            existing_heats = await HeatRepository.get_by_competition(db, competition_id)
+            if any(h.name.lower() == heat_name.lower() for h in existing_heats):
+                errors.append(
+                    BulkError(
+                        row=row_num,
+                        identifier=heat_name,
+                        reason=f"Bateria '{heat_name}' já existe nesta competição",
+                    )
+                )
+                continue
+
+            # 5. Resolve equipes por nome (se informadas)
+            teams_to_link: list[Team] = []
+            row_has_error = False
+            for team_name_str in team_names:
+                result = await db.execute(
+                    select(Team).where(
+                        Team.competition_id == competition_id,
+                        Team.name == team_name_str,
+                    )
+                )
+                team = result.scalar_one_or_none()
+                if team is None:
+                    errors.append(
+                        BulkError(
+                            row=row_num,
+                            identifier=heat_name,
+                            reason=f"Equipe '{team_name_str}' não encontrada na competição {competition_id}",
+                        )
+                    )
+                    row_has_error = True
+                    break
+                teams_to_link.append(team)
+
+            if row_has_error:
+                continue
+
+            # 6. Cria a bateria
+            next_order = await HeatRepository.get_max_sort_order(db, competition_id) + 1
+            heat = Heat(
+                competition_id=competition_id,
+                name=heat_name,
+                max_participants=max_participants,
+                sort_order=next_order,
+            )
+            db.add(heat)
+            try:
+                await db.flush()
+                await db.refresh(heat)
+            except Exception as exc:
+                await db.rollback()
+                errors.append(
+                    BulkError(row=row_num, identifier=heat_name, reason=f"Erro ao criar bateria: {exc}")
+                )
+                continue
+
+            # 7. Vincula equipes
+            link_error = False
+            for team in teams_to_link:
+                ht = HeatTeam(heat_id=heat.id, team_id=team.id)
+                db.add(ht)
+                try:
+                    await db.flush()
+                except Exception as exc:
+                    await db.rollback()
+                    errors.append(
+                        BulkError(
+                            row=row_num,
+                            identifier=heat_name,
+                            reason=f"Erro ao vincular equipe '{team.name}': {exc}",
+                        )
+                    )
+                    link_error = True
+                    break
+
+            if not link_error:
+                created_count += 1
+                logger.info(
+                    "Bateria importada em lote: name=%s competition_id=%s teams=%d",
+                    heat_name,
+                    competition_id,
+                    len(teams_to_link),
                 )
 
         return BulkImportResult(created_count=created_count, errors=errors)
