@@ -431,7 +431,7 @@ class HeatService:
         if timer.status not in (TimerStatus.created, TimerStatus.ready, TimerStatus.paused):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Timer não pode ser iniciado no estado '{timer.status}'",
+                detail=f"Timer não pode ser iniciado no estado '{timer.status.value}'",
             )
 
         now = _utcnow()
