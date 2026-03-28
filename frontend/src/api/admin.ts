@@ -54,4 +54,10 @@ export const adminApi = {
     form.append("file", file);
     return apiClient.post<BulkImportResult>("/api/v1/admin/bulk/teams", form);
   },
+
+  bulkImportHeats: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return apiClient.post<BulkImportResult>("/api/v1/admin/bulk/heats", form);
+  },
 };

@@ -4,7 +4,19 @@ import { Card } from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Alert from "../components/ui/Alert";
 
-type Tab = "users" | "teams";
+type Tab = "users" | "teams" | "heats";
+
+const TAB_LABELS: Record<Tab, string> = {
+  users: "Usuários",
+  teams: "Equipes",
+  heats: "Baterias",
+};
+
+const TAB_ENTITY_LABEL: Record<Tab, string> = {
+  users: "Usuários criados",
+  teams: "Equipes criadas",
+  heats: "Baterias criadas",
+};
 
 export default function BulkActionsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("users");
@@ -35,11 +47,13 @@ export default function BulkActionsPage() {
     setError(null);
     setResult(null);
     try {
-      const { data } =
+      const response =
         activeTab === "users"
           ? await adminApi.bulkImportUsers(file)
-          : await adminApi.bulkImportTeams(file);
-      setResult(data);
+          : activeTab === "teams"
+          ? await adminApi.bulkImportTeams(file)
+          : await adminApi.bulkImportHeats(file);
+      setResult(response.data);
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setError(detail ?? "Erro ao importar arquivo. Verifique o formato e tente novamente.");
@@ -55,14 +69,14 @@ export default function BulkActionsPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Importação em Lote</h1>
         <p className="text-gray-500 text-sm mt-1">
-          Importe usuários ou equipes em massa via arquivo CSV.
+          Importe usuários, equipes ou baterias em massa via arquivo CSV.
         </p>
       </div>
 
       {/* Tabs */}
       <div className="border-b border-gray-200">
         <nav className="-mb-px flex space-x-6">
-          {(["users", "teams"] as Tab[]).map((tab) => (
+          {(["users", "teams", "heats"] as Tab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => handleTabChange(tab)}
@@ -73,7 +87,7 @@ export default function BulkActionsPage() {
                   : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300",
               ].join(" ")}
             >
-              {tab === "users" ? "Usuários" : "Equipes"}
+              {TAB_LABELS[tab]}
             </button>
           ))}
         </nav>
@@ -82,7 +96,7 @@ export default function BulkActionsPage() {
       {/* Instruções */}
       <Card>
         <h2 className="text-sm font-semibold text-gray-900 mb-2">Formato do CSV</h2>
-        {activeTab === "users" ? (
+        {activeTab === "users" && (
           <>
             <p className="text-sm text-gray-600 mb-3">
               Cada linha representa um usuário. Separador: ponto-e-vírgula (<code>;</code>).
@@ -100,7 +114,8 @@ Carlos Alves;carlos@example.com;operator`}
               cada usuário.
             </p>
           </>
-        ) : (
+        )}
+        {activeTab === "teams" && (
           <>
             <p className="text-sm text-gray-600 mb-3">
               Cada linha representa uma equipe. Separador: ponto-e-vírgula (<code>;</code>).
@@ -117,6 +132,26 @@ Carlos Alves;carlos@example.com;operator`}
               pertencer à competição; nome da equipe deve ser único; todos os e-mails devem ser de
               usuários cadastrados; a quantidade de e-mails deve ser igual ao tamanho máximo da
               categoria.
+            </p>
+          </>
+        )}
+        {activeTab === "heats" && (
+          <>
+            <p className="text-sm text-gray-600 mb-3">
+              Cada linha representa uma bateria. Separador: ponto-e-vírgula (<code>;</code>).
+              Cabeçalho é opcional.
+            </p>
+            <pre className="bg-gray-50 rounded p-3 text-xs text-gray-700 overflow-x-auto">
+{`id_competicao;nome_bateria;max_participantes;nome_equipe_01;nome_equipe_02
+1;Bateria 1;10;Equipe Alpha;Equipe Beta
+1;Bateria 2;;Equipe Gamma
+1;Bateria 3;;;`}
+            </pre>
+            <p className="text-xs text-gray-400 mt-2">
+              <strong>max_participantes</strong> é opcional — deixe vazio para sem limite.{" "}
+              <strong>nome_equipe_*</strong> são nomes de equipes já cadastradas na competição para
+              vincular à bateria (opcional). Validações: competição deve existir; nome da bateria
+              deve ser único na competição; equipes devem existir na competição.
             </p>
           </>
         )}
@@ -159,9 +194,7 @@ Carlos Alves;carlos@example.com;operator`}
           <div className="flex items-center gap-6 mb-4">
             <div className="text-center">
               <p className="text-2xl font-bold text-green-600">{result.created_count}</p>
-              <p className="text-xs text-gray-500">
-                {activeTab === "users" ? "Usuários criados" : "Equipes criadas"}
-              </p>
+              <p className="text-xs text-gray-500">{TAB_ENTITY_LABEL[activeTab]}</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold text-red-500">{result.errors.length}</p>
@@ -178,7 +211,7 @@ Carlos Alves;carlos@example.com;operator`}
                     <tr className="bg-gray-50">
                       <th className="px-3 py-2 text-left text-gray-500 font-medium">Linha</th>
                       <th className="px-3 py-2 text-left text-gray-500 font-medium">
-                        {activeTab === "users" ? "E-mail" : "Equipe"}
+                        {activeTab === "users" ? "E-mail" : activeTab === "teams" ? "Equipe" : "Bateria"}
                       </th>
                       <th className="px-3 py-2 text-left text-gray-500 font-medium">Motivo</th>
                     </tr>
