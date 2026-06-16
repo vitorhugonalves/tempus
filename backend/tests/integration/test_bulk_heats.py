@@ -23,7 +23,6 @@ async def active_competition(db: AsyncSession) -> Competition:
     comp = Competition(
         name="Competição Heats Batch",
         status=CompetitionStatus.active,
-        max_athletes=100,
     )
     db.add(comp)
     await db.commit()

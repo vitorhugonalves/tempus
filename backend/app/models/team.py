@@ -40,6 +40,9 @@ class Team(Base):
         "TeamMember", back_populates="team", cascade="all, delete-orphan"
     )
     timers: Mapped[list["Timer"]] = relationship("Timer", back_populates="team")  # noqa: F821
+    athletes: Mapped[list["Athlete"]] = relationship(  # noqa: F821
+        "Athlete", back_populates="team"
+    )
 
 
 class TeamMember(Base):

@@ -17,29 +17,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # ── Fixtures auxiliares ────────────────────────────────────────────────────────
 
 
-async def _create_modality(client: AsyncClient, admin_token: str) -> dict:
-    r = await client.post(
-        "/api/v1/modalities",
-        json={"name": "Hyrox", "default_duration_seconds": 3600},
-        cookies={"session_id": admin_token},
-    )
-    assert r.status_code == 201, r.text
-    return r.json()
-
-
-async def _create_competition(
-    client: AsyncClient, admin_token: str, modality_id: int | None = None
-) -> dict:
-    payload = {
-        "name": "Competição Teste",
-        "location": "Porto Alegre",
-        "max_athletes": 50,
-    }
-    if modality_id:
-        payload["modality_id"] = modality_id
+async def _create_competition(client: AsyncClient, admin_token: str) -> dict:
     r = await client.post(
         "/api/v1/competitions",
-        json=payload,
+        json={"name": "Competição Teste", "location": "Porto Alegre"},
         cookies={"session_id": admin_token},
     )
     assert r.status_code == 201, r.text
@@ -92,66 +73,28 @@ async def _create_heat(
     return r.json()
 
 
-# ── Bug 2: criação de competição com modality_id não retorna ROLLBACK ──────────
+# ── Criação de competição com novos campos ─────────────────────────────────────
 
 
-async def test_criar_competicao_com_modality_retorna_201(
+async def test_criar_competicao_retorna_campos_corretos(
     client: AsyncClient, admin_token: str
 ):
-    """Bug 2 — CompetitionRepository.create usava refresh() sem selectinload.
-
-    A tentativa de acessar modality_rel disparava lazy loading proibido
-    em async SQLAlchemy → MissingGreenlet → ROLLBACK silencioso.
-    """
-    modality = await _create_modality(client, admin_token)
-
+    """Criação de competição persiste e retorna event_type, is_public e status."""
     r = await client.post(
         "/api/v1/competitions",
         json={
-            "name": "Hyrox 2026",
-            "location": "Sarandi",
-            "event_date": "2026-08-01",
-            "modality_id": modality["id"],
-            "duration_seconds": 3600,
-            "max_athletes": 300,
+            "name": "Hyrox RS 2026",
+            "location": "Porto Alegre",
+            "event_type": "hyrox",
+            "is_public": True,
         },
         cookies={"session_id": admin_token},
     )
     assert r.status_code == 201, r.text
     data = r.json()
-    assert data["modality_id"] == modality["id"]
-    assert data["modality_name"] == "Hyrox"
-
-
-async def test_criar_competicao_sem_modality_retorna_201(
-    client: AsyncClient, admin_token: str
-):
-    """Criação sem modalidade também deve funcionar."""
-    r = await client.post(
-        "/api/v1/competitions",
-        json={"name": "Competição Sem Modalidade", "max_athletes": 50},
-        cookies={"session_id": admin_token},
-    )
-    assert r.status_code == 201, r.text
-    data = r.json()
-    assert data["modality_id"] is None
-    assert data["modality_name"] is None
-
-
-async def test_atualizar_competicao_com_modality_retorna_200(
-    client: AsyncClient, admin_token: str
-):
-    """CompetitionRepository.update também deve carregar modality_rel via get_by_id."""
-    modality = await _create_modality(client, admin_token)
-    comp = await _create_competition(client, admin_token)
-
-    r = await client.patch(
-        f"/api/v1/competitions/{comp['id']}",
-        json={"modality_id": modality["id"]},
-        cookies={"session_id": admin_token},
-    )
-    assert r.status_code == 200, r.text
-    assert r.json()["modality_name"] == "Hyrox"
+    assert data["event_type"] == "hyrox"
+    assert data["is_public"] is True
+    assert data["status"] == "draft"
 
 
 # ── Melhoria: max_participants nas baterias ────────────────────────────────────

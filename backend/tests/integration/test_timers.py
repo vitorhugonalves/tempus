@@ -9,7 +9,7 @@ async def active_competition(client: AsyncClient, admin_token: str) -> dict:
     """Cria uma competição ativa."""
     resp = await client.post(
         "/api/v1/competitions",
-        json={"name": "Comp Ativa", "max_athletes": 10},
+        json={"name": "Comp Ativa"},
         cookies={"session_id": admin_token},
     )
     comp = resp.json()
@@ -26,7 +26,7 @@ async def draft_competition(client: AsyncClient, admin_token: str) -> dict:
     """Cria uma competição em rascunho."""
     resp = await client.post(
         "/api/v1/competitions",
-        json={"name": "Comp Rascunho", "max_athletes": 10},
+        json={"name": "Comp Rascunho"},
         cookies={"session_id": admin_token},
     )
     return resp.json()

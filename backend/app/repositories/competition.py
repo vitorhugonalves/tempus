@@ -2,7 +2,6 @@ import logging
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.models.competition import Competition
 
@@ -14,7 +13,7 @@ class CompetitionRepository:
 
     @staticmethod
     async def get_by_id(db: AsyncSession, competition_id: int) -> Competition | None:
-        """Busca uma competição pelo ID com modalidade carregada.
+        """Busca uma competição pelo ID.
 
         Args:
             db: Sessão assíncrona do banco de dados.
@@ -25,7 +24,6 @@ class CompetitionRepository:
         """
         result = await db.execute(
             select(Competition)
-            .options(selectinload(Competition.modality_rel))
             .where(Competition.id == competition_id)
             .execution_options(populate_existing=True)
         )
@@ -35,7 +33,7 @@ class CompetitionRepository:
     async def get_all(
         db: AsyncSession, skip: int = 0, limit: int = 100
     ) -> list[Competition]:
-        """Retorna uma lista paginada de competições com modalidade carregada.
+        """Retorna uma lista paginada de competições.
 
         Args:
             db: Sessão assíncrona do banco de dados.
@@ -47,9 +45,9 @@ class CompetitionRepository:
         """
         result = await db.execute(
             select(Competition)
-            .options(selectinload(Competition.modality_rel))
             .offset(skip)
             .limit(limit)
+            .order_by(Competition.created_at.desc())
         )
         return list(result.scalars().all())
 
@@ -62,12 +60,11 @@ class CompetitionRepository:
             competition: Objeto Competition a ser criado.
 
         Returns:
-            Objeto Competition com ID populado e relacionamentos carregados.
+            Objeto Competition com ID populado.
         """
         db.add(competition)
         await db.flush()
         logger.info("Competição criada: id=%s, nome=%s", competition.id, competition.name)
-        # Recarrega via get_by_id para garantir selectinload de modality_rel
         return await CompetitionRepository.get_by_id(db, competition.id)  # type: ignore[return-value]
 
     @staticmethod
@@ -79,8 +76,7 @@ class CompetitionRepository:
             competition: Objeto Competition com dados atualizados.
 
         Returns:
-            Objeto Competition atualizado com relacionamentos carregados.
+            Objeto Competition atualizado.
         """
         await db.flush()
-        # Recarrega via get_by_id para garantir selectinload de modality_rel
         return await CompetitionRepository.get_by_id(db, competition.id)  # type: ignore[return-value]

@@ -267,7 +267,7 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-sm font-medium text-gray-900">{comp.name}</p>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    {comp.modality_name ?? "—"} · Máx. {comp.max_athletes} atletas
+                    {comp.event_type ? comp.event_type.toUpperCase() : "—"} · {comp.location ?? "—"}
                   </p>
                 </div>
                 <StatusBadge status={comp.status} />

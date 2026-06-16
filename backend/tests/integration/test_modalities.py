@@ -121,22 +121,11 @@ async def test_excluir_modalidade_sem_competicoes_retorna_204(
     assert response.status_code == 204
 
 
-async def test_excluir_modalidade_com_competicao_retorna_409(
+async def test_excluir_modalidade_inexistente_retorna_404(
     client: AsyncClient, admin_token: str
 ):
-    mod = await client.post(
-        "/api/v1/modalities",
-        json={"name": "Luta Livre"},
-        cookies={"session_id": admin_token},
-    )
-    mod_id = mod.json()["id"]
-    await client.post(
-        "/api/v1/competitions",
-        json={"name": "Copa Luta Livre", "modality_id": mod_id},
-        cookies={"session_id": admin_token},
-    )
     response = await client.delete(
-        f"/api/v1/modalities/{mod_id}",
+        "/api/v1/modalities/9999",
         cookies={"session_id": admin_token},
     )
-    assert response.status_code == 409
+    assert response.status_code == 404

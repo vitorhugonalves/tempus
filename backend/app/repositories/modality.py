@@ -1,6 +1,5 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.models.modality import Modality
 
@@ -33,9 +32,7 @@ class ModalityRepository:
             Modality ou None.
         """
         result = await db.execute(
-            select(Modality)
-            .options(selectinload(Modality.competitions))
-            .where(Modality.id == modality_id)
+            select(Modality).where(Modality.id == modality_id)
         )
         return result.scalar_one_or_none()
 

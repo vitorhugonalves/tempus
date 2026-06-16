@@ -8,6 +8,7 @@ from app.repositories.modality import ModalityRepository
 from app.schemas.modality import ModalityCreate, ModalityUpdate
 
 
+
 class ModalityService:
     """Regras de negócio para modalidades."""
 
@@ -88,19 +89,11 @@ class ModalityService:
 
     @staticmethod
     async def delete(db: AsyncSession, modality_id: int) -> None:
-        """Remove modalidade (somente se sem competições vinculadas).
+        """Remove modalidade.
 
         Args:
             db: Sessão assíncrona.
             modality_id: ID da modalidade.
-
-        Raises:
-            HTTPException 409: Modalidade em uso.
         """
         modality = await ModalityService.get_or_404(db, modality_id)
-        if modality.competitions:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Modalidade possui competições vinculadas e não pode ser removida",
-            )
         await ModalityRepository.delete(db, modality)

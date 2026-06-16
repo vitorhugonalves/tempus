@@ -16,7 +16,6 @@ async def active_comp(db: AsyncSession) -> Competition:
     comp = Competition(
         name="Competição Box Test",
         status=CompetitionStatus.active,
-        max_athletes=100,
     )
     db.add(comp)
     await db.commit()

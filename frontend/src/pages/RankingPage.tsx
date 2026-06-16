@@ -221,7 +221,7 @@ export default function RankingPage() {
             <div>
               <h1 className="text-2xl font-bold">{competition.name}</h1>
               <p className="text-primary-200 text-sm mt-1">
-                {competition.modality_name ?? "—"} · {competition.location ?? "—"}
+                {competition.event_type ? competition.event_type.toUpperCase() : "—"} · {competition.location ?? "—"}
               </p>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
