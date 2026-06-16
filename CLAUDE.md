@@ -1,23 +1,96 @@
-# CLAUDE.md — Projeto Tempus
+# CLAUDE.md — Tempus
 
-> Este arquivo orienta o assistente de IA (Claude) sobre as convenções, arquitetura e regras do projeto Tempus. Leia-o integralmente antes de qualquer tarefa de desenvolvimento.
+Arquivo de contexto do projeto para uso conjunto entre Vitor e Claude.
+Versão do documento de referência: **v4.1 — Março 2026**
 
 ---
 
-## 1. Visão Geral do Projeto
+## Sobre este arquivo
+
+Este arquivo é a fonte de verdade do projeto para o Claude. Toda vez que iniciarmos
+uma sessão de trabalho, este arquivo deve estar em contexto. Ele contém arquitetura,
+decisões técnicas, regras de trabalho e o estado atual do projeto.
+
+**Quando houver dúvida sobre qualquer decisão de design, consulte este arquivo primeiro.**
+Se a resposta não estiver aqui, pergunte antes de implementar.
+
+---
+
+## O que é o Tempus
 
 **Tempus** é um gerenciador de timers online para competições esportivas (e.g., Hyrox, CrossFit).
 Suporta até **300 atletas por evento**, com quatro perfis de acesso distintos e operação via web.
 
-- **Backend:** Python ≥ 3.12 + FastAPI
-- **Frontend:** React (SPA)
-- **Banco de dados:** SQLite (padrão) com migração suportada para PostgreSQL
-- **Autenticação:** Sessão tradicional (server-side session + cookie seguro)
-- **Execução:** Linux ou Windows — bare metal ou containers (Docker)
+**Problema que resolve:** elimina a gestão manual de atletas, pontuações, ranking, geração de súmulas e timers.
+---
+
+## Regras de Trabalho
+
+### Segurança em primeiro lugar
+
+**Nunca implemente nada inseguro.** Se uma feature puder ser feita de forma segura ou
+de forma rápida-mas-insegura, escolha sempre a segura. Se não souber como implementar
+algo de forma segura, diga antes de escrever código.
+
+Regras concretas:
+- Senhas de usuário **nunca** reversíveis. Sempre bcrypt rounds=12 (hash unidirecional) + pepper.
+- Tokens de resets de senhas são de **uso único**. Invalide imediatamente após uso.
+- Inputs do usuário sempre validados e sanitizados antes de qualquer execução.
+
+### Código mantido por humanos
+
+Este código será lido, modificado e debugado por pessoas. Otimize para clareza, não para esperteza.
+
+- **Funções pequenas com nomes descritivos.** Se o nome não explica o que faz, renomeie.
+- **Um nível de abstração por função.** Não misture lógica de negócio com queryset com formatação de resposta.
+- **Comentários explicam o porquê, não o quê.** O código já diz o quê.
+- **Sem magic numbers ou magic strings.** Use constantes nomeadas em `core/constants.py`.
+- **Erros explícitos.** Prefira `raise ValueError("credencial não encontrada para device_id=X")` a `return None` silencioso.
+
+### Regras de UI/UX
+
+- **Todo item permite edição.** Nem todo item permite deleção.
+  - Sempre implemente botão/modal de edição para qualquer entidade cadastrada.
+  - Deleção é opcional e depende da regra de negócio de cada entidade.
+- **Frontend sempre incluso no escopo.** Toda feature nova deve contemplar o frontend na mesma sessão de desenvolvimento. Durante o brainstorming, incluir seção de frontend no design. No plano de implementação, incluir tasks de frontend para cada feature de backend.
+
+### Como trabalhamos juntos
+
+- Vitor toma as decisões de produto e arquitetura. Claude implementa e questiona quando necessário.
+- Se Claude identificar um problema de segurança, **para tudo e reporta antes de continuar**.
+- Se Claude identificar uma decisão de arquitetura que conflita com este arquivo, **aponta o conflito antes de implementar**.
+- Mudanças de arquitetura relevantes são documentadas neste arquivo antes de ir para o código.
+- Commits atômicos: uma coisa por commit, mensagem no formato `módulo: o que foi feito`.
+
+### Manutenção da memória do projeto
+
+**Ao concluir qualquer sessão de desenvolvimento — incluindo subagentes — o Claude DEVE atualizar a memória do projeto.**
+
+O arquivo a manter é:
+`~/.claude/projects/-home-vitoralves-projects-seumikrotik/memory/project_state.md`
+
+Regras:
+- Qualquer módulo novo implementado deve ser adicionado à lista de módulos implementados.
+- Qualquer decisão arquitetural nova deve ser registrada.
+- Pendências resolvidas devem ser removidas da seção de pendências.
+- Pendências novas descobertas durante a implementação devem ser adicionadas.
+- O `MEMORY.md` (`~/.claude/projects/-home-vitoralves-projects-seumikrotik/memory/MEMORY.md`) deve refletir o índice atualizado.
+
+**Esta atualização é obrigatória, não opcional. Não conclua uma sessão sem atualizar a memória.**
 
 ---
 
-## 2. Arquitetura e Estrutura de Pastas
+## Decisões Arquiteturais (não reverter sem discussão)
+
+| Decisão | Escolha | Motivo |
+|---|---|---|
+| Arquitetura | Monolito Modular (Majestic Monolith) | Projeto simples e sem grande escala |
+| Backend | Python 3.12 + FastAPI | Stack conhecida, ecossistema rico para rede/infra |
+| Hash de senhas de usuário | bcrypt (rounds=12) + pepper | Hash unidirecional. Nunca armazenar senha em texto plano ou hash fraco |
+
+---
+
+## Estrutura do Projeto Django
 
 ```
 tempus/
@@ -75,8 +148,13 @@ tempus/
 ├── CLAUDE.md                     # Este arquivo
 └── README.md
 └── .gitignore                    # Especificações de arquivos que não devem ser enviados para o Git.
-
 ```
+
+**Regra:** módulos se comunicam apenas por `services.py` ou `selectors.py` internos.
+Nunca importe um `Model` de outro módulo diretamente. Se precisar de dado de outro módulo,
+crie uma função de serviço explícita.
+
+---
 
 ### Princípios Arquiteturais
 
@@ -375,3 +453,46 @@ VITE_API_BASE_URL=http://localhost:8000
 8. **Em caso de dúvida sobre regra de negócio**, interrompa e pergunte antes de implementar
 9. **Documentação sempre atualizada** - sempre que houverem mudanças na arquitetura do projeto e/ou no banco de dados documente. Caso ainda não tenha realizado nenhuma documentação, faça-a. Procure sempre realizar a documentação, adicionando topologias com o Mermaid.
 10. **Sempre execute os testes** sem perguntar. Caso tenha algum erro nos testes, pergunte antes de ajustar.
+
+---
+
+*Atualizado em: Março 2026 — Vitor + Claude*
+
+<!-- code-review-graph MCP tools -->
+## MCP Tools: code-review-graph
+
+**IMPORTANT: This project has a knowledge graph. ALWAYS use the
+code-review-graph MCP tools BEFORE using Grep/Glob/Read to explore
+the codebase.** The graph is faster, cheaper (fewer tokens), and gives
+you structural context (callers, dependents, test coverage) that file
+scanning cannot.
+
+### When to use graph tools FIRST
+
+- **Exploring code**: `semantic_search_nodes` or `query_graph` instead of Grep
+- **Understanding impact**: `get_impact_radius` instead of manually tracing imports
+- **Code review**: `detect_changes` + `get_review_context` instead of reading entire files
+- **Finding relationships**: `query_graph` with callers_of/callees_of/imports_of/tests_for
+- **Architecture questions**: `get_architecture_overview` + `list_communities`
+
+Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
+
+### Key Tools
+
+| Tool | Use when |
+|------|----------|
+| `detect_changes` | Reviewing code changes — gives risk-scored analysis |
+| `get_review_context` | Need source snippets for review — token-efficient |
+| `get_impact_radius` | Understanding blast radius of a change |
+| `get_affected_flows` | Finding which execution paths are impacted |
+| `query_graph` | Tracing callers, callees, imports, tests, dependencies |
+| `semantic_search_nodes` | Finding functions/classes by name or keyword |
+| `get_architecture_overview` | Understanding high-level codebase structure |
+| `refactor_tool` | Planning renames, finding dead code |
+
+### Workflow
+
+1. The graph auto-updates on file changes (via hooks).
+2. Use `detect_changes` for code review.
+3. Use `get_affected_flows` to understand impact.
+4. Use `query_graph` pattern="tests_for" to check coverage.

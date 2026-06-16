@@ -1,5 +1,5 @@
 import apiClient from "./client";
-import type { Competition, RankingEntry } from "../types";
+import type { Competition, EventType, RankingEntry, ScoringModel, TiebreakCriterion } from "../types";
 
 export interface MemberInput {
   full_name: string;
@@ -24,15 +24,16 @@ export interface CompetitorRegisterResponse {
 export interface CompetitionCreate {
   name: string;
   location?: string;
-  event_date?: string;
-  modality_id?: number;
-  duration_seconds?: number;
-  max_athletes?: number;
-  rules?: string;
+  start_date?: string;
+  end_date?: string;
+  event_type?: EventType;
+  is_public?: boolean;
+  scoring_model?: ScoringModel;
+  tiebreak_criterion?: TiebreakCriterion;
 }
 
 export interface CompetitionUpdate extends Partial<CompetitionCreate> {
-  status?: string;
+  status?: "draft" | "active" | "finished";
 }
 
 export const competitionsApi = {

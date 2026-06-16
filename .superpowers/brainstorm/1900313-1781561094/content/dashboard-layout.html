@@ -1,0 +1,138 @@
+<h2>Layout do Dashboard do Campeonato</h2>
+<p class="subtitle">Como a sidebar e o conteúdo principal se organizam</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="sidebar-fixed" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+        <!-- Top bar -->
+        <div style="background:#1e293b;height:26px;display:flex;align-items:center;padding:0 10px;gap:8px;">
+          <span style="font-size:8px;color:#fff;font-weight:700;">Tempus</span>
+          <span style="font-size:7px;color:#64748b;">›</span>
+          <span style="font-size:7px;color:#94a3b8;">Hyrox SP 2026</span>
+        </div>
+        <!-- Body -->
+        <div style="display:flex;min-height:130px;">
+          <!-- Sidebar -->
+          <div style="width:90px;background:#0f172a;padding:8px 6px;flex-shrink:0;">
+            <div style="font-size:7px;color:#64748b;font-weight:600;text-transform:uppercase;margin-bottom:8px;padding:0 2px;">Campeonato</div>
+            <div style="background:#6366f1;border-radius:4px;padding:4px 6px;margin-bottom:3px;">
+              <span style="font-size:8px;color:#fff;font-weight:600;">📊 Dashboard</span>
+            </div>
+            <div style="padding:4px 6px;margin-bottom:3px;">
+              <span style="font-size:8px;color:#94a3b8;">👥 Participantes</span>
+            </div>
+            <div style="padding:4px 6px;margin-bottom:3px;">
+              <span style="font-size:8px;color:#94a3b8;">🔥 Baterias</span>
+            </div>
+            <div style="padding:4px 6px;margin-bottom:3px;">
+              <span style="font-size:8px;color:#94a3b8;">🏆 Resultados</span>
+            </div>
+            <div style="padding:4px 6px;">
+              <span style="font-size:8px;color:#94a3b8;">📺 Leaderboard</span>
+            </div>
+          </div>
+          <!-- Content -->
+          <div style="flex:1;padding:10px;background:#f8fafc;">
+            <div style="font-size:10px;font-weight:700;color:#1e293b;margin-bottom:8px;">Hyrox São Paulo 2026</div>
+            <!-- Stats row -->
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;">
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:5px;padding:6px;text-align:center;">
+                <div style="font-size:14px;font-weight:800;color:#6366f1;">12</div>
+                <div style="font-size:7px;color:#94a3b8;">dias p/ início</div>
+              </div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:5px;padding:6px;text-align:center;">
+                <div style="font-size:14px;font-weight:800;color:#6366f1;">48</div>
+                <div style="font-size:7px;color:#94a3b8;">equipes</div>
+              </div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:5px;padding:6px;text-align:center;">
+                <div style="font-size:14px;font-weight:800;color:#6366f1;">96</div>
+                <div style="font-size:7px;color:#94a3b8;">inscritos</div>
+              </div>
+            </div>
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:5px;height:36px;padding:6px;">
+              <div style="font-size:7px;font-weight:600;color:#475569;margin-bottom:3px;">Status do evento</div>
+              <div style="display:flex;gap:4px;align-items:center;">
+                <div style="width:6px;height:6px;border-radius:50%;background:#22c55e;"></div>
+                <span style="font-size:7px;color:#22c55e;font-weight:600;">Inscrições abertas</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Sidebar Escura Fixa</h3>
+      <p>Sidebar sempre visível à esquerda com tema escuro. Contrasta com o conteúdo principal claro. Estilo padrão de apps de gestão (Linear, Notion).</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="sidebar-light" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+        <!-- Top bar with breadcrumb -->
+        <div style="background:#fff;border-bottom:1px solid #e2e8f0;height:26px;display:flex;align-items:center;padding:0 10px;gap:8px;">
+          <span style="font-size:8px;color:#6366f1;font-weight:700;">Tempus</span>
+          <span style="font-size:7px;color:#cbd5e1;">›</span>
+          <span style="font-size:7px;color:#475569;font-weight:600;">Hyrox SP 2026</span>
+        </div>
+        <!-- Body -->
+        <div style="display:flex;min-height:130px;">
+          <!-- Sidebar clara -->
+          <div style="width:90px;background:#fff;border-right:1px solid #e2e8f0;padding:8px 6px;flex-shrink:0;">
+            <div style="font-size:7px;color:#94a3b8;font-weight:600;text-transform:uppercase;margin-bottom:8px;padding:0 2px;">Menu</div>
+            <div style="background:#eef2ff;border-radius:4px;padding:4px 6px;margin-bottom:3px;border-left:2px solid #6366f1;">
+              <span style="font-size:8px;color:#6366f1;font-weight:600;">📊 Dashboard</span>
+            </div>
+            <div style="padding:4px 6px;margin-bottom:3px;">
+              <span style="font-size:8px;color:#64748b;">👥 Participantes</span>
+            </div>
+            <div style="padding:4px 6px;margin-bottom:3px;">
+              <span style="font-size:8px;color:#64748b;">🔥 Baterias</span>
+            </div>
+            <div style="padding:4px 6px;margin-bottom:3px;">
+              <span style="font-size:8px;color:#64748b;">🏆 Resultados</span>
+            </div>
+            <div style="padding:4px 6px;">
+              <span style="font-size:8px;color:#64748b;">📺 Leaderboard</span>
+            </div>
+          </div>
+          <!-- Content -->
+          <div style="flex:1;padding:10px;background:#f8fafc;">
+            <div style="font-size:10px;font-weight:700;color:#1e293b;margin-bottom:8px;">Hyrox São Paulo 2026</div>
+            <!-- Stats row -->
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;">
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:5px;padding:6px;text-align:center;">
+                <div style="font-size:14px;font-weight:800;color:#6366f1;">12</div>
+                <div style="font-size:7px;color:#94a3b8;">dias p/ início</div>
+              </div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:5px;padding:6px;text-align:center;">
+                <div style="font-size:14px;font-weight:800;color:#6366f1;">48</div>
+                <div style="font-size:7px;color:#94a3b8;">equipes</div>
+              </div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:5px;padding:6px;text-align:center;">
+                <div style="font-size:14px;font-weight:800;color:#6366f1;">96</div>
+                <div style="font-size:7px;color:#94a3b8;">inscritos</div>
+              </div>
+            </div>
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:5px;height:36px;padding:6px;">
+              <div style="font-size:7px;font-weight:600;color:#475569;margin-bottom:3px;">Status do evento</div>
+              <div style="display:flex;gap:4px;align-items:center;">
+                <div style="width:6px;height:6px;border-radius:50%;background:#22c55e;"></div>
+                <span style="font-size:7px;color:#22c55e;font-weight:600;">Inscrições abertas</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Sidebar Clara com Borda</h3>
+      <p>Sidebar no mesmo tom claro do conteúdo, separada por borda fina. Item ativo destacado com fundo colorido e barra lateral. Estilo mais leve e moderno.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:16px;">Clique para selecionar, ou me diga no terminal.</p>

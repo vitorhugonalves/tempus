@@ -9,18 +9,23 @@ export interface User {
 }
 
 export type CompetitionStatus = "draft" | "active" | "finished";
+export type EventType = "hyrox" | "crossfit";
+export type ScoringModel = "lowest_time" | "most_points";
+export type TiebreakCriterion = "last_checkpoint" | "registration_date" | "alphabetical";
+export type Gender = "male" | "female" | "mixed";
+export type TshirtSize = "P" | "M" | "G" | "GG" | "XG";
 
 export interface Competition {
   id: number;
   name: string;
   location: string | null;
-  event_date: string | null;
-  modality_id: number | null;
-  modality_name: string | null;
-  duration_seconds: number | null;
-  max_athletes: number;
+  start_date: string | null;
+  end_date: string | null;
+  event_type: EventType | null;
+  is_public: boolean;
+  scoring_model: ScoringModel | null;
+  tiebreak_criterion: TiebreakCriterion | null;
   status: CompetitionStatus;
-  rules: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -41,10 +46,52 @@ export interface Category {
   competition_id: number;
   name: string;
   category_type: CategoryType;
+  gender: Gender | null;
+  age_restriction_enabled: boolean;
+  age_min: number | null;
+  age_max: number | null;
   max_team_size: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface Athlete {
+  id: number;
+  competition_id: number;
+  category_id: number | null;
+  team_id: number | null;
+  name: string;
+  email: string | null;
+  document: string | null;
+  phone: string | null;
+  tshirt_size: TshirtSize | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AthleteCreate {
+  name: string;
+  email?: string;
+  document?: string;
+  phone?: string;
+  category_id?: number;
+  team_id?: number;
+  tshirt_size?: TshirtSize;
+}
+
+export interface AthleteBulkResult {
+  created: number;
+  errors: Array<{ row: number; name: string; error: string }>;
+}
+
+export interface CepResult {
+  cep: string | null;
+  logradouro: string | null;
+  complemento: string | null;
+  bairro: string | null;
+  localidade: string | null;
+  uf: string | null;
 }
 
 export type HeatStatus = "pending" | "running" | "finished";

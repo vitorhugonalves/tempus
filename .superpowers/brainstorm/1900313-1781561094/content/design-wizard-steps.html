@@ -1,0 +1,297 @@
+<h2>Wizard — Etapas 2 a 5</h2>
+<p class="subtitle">Design detalhado das etapas restantes de criação do campeonato</p>
+
+<!-- ==================== ETAPA 2: DIVULGAÇÃO ==================== -->
+<div class="section">
+  <div class="label">Etapa 2 — Divulgação</div>
+  <div class="mockup">
+    <div class="mockup-header">Divulgação do Campeonato</div>
+    <div class="mockup-body">
+
+      <!-- Toggle público/privado -->
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#1e293b;">Campeonato Público</div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">Habilita página de inscrição pública e divulgação online</div>
+          </div>
+          <!-- Toggle ON -->
+          <div style="width:44px;height:24px;background:#6366f1;border-radius:12px;position:relative;cursor:pointer;">
+            <div style="width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:3px;right:3px;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Campos se público (expandidos) -->
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;space-y:10px;">
+        <div style="font-size:11px;font-weight:600;color:#6366f1;margin-bottom:12px;text-transform:uppercase;letter-spacing:.04em;">Configurações públicas</div>
+
+        <!-- Descrição -->
+        <div style="margin-bottom:10px;">
+          <label style="font-size:11px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Descrição do campeonato</label>
+          <textarea class="mock-input" style="width:100%;height:56px;font-size:11px;resize:none;" placeholder="Descreva o campeonato para os participantes..."></textarea>
+        </div>
+
+        <!-- PDFs -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+          <div>
+            <label style="font-size:11px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Regulamento (PDF) <span style="color:#94a3b8;font-weight:400;">opcional</span></label>
+            <div style="border:2px dashed #cbd5e1;border-radius:6px;padding:12px;text-align:center;background:#fff;">
+              <div style="font-size:18px;margin-bottom:4px;">📄</div>
+              <div style="font-size:10px;color:#94a3b8;">Arraste o PDF aqui ou</div>
+              <div style="font-size:10px;color:#6366f1;font-weight:600;cursor:pointer;">clique para selecionar</div>
+            </div>
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Requisitos (PDF) <span style="color:#94a3b8;font-weight:400;">opcional</span></label>
+            <div style="border:2px dashed #cbd5e1;border-radius:6px;padding:12px;text-align:center;background:#fff;">
+              <div style="font-size:18px;margin-bottom:4px;">📋</div>
+              <div style="font-size:10px;color:#94a3b8;">Arraste o PDF aqui ou</div>
+              <div style="font-size:10px;color:#6366f1;font-weight:600;cursor:pointer;">clique para selecionar</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Camisetas toggle -->
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:10px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-size:12px;font-weight:600;color:#1e293b;">Seleção de tamanho de camiseta</div>
+            <div style="font-size:10px;color:#94a3b8;">Atleta informa o tamanho na inscrição (P, M, G, GG, XG)</div>
+          </div>
+          <div style="width:36px;height:20px;background:#e2e8f0;border-radius:10px;position:relative;cursor:pointer;">
+            <div style="width:14px;height:14px;background:#fff;border-radius:50%;position:absolute;top:3px;left:3px;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
+          </div>
+        </div>
+
+        <!-- Organizador -->
+        <div>
+          <label style="font-size:11px;font-weight:600;color:#475569;display:block;margin-bottom:8px;">Organizador do Evento</label>
+          <div style="display:flex;gap:6px;margin-bottom:8px;">
+            <div style="flex:1;border:2px solid #6366f1;border-radius:6px;padding:8px;text-align:center;background:#eef2ff;cursor:pointer;">
+              <div style="font-size:11px;font-weight:700;color:#4338ca;">👤 Pessoa Física</div>
+            </div>
+            <div style="flex:1;border:2px solid #e2e8f0;border-radius:6px;padding:8px;text-align:center;background:#fff;cursor:pointer;">
+              <div style="font-size:11px;font-weight:600;color:#94a3b8;">🏢 Pessoa Jurídica</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+            <input class="mock-input" placeholder="Nome completo *" style="font-size:11px;"/>
+            <input class="mock-input" placeholder="E-mail *" style="font-size:11px;"/>
+            <input class="mock-input" placeholder="Telefone *" style="font-size:11px;"/>
+            <input class="mock-input" placeholder="CPF *" style="font-size:11px;"/>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;margin-top:14px;">
+        <button class="mock-button" style="background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:6px;padding:8px 16px;font-size:12px;">← Voltar</button>
+        <button class="mock-button" style="background:#6366f1;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:12px;font-weight:600;">Avançar →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== ETAPA 3: WODs ==================== -->
+<div class="section">
+  <div class="label">Etapa 3 — WODs / Exercícios (somente CrossFit)</div>
+  <div class="mockup">
+    <div class="mockup-header">WODs do Campeonato — CrossFit Open RJ 2026</div>
+    <div class="mockup-body">
+
+      <!-- Formulário de novo WOD -->
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin-bottom:14px;">
+        <div style="font-size:12px;font-weight:700;color:#1e293b;margin-bottom:10px;">Criar Novo WOD</div>
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-bottom:8px;">
+          <input class="mock-input" placeholder="Título do WOD *" style="font-size:11px;"/>
+          <input class="mock-input" placeholder="Data *" style="font-size:11px;"/>
+          <select class="mock-input" style="font-size:11px;">
+            <option>Tipo de resultado *</option>
+            <option>Tempo</option>
+            <option>Tempo + Repetições</option>
+            <option>Repetições</option>
+            <option>Distância</option>
+            <option>Calorias</option>
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <select class="mock-input" style="font-size:11px;">
+            <option>Publicação</option>
+            <option>Imediata</option>
+            <option>Programada</option>
+            <option>Não publica</option>
+          </select>
+          <div style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:0 10px;">
+            <div style="width:28px;height:16px;background:#e2e8f0;border-radius:8px;position:relative;">
+              <div style="width:10px;height:10px;background:#fff;border-radius:50%;position:absolute;top:3px;left:3px;"></div>
+            </div>
+            <span style="font-size:11px;color:#64748b;">Tiebreak habilitado</span>
+          </div>
+        </div>
+        <textarea class="mock-input" style="width:100%;height:44px;font-size:11px;resize:none;" placeholder="Descrição/detalhamento do WOD (opcional)"></textarea>
+        <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+          <button class="mock-button" style="background:#6366f1;color:#fff;border:none;border-radius:5px;padding:6px 14px;font-size:11px;font-weight:600;">+ Salvar WOD</button>
+        </div>
+      </div>
+
+      <!-- Tabela de WODs cadastrados -->
+      <div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:8px;">
+        <div style="background:#f8fafc;padding:8px 12px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr 80px;font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;">
+          <span>WOD</span><span>Data</span><span>Tipo</span><span>Categorias</span><span>Ações</span>
+        </div>
+        <!-- WOD 1 - expandido com categorias -->
+        <div style="border-top:1px solid #f1f5f9;">
+          <div style="padding:10px 12px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr 80px;font-size:11px;align-items:center;">
+            <span style="font-weight:600;color:#1e293b;">WOD 1 — Cindy</span>
+            <span style="color:#64748b;">10/08</span>
+            <span style="color:#64748b;">Repetições</span>
+            <span><span style="background:#dbeafe;color:#1e40af;font-size:10px;padding:1px 6px;border-radius:3px;">2 cats</span></span>
+            <div style="display:flex;gap:4px;">
+              <span style="color:#6366f1;font-size:10px;cursor:pointer;">Config</span>
+              <span style="color:#ef4444;font-size:10px;cursor:pointer;">✕</span>
+            </div>
+          </div>
+          <!-- Inline config de categorias -->
+          <div style="background:#f0f9ff;border-top:1px solid #bae6fd;padding:8px 12px 10px 24px;">
+            <div style="font-size:10px;font-weight:600;color:#0369a1;margin-bottom:6px;">Configuração por categoria:</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:5px;padding:8px;">
+                <div style="font-size:11px;font-weight:600;color:#1e293b;margin-bottom:4px;">Elite Masculino</div>
+                <div style="display:flex;gap:6px;">
+                  <input class="mock-input" placeholder="Max reps" style="font-size:10px;width:70px;"/>
+                  <input class="mock-input" placeholder="Time cap (min)" style="font-size:10px;width:90px;"/>
+                </div>
+              </div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:5px;padding:8px;">
+                <div style="font-size:11px;font-weight:600;color:#1e293b;margin-bottom:4px;">Master Feminino</div>
+                <div style="display:flex;gap:6px;">
+                  <input class="mock-input" placeholder="Max reps" style="font-size:10px;width:70px;"/>
+                  <input class="mock-input" placeholder="Time cap (min)" style="font-size:10px;width:90px;"/>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="border-top:1px solid #f1f5f9;padding:10px 12px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr 80px;font-size:11px;align-items:center;background:#fafafa;">
+          <span style="font-weight:600;color:#1e293b;">WOD 2 — Fran</span>
+          <span style="color:#64748b;">11/08</span>
+          <span style="color:#64748b;">Tempo</span>
+          <span><span style="background:#f1f5f9;color:#94a3b8;font-size:10px;padding:1px 6px;border-radius:3px;">0 cats</span></span>
+          <div style="display:flex;gap:4px;">
+            <span style="color:#6366f1;font-size:10px;cursor:pointer;">Config</span>
+            <span style="color:#ef4444;font-size:10px;cursor:pointer;">✕</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;margin-top:14px;">
+        <button class="mock-button" style="background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:6px;padding:8px 16px;font-size:12px;">← Voltar</button>
+        <button class="mock-button" style="background:#6366f1;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:12px;font-weight:600;">Avançar →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== ETAPA 4: PONTUAÇÃO ==================== -->
+<div class="section">
+  <div class="label">Etapa 4 — Pontuação</div>
+  <div class="mockup">
+    <div class="mockup-header">Modelo de Pontuação</div>
+    <div class="mockup-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+
+        <!-- Hyrox (já selecionado) -->
+        <div style="border:2px solid #6366f1;border-radius:8px;padding:14px;background:#eef2ff;">
+          <div style="font-size:13px;font-weight:700;color:#4338ca;margin-bottom:6px;">🏃 Hyrox — Menor Tempo</div>
+          <div style="font-size:11px;color:#6366f1;margin-bottom:8px;">Ranking determinado pelo tempo total de conclusão do percurso.</div>
+          <ul style="font-size:10px;color:#4338ca;padding-left:16px;margin:0;">
+            <li>1º lugar = menor tempo bruto</li>
+            <li>Penalidades somam segundos ao tempo final</li>
+            <li>Desempate: tempo de checkpoint anterior</li>
+          </ul>
+        </div>
+
+        <!-- CrossFit -->
+        <div style="border:2px solid #e2e8f0;border-radius:8px;padding:14px;background:#fff;">
+          <div style="font-size:13px;font-weight:700;color:#475569;margin-bottom:6px;">🏋️ CrossFit — Mais Pontos</div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Pontos por colocação em cada WOD. Maior total vence.</div>
+          <ul style="font-size:10px;color:#94a3b8;padding-left:16px;margin:0;">
+            <li>1º = 100pts · 2º = 95pts · 3º = 92pts...</li>
+            <li>Tiebreak por critério secundário do WOD</li>
+            <li>Ausência em WOD = 0 pontos</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Critério de desempate para Hyrox -->
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
+        <div style="font-size:12px;font-weight:600;color:#1e293b;margin-bottom:8px;">Critério de Desempate</div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#475569;cursor:pointer;">
+            <input type="radio" checked style="accent-color:#6366f1;"/> Tempo no último checkpoint
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#475569;cursor:pointer;">
+            <input type="radio" style="accent-color:#6366f1;"/> Data/hora de inscrição (primeiro inscrito vence)
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#475569;cursor:pointer;">
+            <input type="radio" style="accent-color:#6366f1;"/> Ordem alfabética
+          </label>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;margin-top:14px;">
+        <button class="mock-button" style="background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:6px;padding:8px 16px;font-size:12px;">← Voltar</button>
+        <button class="mock-button" style="background:#6366f1;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:12px;font-weight:600;">Avançar →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== ETAPA 5: FINALIZAÇÃO ==================== -->
+<div class="section">
+  <div class="label">Etapa 5 — Finalização</div>
+  <div class="mockup">
+    <div class="mockup-header">Resumo e Confirmação</div>
+    <div class="mockup-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
+          <div style="font-size:10px;font-weight:700;color:#6366f1;text-transform:uppercase;margin-bottom:6px;">Informações Gerais</div>
+          <div style="font-size:11px;color:#64748b;line-height:1.8;">
+            <b style="color:#1e293b;">Nome:</b> Hyrox São Paulo 2026<br/>
+            <b style="color:#1e293b;">Período:</b> 27/06 → 28/06/2026<br/>
+            <b style="color:#1e293b;">Local:</b> Arena Anhembi, SP<br/>
+            <b style="color:#1e293b;">Tipo:</b> Hyrox<br/>
+            <b style="color:#1e293b;">Categorias:</b> 2
+          </div>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
+          <div style="font-size:10px;font-weight:700;color:#6366f1;text-transform:uppercase;margin-bottom:6px;">Divulgação</div>
+          <div style="font-size:11px;color:#64748b;line-height:1.8;">
+            <b style="color:#1e293b;">Público:</b> <span style="color:#22c55e;">✓ Sim</span><br/>
+            <b style="color:#1e293b;">Regulamento:</b> regulamento.pdf<br/>
+            <b style="color:#1e293b;">Requisitos:</b> Não anexado<br/>
+            <b style="color:#1e293b;">Camisetas:</b> <span style="color:#94a3b8;">Desativado</span><br/>
+            <b style="color:#1e293b;">Organizador:</b> João Silva
+          </div>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
+          <div style="font-size:10px;font-weight:700;color:#6366f1;text-transform:uppercase;margin-bottom:6px;">Pontuação</div>
+          <div style="font-size:11px;color:#64748b;line-height:1.8;">
+            <b style="color:#1e293b;">Modelo:</b> Menor Tempo (Hyrox)<br/>
+            <b style="color:#1e293b;">Desempate:</b> Tempo no último checkpoint
+          </div>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
+          <div style="font-size:10px;font-weight:700;color:#6366f1;text-transform:uppercase;margin-bottom:6px;">WODs</div>
+          <div style="font-size:11px;color:#94a3b8;font-style:italic;">Não aplicável (evento Hyrox)</div>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <button class="mock-button" style="background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:6px;padding:8px 16px;font-size:12px;">← Voltar</button>
+        <button class="mock-button" style="background:#22c55e;color:#fff;border:none;border-radius:6px;padding:10px 28px;font-size:13px;font-weight:700;">🎉 Criar Campeonato</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px;">Estas são as etapas 2–5. Alguma correção antes de vermos os sub-painéis do dashboard?</p>
