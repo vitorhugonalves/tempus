@@ -828,7 +828,7 @@ export default function TimersPage() {
             penaltyTypes={penaltyTypes}
             membersByTeam={membersByTeam}
             teamNameById={teamNameById}
-            durationSeconds={competition?.duration_seconds ?? null}
+            durationSeconds={null}
             canControl={canControl}
             onStartHeat={handleStartHeat}
             onStartTeam={handleStartTeam}
@@ -855,7 +855,7 @@ export default function TimersPage() {
                   teamName={teamName}
                   memberNames={memberNames}
                   penaltyTypes={penaltyTypes}
-                  durationSeconds={competition?.duration_seconds ?? null}
+                  durationSeconds={null}
                   canControl={canControl}
                   onAction={handleTimerAction}
                   onPenalty={handlePenalty}

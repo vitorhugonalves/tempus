@@ -88,7 +88,7 @@ async def _get_athlete_result(
         "penalty_seconds": penalty_seconds,
         "position": position,
         "comp_name": competition.name,
-        "comp_date": competition.event_date.strftime("%d/%m/%Y") if competition.event_date else datetime.now().strftime("%d/%m/%Y"),
+        "comp_date": competition.start_date.strftime("%d/%m/%Y") if competition.start_date else datetime.now().strftime("%d/%m/%Y"),
         "location": competition.location or "",
     }
 

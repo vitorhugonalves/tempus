@@ -9,7 +9,7 @@ async def competition(client: AsyncClient, admin_token: str) -> dict:
     """Cria uma competição de teste."""
     response = await client.post(
         "/api/v1/competitions",
-        json={"name": "Competição Teste", "max_athletes": 50},
+        json={"name": "Competição Teste"},
         cookies={"session_id": admin_token},
     )
     assert response.status_code == 201
@@ -151,3 +151,56 @@ async def test_clonar_competicao_copia_categorias(
     cats_clone = await client.get(f"/api/v1/competitions/{clone['id']}/categories")
     assert len(cats_clone.json()) == 1
     assert cats_clone.json()[0]["name"] == "Elite Masculino"
+
+
+async def test_criar_categoria_com_genero_retorna_201(
+    client: AsyncClient, admin_token: str
+):
+    comp_r = await client.post(
+        "/api/v1/competitions",
+        json={"name": "Comp Gênero"},
+        cookies={"session_id": admin_token},
+    )
+    comp_id = comp_r.json()["id"]
+
+    r = await client.post(
+        f"/api/v1/competitions/{comp_id}/categories",
+        json={
+            "name": "Elite Feminino",
+            "category_type": "individual",
+            "gender": "female",
+        },
+        cookies={"session_id": admin_token},
+    )
+    assert r.status_code == 201
+    data = r.json()
+    assert data["gender"] == "female"
+    assert data["age_restriction_enabled"] is False
+    assert data["age_min"] is None
+
+
+async def test_criar_categoria_com_restricao_etaria(
+    client: AsyncClient, admin_token: str
+):
+    comp_r = await client.post(
+        "/api/v1/competitions",
+        json={"name": "Comp Etária"},
+        cookies={"session_id": admin_token},
+    )
+    comp_id = comp_r.json()["id"]
+
+    r = await client.post(
+        f"/api/v1/competitions/{comp_id}/categories",
+        json={
+            "name": "Master 40+",
+            "category_type": "individual",
+            "age_restriction_enabled": True,
+            "age_min": 40,
+        },
+        cookies={"session_id": admin_token},
+    )
+    assert r.status_code == 201
+    data = r.json()
+    assert data["age_restriction_enabled"] is True
+    assert data["age_min"] == 40
+    assert data["age_max"] is None

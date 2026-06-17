@@ -13,7 +13,6 @@ from app.models.competition import Competition, CompetitionStatus
 from app.models.competitor import CompetitorRegistration
 from app.models.user import User
 from app.repositories.competition import CompetitionRepository
-from app.repositories.modality import ModalityRepository
 from app.schemas.category import CategoryCreate, CategoryResponse, CategoryUpdate
 from app.schemas.competition import CompetitionCreate, CompetitionResponse, CompetitionUpdate
 from app.schemas.heat import HeatCreate, HeatResponse, HeatTeamResponse, HeatTimerAdd, HeatUpdate
@@ -99,7 +98,7 @@ async def list_competitions(
 ) -> list[CompetitionResponse]:
     """Lista todas as competições (acesso público)."""
     competitions = await CompetitionRepository.get_all(db, skip=skip, limit=limit)
-    return [CompetitionResponse.from_orm(c) for c in competitions]
+    return [CompetitionResponse.model_validate(c) for c in competitions]
 
 
 @router.post(
@@ -110,23 +109,11 @@ async def create_competition(
     _current_user: User = Depends(require_roles("operator", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> CompetitionResponse:
-    """Cria nova competição (Operador/Admin).
-
-    Se modality_id for fornecido e a modalidade tiver default_duration_seconds,
-    o campo duration_seconds é pré-preenchido automaticamente quando não informado.
-    """
-    data = payload.model_dump()
-
-    # Auto-preencher duração a partir da modalidade (timer default)
-    if data.get("modality_id") and data.get("duration_seconds") is None:
-        modality = await ModalityRepository.get_by_id(db, data["modality_id"])
-        if modality and modality.default_duration_seconds:
-            data["duration_seconds"] = modality.default_duration_seconds
-
-    competition = Competition(**data)
+    """Cria nova competição (Operador/Admin)."""
+    competition = Competition(**payload.model_dump())
     created = await CompetitionRepository.create(db, competition)
     logger.info("Competição criada: id=%s nome=%s", created.id, created.name)
-    return CompetitionResponse.from_orm(created)
+    return CompetitionResponse.model_validate(created)
 
 
 @router.get("/competitions/{competition_id}", response_model=CompetitionResponse)
@@ -140,7 +127,7 @@ async def get_competition(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Competição não encontrada"
         )
-    return CompetitionResponse.from_orm(competition)
+    return CompetitionResponse.model_validate(competition)
 
 
 @router.patch("/competitions/{competition_id}", response_model=CompetitionResponse)
@@ -176,7 +163,7 @@ async def update_competition(
 
     updated = await CompetitionRepository.update(db, competition)
     logger.info("Competição atualizada: id=%s status=%s", updated.id, updated.status)
-    return CompetitionResponse.from_orm(updated)
+    return CompetitionResponse.model_validate(updated)
 
 
 @router.delete("/competitions/{competition_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -339,10 +326,9 @@ async def clone_competition(
     clone = Competition(
         name=f"{source.name} (cópia)",
         location=source.location,
-        modality_id=source.modality_id,
-        duration_seconds=source.duration_seconds,
-        max_athletes=source.max_athletes,
-        rules=source.rules,
+        event_type=source.event_type,
+        scoring_model=source.scoring_model,
+        tiebreak_criterion=source.tiebreak_criterion,
         status=CompetitionStatus.draft,
     )
     db.add(clone)
@@ -360,7 +346,7 @@ async def clone_competition(
     await db.flush()
     await db.refresh(clone)
     logger.info("Competição clonada: source=%s clone=%s", competition_id, clone.id)
-    return CompetitionResponse.from_orm(clone)
+    return CompetitionResponse.model_validate(clone)
 
 
 # ── Equipes (RF-23 a RF-25) ───────────────────────────────────────────────────

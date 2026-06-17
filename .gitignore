@@ -50,6 +50,7 @@ logs/*.log.*
 # Docker
 docker/nginx.conf~
 docker/.env
+docker/.env.dev
 
 # OS
 .DS_Store

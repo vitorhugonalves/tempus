@@ -12,6 +12,12 @@ class CategoryType(str, enum.Enum):
     team = "team"
 
 
+class Gender(str, enum.Enum):
+    male = "male"
+    female = "female"
+    mixed = "mixed"
+
+
 class Category(Base):
     """Categoria de participação dentro de uma competição.
 
@@ -28,6 +34,10 @@ class Category(Base):
     category_type: Mapped[CategoryType] = mapped_column(
         Enum(CategoryType), nullable=False, default=CategoryType.individual
     )
+    gender: Mapped[Gender | None] = mapped_column(Enum(Gender), nullable=True)
+    age_restriction_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    age_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    age_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
     max_team_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
@@ -44,4 +54,7 @@ class Category(Base):
     )
     timers: Mapped[list["Timer"]] = relationship(  # noqa: F821
         "Timer", back_populates="category"
+    )
+    athletes: Mapped[list["Athlete"]] = relationship(  # noqa: F821
+        "Athlete", back_populates="category"
     )

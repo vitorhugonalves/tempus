@@ -691,8 +691,6 @@ class RankingService:
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
 
-        from app.models.competition import Competition
-
         query = (
             select(Timer)
             .options(
@@ -710,11 +708,7 @@ class RankingService:
         result = await db.execute(query)
         timers = list(result.scalars().all())
 
-        comp_result = await db.execute(
-            select(Competition).where(Competition.id == competition_id)
-        )
-        competition = comp_result.scalar_one_or_none()
-        duration_seconds = competition.duration_seconds if competition else None
+        duration_seconds: int | None = None
 
         entries: list[RankingEntry] = []
         for timer in timers:

@@ -12,7 +12,13 @@ import RegisterPage from "./pages/RegisterPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import DashboardPage from "./pages/DashboardPage";
-import CompetitionsPage from "./pages/CompetitionsPage";
+import CompetitionsListPage from "./pages/CompetitionsListPage";
+import CompetitionWizardPage from "./pages/CompetitionWizardPage";
+import CompetitionDashboardLayout from "./pages/dashboard/CompetitionDashboardLayout";
+import DashboardOverviewPage from "./pages/dashboard/DashboardOverviewPage";
+import TeamsPage from "./pages/dashboard/TeamsPage";
+import AthletesPage from "./pages/dashboard/AthletesPage";
+import HeatsPage from "./pages/dashboard/HeatsPage";
 import UsersPage from "./pages/UsersPage";
 import TimersPage from "./pages/TimersPage";
 import LivePage from "./pages/LivePage";
@@ -66,61 +72,71 @@ export default function App() {
 
   return (
     <ToastProvider>
-    <BrowserRouter>
-      <Routes>
-        {/* Rota raiz */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-        {/* Rotas públicas — layout centralizado */}
-        <Route element={<AuthLayout />}>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-        </Route>
+          {/* Rotas públicas */}
+          <Route element={<AuthLayout />}>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+          </Route>
 
-        {/* Ranking público — sem sidebar (RF-39: sem necessidade de login) */}
-        <Route path="/ranking/:competitionId" element={<RankingPage />} />
-        <Route path="/competitions/:competitionId/ranking" element={<RankingPage />} />
+          {/* Ranking público */}
+          <Route path="/ranking/:competitionId" element={<RankingPage />} />
+          <Route path="/competitions/:competitionId/ranking" element={<RankingPage />} />
 
-        {/* Rotas protegidas — todos os roles autenticados */}
-        <Route element={<ProtectedRoute />}>
-          <Route element={<MainLayout />}>
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/ranking" element={<RankingPage />} />
-            <Route path="/inscricao" element={<RegistrationPage />} />
-            <Route path="/competitions/:competitionId/inscricao" element={<RegistrationPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-
-            {/* Timers — judge, operator, admin */}
+          {/* Dashboard do campeonato — layout próprio com sidebar escura */}
+          <Route element={<ProtectedRoute allowedRoles={["judge", "operator", "admin"]} />}>
             <Route
-              element={<ProtectedRoute allowedRoles={["judge", "operator", "admin"]} />}
+              path="/competitions/:competitionId/dashboard"
+              element={<CompetitionDashboardLayout />}
             >
-              <Route path="/timers" element={<TimersPage />} />
-              <Route path="/competitions/:competitionId/timers" element={<TimersPage />} />
-              <Route path="/competitions/:competitionId/live" element={<LivePage />} />
-            </Route>
-
-            {/* Gestão — operator, admin */}
-            <Route
-              element={<ProtectedRoute allowedRoles={["operator", "admin"]} />}
-            >
-              <Route path="/competitions" element={<CompetitionsPage />} />
-              <Route path="/users" element={<UsersPage />} />
-            </Route>
-
-            {/* Administração — somente admin */}
-            <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
-              <Route path="/admin" element={<AdminPage />} />
-              <Route path="/admin/bulk" element={<BulkActionsPage />} />
+              <Route index element={<DashboardOverviewPage />} />
+              <Route path="equipes" element={<TeamsPage />} />
+              <Route path="atletas" element={<AthletesPage />} />
+              <Route path="baterias" element={<HeatsPage />} />
             </Route>
           </Route>
-        </Route>
 
-        {/* 404 */}
-        <Route path="*" element={<NotFoundPage />} />
-      </Routes>
-    </BrowserRouter>
+          {/* Rotas protegidas com MainLayout */}
+          <Route element={<ProtectedRoute />}>
+            <Route element={<MainLayout />}>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/ranking" element={<RankingPage />} />
+              <Route path="/inscricao" element={<RegistrationPage />} />
+              <Route path="/competitions/:competitionId/inscricao" element={<RegistrationPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
+
+              {/* Timers legado — judge, operator, admin */}
+              <Route element={<ProtectedRoute allowedRoles={["judge", "operator", "admin"]} />}>
+                <Route path="/timers" element={<TimersPage />} />
+                <Route path="/competitions/:competitionId/timers" element={<TimersPage />} />
+                <Route path="/competitions/:competitionId/live" element={<LivePage />} />
+              </Route>
+
+              {/* Gestão — operator, admin */}
+              <Route element={<ProtectedRoute allowedRoles={["operator", "admin"]} />}>
+                <Route path="/competitions" element={<CompetitionsListPage />} />
+                {/* /competitions/new deve vir antes de /:id/edit para não ser capturado como id */}
+                <Route path="/competitions/new" element={<CompetitionWizardPage />} />
+                <Route path="/competitions/:id/edit" element={<CompetitionWizardPage />} />
+                <Route path="/users" element={<UsersPage />} />
+              </Route>
+
+              {/* Administração — somente admin */}
+              <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
+                <Route path="/admin" element={<AdminPage />} />
+                <Route path="/admin/bulk" element={<BulkActionsPage />} />
+              </Route>
+            </Route>
+          </Route>
+
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </BrowserRouter>
     </ToastProvider>
   );
 }

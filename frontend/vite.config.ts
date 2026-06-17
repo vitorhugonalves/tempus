@@ -29,10 +29,10 @@ export default defineConfig(({ mode }) => {
   return {
   plugins: [react()],
   server: {
-    port: Number(env.PORT),
+    port: Number(process.env.PORT ?? env.PORT ?? 5173),
     proxy: {
       "/api": {
-        target: env.BACKEND_URL,
+        target: process.env.BACKEND_URL ?? env.BACKEND_URL ?? "http://127.0.0.1:8000",
         changeOrigin: true,
         configure(proxy) {
           proxy.on("error", (err, req) => {
@@ -41,7 +41,7 @@ export default defineConfig(({ mode }) => {
         },
       },
       "/ws": {
-        target: env.BACKEND_URL,
+        target: process.env.BACKEND_URL ?? env.BACKEND_URL ?? "http://127.0.0.1:8000",
         changeOrigin: true,
         ws: true,
       },

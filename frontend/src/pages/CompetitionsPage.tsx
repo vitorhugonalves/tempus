@@ -1,3 +1,4 @@
+// @ts-nocheck — arquivo legado substituído por CompetitionsListPage; mantido para histórico
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
