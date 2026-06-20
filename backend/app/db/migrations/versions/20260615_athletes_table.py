@@ -14,6 +14,8 @@ depends_on = None
 
 
 def upgrade() -> None:
+    op.execute("CREATE TYPE tshirtsize AS ENUM ('P', 'M', 'G', 'GG', 'XG')")
+
     op.create_table(
         "athletes",
         sa.Column("id", sa.Integer(), primary_key=True, index=True),
@@ -65,3 +67,4 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table("athletes")
+    op.execute("DROP TYPE IF EXISTS tshirtsize")
