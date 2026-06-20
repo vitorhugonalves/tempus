@@ -1,6 +1,14 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Response,
+    UploadFile,
+    status,
+)
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,8 +22,18 @@ from app.models.competitor import CompetitorRegistration
 from app.models.user import User
 from app.repositories.competition import CompetitionRepository
 from app.schemas.category import CategoryCreate, CategoryResponse, CategoryUpdate
-from app.schemas.competition import CompetitionCreate, CompetitionResponse, CompetitionUpdate
-from app.schemas.heat import HeatCreate, HeatResponse, HeatTeamResponse, HeatTimerAdd, HeatUpdate
+from app.schemas.competition import (
+    CompetitionCreate,
+    CompetitionResponse,
+    CompetitionUpdate,
+)
+from app.schemas.heat import (
+    HeatCreate,
+    HeatResponse,
+    HeatTeamResponse,
+    HeatTimerAdd,
+    HeatUpdate,
+)
 from app.schemas.team import (
     TeamCreate,
     TeamMemberAdd,
@@ -23,6 +41,7 @@ from app.schemas.team import (
     TeamResponse,
     TeamUpdate,
 )
+from app.schemas.wod import WodCreate, WodResponse
 from app.services.category import CategoryService
 from app.services.heat import HeatService
 from app.services.registration import (
@@ -31,8 +50,42 @@ from app.services.registration import (
     RegistrationService,
 )
 from app.services.team import TeamService
+from app.services.wod import WodService
 
 logger = logging.getLogger(__name__)
+
+_ALLOWED_IMAGE_MIME = {"image/png", "image/jpeg", "image/gif", "image/webp"}
+_MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
+_EXT_TO_MIME: dict[str, str] = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+}
+
+
+def _resolve_image_mime(file: UploadFile) -> str | None:
+    """Retorna MIME type do arquivo, inferindo pela extensão quando necessário."""
+    ct = (file.content_type or "").lower()
+    if ct in _ALLOWED_IMAGE_MIME:
+        return ct
+    if file.filename:
+        ext = (
+            "." + file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+        )
+        if ext in _EXT_TO_MIME:
+            return _EXT_TO_MIME[ext]
+    return None
+
+
+def _to_response(c: Competition) -> CompetitionResponse:
+    """Constrói CompetitionResponse com flags has_logo e has_banner."""
+    resp = CompetitionResponse.model_validate(c)
+    resp.has_logo = c.logo_data is not None
+    resp.has_banner = c.banner_data is not None
+    return resp
+
 
 router = APIRouter()
 
@@ -98,7 +151,7 @@ async def list_competitions(
 ) -> list[CompetitionResponse]:
     """Lista todas as competições (acesso público)."""
     competitions = await CompetitionRepository.get_all(db, skip=skip, limit=limit)
-    return [CompetitionResponse.model_validate(c) for c in competitions]
+    return [_to_response(c) for c in competitions]
 
 
 @router.post(
@@ -113,7 +166,7 @@ async def create_competition(
     competition = Competition(**payload.model_dump())
     created = await CompetitionRepository.create(db, competition)
     logger.info("Competição criada: id=%s nome=%s", created.id, created.name)
-    return CompetitionResponse.model_validate(created)
+    return _to_response(created)
 
 
 @router.get("/competitions/{competition_id}", response_model=CompetitionResponse)
@@ -127,7 +180,7 @@ async def get_competition(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Competição não encontrada"
         )
-    return CompetitionResponse.model_validate(competition)
+    return _to_response(competition)
 
 
 @router.patch("/competitions/{competition_id}", response_model=CompetitionResponse)
@@ -163,7 +216,7 @@ async def update_competition(
 
     updated = await CompetitionRepository.update(db, competition)
     logger.info("Competição atualizada: id=%s status=%s", updated.id, updated.status)
-    return CompetitionResponse.model_validate(updated)
+    return _to_response(updated)
 
 
 @router.delete("/competitions/{competition_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -346,7 +399,7 @@ async def clone_competition(
     await db.flush()
     await db.refresh(clone)
     logger.info("Competição clonada: source=%s clone=%s", competition_id, clone.id)
-    return CompetitionResponse.model_validate(clone)
+    return _to_response(clone)
 
 
 # ── Equipes (RF-23 a RF-25) ───────────────────────────────────────────────────
@@ -701,3 +754,161 @@ async def move_heat(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bateria não encontrada")
     reordered = await HeatService.move(db, competition_id, heat_id, payload.direction)
     return [_heat_to_response(h) for h in reordered]
+
+
+# ── Logo e Banner da competição ───────────────────────────────────────────────
+
+
+@router.post(
+    "/competitions/{competition_id}/logo",
+    response_model=CompetitionResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def upload_competition_logo(
+    competition_id: int,
+    file: UploadFile = File(...),
+    _current_user: User = Depends(require_roles("operator", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> CompetitionResponse:
+    """Faz upload do logotipo de uma competição (Operador/Admin).
+
+    Formatos aceitos: PNG, JPEG, GIF, WebP. Tamanho máximo: 5 MB.
+    """
+    competition = await CompetitionRepository.get_by_id(db, competition_id)
+    if competition is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Competição não encontrada"
+        )
+
+    mime_type = _resolve_image_mime(file)
+    if mime_type is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Formato não suportado. Aceitos: PNG, JPEG, GIF, WebP",
+        )
+    data = await file.read()
+    if len(data) > _MAX_IMAGE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Imagem muito grande. Máximo: 5 MB",
+        )
+    competition.logo_data = data
+    competition.logo_mime_type = mime_type
+    updated = await CompetitionRepository.update(db, competition)
+    return _to_response(updated)
+
+
+@router.get("/competitions/{competition_id}/logo")
+async def get_competition_logo(
+    competition_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Retorna o logotipo da competição como imagem binária (público)."""
+    competition = await CompetitionRepository.get_by_id(db, competition_id)
+    if competition is None or not competition.logo_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Logo não encontrado"
+        )
+    return Response(
+        content=competition.logo_data,
+        media_type=competition.logo_mime_type or "image/png",
+    )
+
+
+@router.post(
+    "/competitions/{competition_id}/banner",
+    response_model=CompetitionResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def upload_competition_banner(
+    competition_id: int,
+    file: UploadFile = File(...),
+    _current_user: User = Depends(require_roles("operator", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> CompetitionResponse:
+    """Faz upload do banner de uma competição (Operador/Admin).
+
+    Formatos aceitos: PNG, JPEG, GIF, WebP. Tamanho máximo: 5 MB.
+    """
+    competition = await CompetitionRepository.get_by_id(db, competition_id)
+    if competition is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Competição não encontrada"
+        )
+
+    mime_type = _resolve_image_mime(file)
+    if mime_type is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Formato não suportado. Aceitos: PNG, JPEG, GIF, WebP",
+        )
+    data = await file.read()
+    if len(data) > _MAX_IMAGE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Imagem muito grande. Máximo: 5 MB",
+        )
+    competition.banner_data = data
+    competition.banner_mime_type = mime_type
+    updated = await CompetitionRepository.update(db, competition)
+    return _to_response(updated)
+
+
+@router.get("/competitions/{competition_id}/banner")
+async def get_competition_banner(
+    competition_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Retorna o banner da competição como imagem binária (público)."""
+    competition = await CompetitionRepository.get_by_id(db, competition_id)
+    if competition is None or not competition.banner_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Banner não encontrado"
+        )
+    return Response(
+        content=competition.banner_data,
+        media_type=competition.banner_mime_type or "image/png",
+    )
+
+
+# ── WODs ─────────────────────────────────────────────────────────────────────
+
+
+@router.get("/competitions/{competition_id}/wods", response_model=list[WodResponse])
+async def list_wods(
+    competition_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> list[WodResponse]:
+    """Lista WODs de uma competição ordenados por order (público)."""
+    wods = await WodService.list_wods(db, competition_id)
+    return [WodResponse.model_validate(w) for w in wods]
+
+
+@router.post(
+    "/competitions/{competition_id}/wods",
+    response_model=WodResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_wod(
+    competition_id: int,
+    payload: WodCreate,
+    _current_user: User = Depends(require_roles("operator", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> WodResponse:
+    """Cria um WOD vinculado à competição (Operador/Admin)."""
+    wod = await WodService.create_wod(db, competition_id, payload)
+    return WodResponse.model_validate(wod)
+
+
+@router.delete(
+    "/competitions/{competition_id}/wods/{wod_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_wod(
+    competition_id: int,
+    wod_id: int,
+    _current_user: User = Depends(require_roles("operator", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Remove um WOD (Operador/Admin)."""
+    await WodService.delete_wod(db, competition_id, wod_id)
