@@ -14,6 +14,13 @@ depends_on = None
 
 
 def upgrade() -> None:
+    op.execute("CREATE TYPE eventtype AS ENUM ('hyrox', 'crossfit')")
+    op.execute("CREATE TYPE scoringmodel AS ENUM ('lowest_time', 'most_points')")
+    op.execute(
+        "CREATE TYPE tiebreakcriterion AS ENUM "
+        "('last_checkpoint', 'registration_date', 'alphabetical')"
+    )
+
     with op.batch_alter_table("competitions") as batch_op:
         # Renomeia event_date → start_date
         batch_op.alter_column(
@@ -82,3 +89,7 @@ def downgrade() -> None:
         batch_op.alter_column(
             "start_date", new_column_name="event_date", existing_type=sa.Date(), nullable=True
         )
+
+    op.execute("DROP TYPE IF EXISTS tiebreakcriterion")
+    op.execute("DROP TYPE IF EXISTS scoringmodel")
+    op.execute("DROP TYPE IF EXISTS eventtype")
