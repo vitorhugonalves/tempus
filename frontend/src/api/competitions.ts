@@ -1,5 +1,13 @@
 import apiClient from "./client";
-import type { Competition, EventType, RankingEntry, ScoringModel, TiebreakCriterion } from "../types";
+import type { Competition, EventType, RankingEntry, ScoringModel, TiebreakCriterion, Wod, WodType } from "../types";
+
+export interface WodCreate {
+  name: string;
+  wod_type: WodType;
+  duration_minutes?: number | null;
+  description?: string | null;
+  order?: number;
+}
 
 export interface MemberInput {
   full_name: string;
@@ -67,4 +75,29 @@ export const competitionsApi = {
 
   getMyRegistration: (id: number) =>
     apiClient.get<{ is_registered: boolean; competition_id: number }>(`/api/v1/competitions/${id}/my-registration`),
+
+  uploadLogo: (id: number, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return apiClient.post(`/api/v1/competitions/${id}/logo`, form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  },
+
+  uploadBanner: (id: number, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return apiClient.post(`/api/v1/competitions/${id}/banner`, form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  },
+
+  listWods: (competitionId: number) =>
+    apiClient.get<Wod[]>(`/api/v1/competitions/${competitionId}/wods`),
+
+  createWod: (competitionId: number, data: WodCreate) =>
+    apiClient.post<Wod>(`/api/v1/competitions/${competitionId}/wods`, data),
+
+  deleteWod: (competitionId: number, wodId: number) =>
+    apiClient.delete(`/api/v1/competitions/${competitionId}/wods/${wodId}`),
 };

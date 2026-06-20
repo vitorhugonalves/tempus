@@ -26,6 +26,13 @@ export interface Competition {
   scoring_model: ScoringModel | null;
   tiebreak_criterion: TiebreakCriterion | null;
   status: CompetitionStatus;
+  description?: string | null;
+  regulations_url?: string | null;
+  registration_url?: string | null;
+  instagram_url?: string | null;
+  whatsapp_url?: string | null;
+  has_logo?: boolean;
+  has_banner?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -218,6 +225,20 @@ export interface RankingEntry {
   infractions_count: number;
   remaining_seconds: number | null;
   status: TimerStatus;
+}
+
+export type WodType = "amrap" | "for_time" | "emom" | "max_load";
+
+export interface Wod {
+  id: number;
+  competition_id: number;
+  name: string;
+  wod_type: WodType;
+  duration_minutes: number | null;
+  description: string | null;
+  order: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface LoginRequest {
