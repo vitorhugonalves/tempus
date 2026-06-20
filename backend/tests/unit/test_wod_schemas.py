@@ -1,7 +1,7 @@
-import pytest
-from app.schemas.wod import WodCreate, WodResponse
-from app.models.wod import WodType
 from datetime import datetime
+
+from app.models.wod import WodType
+from app.schemas.wod import WodCreate, WodResponse
 
 
 def test_wod_create_valida_campos_obrigatorios():
