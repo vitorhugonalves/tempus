@@ -1,7 +1,7 @@
 import enum
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, Enum, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, Date, Enum, ForeignKey, Integer, LargeBinary, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -46,6 +46,17 @@ class Competition(Base):
     status: Mapped[CompetitionStatus] = mapped_column(
         Enum(CompetitionStatus), nullable=False, default=CompetitionStatus.draft
     )
+    # Divulgação
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    regulations_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    registration_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    instagram_url: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    whatsapp_url: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    logo_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    logo_mime_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    banner_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    banner_mime_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
@@ -69,4 +80,7 @@ class Competition(Base):
     )
     athletes: Mapped[list["Athlete"]] = relationship(  # noqa: F821
         "Athlete", back_populates="competition", cascade="all, delete-orphan"
+    )
+    wods: Mapped[list["Wod"]] = relationship(  # noqa: F821
+        "Wod", back_populates="competition", cascade="all, delete-orphan", order_by="Wod.order"
     )

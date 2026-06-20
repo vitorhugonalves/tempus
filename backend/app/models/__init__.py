@@ -8,6 +8,7 @@ from app.models.team import Team, TeamMember
 from app.models.timer import Penalty, PenaltyType, Timer, TimerEvent, TimerStatus
 from app.models.token import InviteToken, PasswordResetToken
 from app.models.user import User, UserRole
+from app.models.wod import Wod, WodType
 
 __all__ = [
     "Category",
@@ -31,4 +32,6 @@ __all__ = [
     "TimerStatus",
     "User",
     "UserRole",
+    "Wod",
+    "WodType",
 ]
