@@ -1,11 +1,32 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { competitionsApi, type CompetitionCreate } from "../api/competitions";
+import { competitionsApi, type CompetitionCreate, type WodCreate } from "../api/competitions";
 import { cepApi } from "../api/cep";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Alert from "../components/ui/Alert";
-import type { EventType, ScoringModel, TiebreakCriterion } from "../types";
+import type { EventType, ScoringModel, TiebreakCriterion, Wod, WodType } from "../types";
+
+// ── Helpers de data ───────────────────────────────────────────────────────────
+
+function ptDateToIso(ptDate: string): string {
+  const match = ptDate.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return ptDate;
+  return `${match[3]}-${match[2]}-${match[1]}`;
+}
+
+function isoToPtDate(iso: string): string {
+  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return iso;
+  return `${match[3]}/${match[2]}/${match[1]}`;
+}
+
+function applyDateMask(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  if (digits.length > 4) return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+  if (digits.length > 2) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return digits;
+}
 
 // ── Tipos do estado local ─────────────────────────────────────────────────────
 
@@ -23,6 +44,19 @@ interface WizardStep1 {
   event_type: EventType | "";
 }
 
+interface WizardStep2 {
+  is_public: boolean;
+  description: string;
+  regulations_url: string;
+  registration_url: string;
+  instagram_url: string;
+  whatsapp_url: string;
+}
+
+interface WizardStep3 {
+  wods: Wod[];
+}
+
 interface WizardStep4 {
   scoring_model: ScoringModel | "";
   tiebreak_criterion: TiebreakCriterion | "";
@@ -30,6 +64,8 @@ interface WizardStep4 {
 
 interface WizardState {
   step1: WizardStep1;
+  step2: WizardStep2;
+  step3: WizardStep3;
   step4: WizardStep4;
 }
 
@@ -47,6 +83,15 @@ const INITIAL_STATE: WizardState = {
     complemento: "",
     event_type: "",
   },
+  step2: {
+    is_public: false,
+    description: "",
+    regulations_url: "",
+    registration_url: "",
+    instagram_url: "",
+    whatsapp_url: "",
+  },
+  step3: { wods: [] },
   step4: { scoring_model: "", tiebreak_criterion: "" },
 };
 
@@ -59,14 +104,29 @@ export default function CompetitionWizardPage() {
 
   const [currentStep, setCurrentStep] = useState(1);
   const [state, setState] = useState<WizardState>(INITIAL_STATE);
+  const [startDateDisplay, setStartDateDisplay] = useState("");
+  const [endDateDisplay, setEndDateDisplay] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [cepLoading, setCepLoading] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [bannerUploading, setBannerUploading] = useState(false);
+  const [createdCompId, setCreatedCompId] = useState<number | null>(id ? Number(id) : null);
+  const [wodAdding, setWodAdding] = useState(false);
+  const [wodForm, setWodForm] = useState<WodCreate>({
+    name: "",
+    wod_type: "amrap",
+    duration_minutes: undefined,
+    description: "",
+    order: 0,
+  });
 
   useEffect(() => {
     if (!id) return;
-    competitionsApi.get(Number(id)).then((r: any) => {
+    competitionsApi.get(Number(id)).then(async (r: any) => {
       const c = r.data ?? r;
+      setStartDateDisplay(c.start_date ? isoToPtDate(c.start_date) : "");
+      setEndDateDisplay(c.end_date ? isoToPtDate(c.end_date) : "");
       setState((prev) => ({
         ...prev,
         step1: {
@@ -85,6 +145,22 @@ export default function CompetitionWizardPage() {
         step4: {
           scoring_model: c.scoring_model ?? "",
           tiebreak_criterion: c.tiebreak_criterion ?? "",
+        },
+      }));
+      if (c.event_type === "crossfit") {
+        const wodsResp = await competitionsApi.listWods(Number(id));
+        const wods = (wodsResp.data ?? wodsResp) as Wod[];
+        setState((prev) => ({ ...prev, step3: { wods } }));
+      }
+      setState((prev) => ({
+        ...prev,
+        step2: {
+          is_public: c.is_public ?? false,
+          description: c.description ?? "",
+          regulations_url: c.regulations_url ?? "",
+          registration_url: c.registration_url ?? "",
+          instagram_url: c.instagram_url ?? "",
+          whatsapp_url: c.whatsapp_url ?? "",
         },
       }));
     });
@@ -139,11 +215,21 @@ export default function CompetitionWizardPage() {
       const err = validateStep4();
       if (err) { setError(err); return; }
     }
+    // Pular Etapa 3 (WODs) para eventos Hyrox
+    if (currentStep === 2 && state.step1.event_type === "hyrox") {
+      setCurrentStep(4);
+      return;
+    }
     setCurrentStep((s) => Math.min(s + 1, 5));
   }
 
   function handleBack() {
     setError(null);
+    // Pular Etapa 3 (WODs) ao voltar para Hyrox
+    if (currentStep === 4 && state.step1.event_type === "hyrox") {
+      setCurrentStep(2);
+      return;
+    }
     setCurrentStep((s) => Math.max(s - 1, 1));
   }
 
@@ -168,6 +254,12 @@ export default function CompetitionWizardPage() {
       event_type: (state.step1.event_type as EventType) || undefined,
       scoring_model: (state.step4.scoring_model as ScoringModel) || undefined,
       tiebreak_criterion: (state.step4.tiebreak_criterion as TiebreakCriterion) || undefined,
+      is_public: state.step2.is_public,
+      description: state.step2.description || undefined,
+      regulations_url: state.step2.regulations_url || undefined,
+      registration_url: state.step2.registration_url || undefined,
+      instagram_url: state.step2.instagram_url || undefined,
+      whatsapp_url: state.step2.whatsapp_url || undefined,
     };
 
     try {
@@ -178,11 +270,73 @@ export default function CompetitionWizardPage() {
         result = await competitionsApi.create(payload);
       }
       const comp = result.data ?? result;
+      setCreatedCompId(comp.id);
       navigate(`/competitions/${comp.id}/dashboard`);
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? "Erro ao salvar campeonato");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  // ── Upload de imagens ──────────────────────────────────────────────────────
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !createdCompId) return;
+    setLogoUploading(true);
+    try {
+      await competitionsApi.uploadLogo(createdCompId, file);
+    } catch {
+      setError("Erro ao fazer upload do logotipo.");
+    } finally {
+      setLogoUploading(false);
+    }
+  }
+
+  async function handleBannerUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !createdCompId) return;
+    setBannerUploading(true);
+    try {
+      await competitionsApi.uploadBanner(createdCompId, file);
+    } catch {
+      setError("Erro ao fazer upload do banner.");
+    } finally {
+      setBannerUploading(false);
+    }
+  }
+
+  // ── Handlers de WOD ───────────────────────────────────────────────────────
+
+  async function handleAddWod() {
+    if (!wodForm.name.trim() || !createdCompId) return;
+    setWodAdding(true);
+    try {
+      const resp = await competitionsApi.createWod(createdCompId, {
+        ...wodForm,
+        order: state.step3.wods.length,
+      });
+      const newWod = (resp.data ?? resp) as Wod;
+      setState((p) => ({ ...p, step3: { wods: [...p.step3.wods, newWod] } }));
+      setWodForm({ name: "", wod_type: "amrap", duration_minutes: undefined, description: "", order: 0 });
+    } catch {
+      setError("Erro ao adicionar WOD.");
+    } finally {
+      setWodAdding(false);
+    }
+  }
+
+  async function handleDeleteWod(wodId: number) {
+    if (!createdCompId) return;
+    try {
+      await competitionsApi.deleteWod(createdCompId, wodId);
+      setState((p) => ({
+        ...p,
+        step3: { wods: p.step3.wods.filter((w) => w.id !== wodId) },
+      }));
+    } catch {
+      setError("Erro ao remover WOD.");
     }
   }
 
@@ -238,19 +392,31 @@ export default function CompetitionWizardPage() {
             <div className="grid grid-cols-2 gap-4">
               <Input
                 label="Data de início"
-                type="date"
-                value={state.step1.start_date}
-                onChange={(e) =>
-                  setState((p) => ({ ...p, step1: { ...p.step1, start_date: e.target.value } }))
-                }
+                placeholder="dd/mm/aaaa"
+                value={startDateDisplay}
+                onChange={(e) => {
+                  const masked = applyDateMask(e.target.value);
+                  setStartDateDisplay(masked);
+                  const iso = ptDateToIso(masked);
+                  setState((p) => ({
+                    ...p,
+                    step1: { ...p.step1, start_date: iso !== masked ? iso : masked },
+                  }));
+                }}
               />
               <Input
                 label="Data de término"
-                type="date"
-                value={state.step1.end_date}
-                onChange={(e) =>
-                  setState((p) => ({ ...p, step1: { ...p.step1, end_date: e.target.value } }))
-                }
+                placeholder="dd/mm/aaaa"
+                value={endDateDisplay}
+                onChange={(e) => {
+                  const masked = applyDateMask(e.target.value);
+                  setEndDateDisplay(masked);
+                  const iso = ptDateToIso(masked);
+                  setState((p) => ({
+                    ...p,
+                    step1: { ...p.step1, end_date: iso !== masked ? iso : masked },
+                  }));
+                }}
               />
             </div>
           </div>
@@ -353,14 +519,228 @@ export default function CompetitionWizardPage() {
         </div>
       )}
 
-      {/* Etapas 2 e 3 — placeholder para fases futuras */}
-      {(currentStep === 2 || currentStep === 3) && (
-        <div className="rounded-lg border border-dashed border-gray-300 bg-white p-12 text-center">
-          <p className="text-gray-500">
-            {currentStep === 2
-              ? "Etapa 2 (Divulgação) — disponível na Fase 2 do redesenho."
-              : "Etapa 3 (WODs) — disponível na Fase 3 do redesenho (somente CrossFit)."}
-          </p>
+      {/* Etapa 2: Divulgação */}
+      {currentStep === 2 && (
+        <div className="space-y-6 rounded-lg border border-gray-200 bg-white p-6">
+          <h2 className="text-lg font-semibold text-gray-900">Divulgação</h2>
+
+          {/* Visibilidade */}
+          <div className="flex items-center gap-3">
+            <input
+              id="is_public"
+              type="checkbox"
+              checked={state.step2.is_public}
+              onChange={(e) =>
+                setState((p) => ({ ...p, step2: { ...p.step2, is_public: e.target.checked } }))
+              }
+              className="h-4 w-4 rounded border-gray-300 text-primary-600"
+            />
+            <label htmlFor="is_public" className="text-sm font-medium text-gray-700">
+              Tornar esta competição pública (visível na página de ranking e inscrição)
+            </label>
+          </div>
+
+          {/* Descrição */}
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700">Descrição</label>
+            <textarea
+              rows={4}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              placeholder="Descreva o evento, formato, local e demais informações relevantes..."
+              value={state.step2.description}
+              onChange={(e) =>
+                setState((p) => ({ ...p, step2: { ...p.step2, description: e.target.value } }))
+              }
+            />
+          </div>
+
+          {/* Links */}
+          <div className="space-y-4 border-t pt-4">
+            <h3 className="font-medium text-gray-700">Links</h3>
+            <Input
+              label="Regulamento (URL)"
+              placeholder="https://..."
+              value={state.step2.regulations_url}
+              onChange={(e) =>
+                setState((p) => ({ ...p, step2: { ...p.step2, regulations_url: e.target.value } }))
+              }
+            />
+            <Input
+              label="Inscrições externas (URL)"
+              placeholder="https://..."
+              value={state.step2.registration_url}
+              onChange={(e) =>
+                setState((p) => ({ ...p, step2: { ...p.step2, registration_url: e.target.value } }))
+              }
+            />
+          </div>
+
+          {/* Redes sociais */}
+          <div className="space-y-4 border-t pt-4">
+            <h3 className="font-medium text-gray-700">Redes sociais</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Instagram"
+                placeholder="https://instagram.com/..."
+                value={state.step2.instagram_url}
+                onChange={(e) =>
+                  setState((p) => ({ ...p, step2: { ...p.step2, instagram_url: e.target.value } }))
+                }
+              />
+              <Input
+                label="WhatsApp"
+                placeholder="https://wa.me/55..."
+                value={state.step2.whatsapp_url}
+                onChange={(e) =>
+                  setState((p) => ({ ...p, step2: { ...p.step2, whatsapp_url: e.target.value } }))
+                }
+              />
+            </div>
+          </div>
+
+          {/* Upload de imagens */}
+          <div className="space-y-4 border-t pt-4">
+            <h3 className="font-medium text-gray-700">Imagens</h3>
+            {!createdCompId && (
+              <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+                Upload disponível após criar a competição (Etapa 5).
+              </p>
+            )}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">Logotipo</label>
+                {createdCompId && (
+                  <img
+                    src={`/api/v1/competitions/${createdCompId}/logo`}
+                    alt="Logo"
+                    className="h-16 w-auto rounded border border-gray-200 object-contain"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
+                )}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/gif,image/webp"
+                  disabled={!createdCompId || logoUploading}
+                  onChange={handleLogoUpload}
+                  className="block w-full text-sm text-gray-500 file:mr-3 file:rounded file:border-0 file:bg-primary-50 file:px-3 file:py-1 file:text-sm file:font-medium file:text-primary-700 disabled:opacity-50"
+                />
+                {logoUploading && <p className="text-xs text-gray-400">Enviando...</p>}
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">Banner</label>
+                {createdCompId && (
+                  <img
+                    src={`/api/v1/competitions/${createdCompId}/banner`}
+                    alt="Banner"
+                    className="h-16 w-auto rounded border border-gray-200 object-contain"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
+                )}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/gif,image/webp"
+                  disabled={!createdCompId || bannerUploading}
+                  onChange={handleBannerUpload}
+                  className="block w-full text-sm text-gray-500 file:mr-3 file:rounded file:border-0 file:bg-primary-50 file:px-3 file:py-1 file:text-sm file:font-medium file:text-primary-700 disabled:opacity-50"
+                />
+                {bannerUploading && <p className="text-xs text-amber-600">Enviando...</p>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Etapa 3: WODs (apenas CrossFit) */}
+      {currentStep === 3 && (
+        <div className="space-y-6 rounded-lg border border-gray-200 bg-white p-6">
+          <h2 className="text-lg font-semibold text-gray-900">WODs</h2>
+
+          {/* Lista de WODs existentes */}
+          {state.step3.wods.length === 0 && (
+            <p className="text-sm text-gray-500">Nenhum WOD cadastrado ainda.</p>
+          )}
+          {state.step3.wods.map((wod) => (
+            <div key={wod.id} className="flex items-start justify-between rounded-md border border-gray-200 p-4">
+              <div className="space-y-1">
+                <p className="font-medium text-gray-900">{wod.name}</p>
+                <p className="text-xs text-gray-500">
+                  {wod.wod_type.replace("_", " ").toUpperCase()}
+                  {wod.duration_minutes ? ` · ${wod.duration_minutes} min` : ""}
+                </p>
+                {wod.description && (
+                  <p className="text-sm text-gray-600">{wod.description}</p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => handleDeleteWod(wod.id)}
+                className="ml-4 text-red-500 hover:text-red-700"
+                title="Remover WOD"
+              >
+                &#128465;
+              </button>
+            </div>
+          ))}
+
+          {/* Formulário de novo WOD */}
+          <div className="space-y-4 rounded-md border border-dashed border-gray-300 p-4">
+            <h3 className="text-sm font-medium text-gray-700">Adicionar WOD</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Nome *"
+                placeholder="Ex: Fran"
+                value={wodForm.name}
+                onChange={(e) => setWodForm((f) => ({ ...f, name: e.target.value }))}
+              />
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">Tipo *</label>
+                <select
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none"
+                  value={wodForm.wod_type}
+                  onChange={(e) => setWodForm((f) => ({ ...f, wod_type: e.target.value as WodType }))}
+                >
+                  <option value="amrap">AMRAP</option>
+                  <option value="for_time">For Time</option>
+                  <option value="emom">EMOM</option>
+                  <option value="max_load">Max Load</option>
+                </select>
+              </div>
+            </div>
+            <Input
+              label="Duração (minutos)"
+              type="number"
+              placeholder="Ex: 20"
+              value={wodForm.duration_minutes ?? ""}
+              onChange={(e) =>
+                setWodForm((f) => ({
+                  ...f,
+                  duration_minutes: e.target.value ? Number(e.target.value) : undefined,
+                }))
+              }
+            />
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-gray-700">Movimentos</label>
+              <textarea
+                rows={3}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                placeholder="Ex: 21-15-9 Thrusters (43 kg) + Pull-ups"
+                value={wodForm.description ?? ""}
+                onChange={(e) => setWodForm((f) => ({ ...f, description: e.target.value }))}
+              />
+            </div>
+            <Button
+              onClick={handleAddWod}
+              disabled={!wodForm.name.trim() || wodAdding || !createdCompId}
+              variant="secondary"
+            >
+              {wodAdding ? "Adicionando..." : "+ Adicionar WOD"}
+            </Button>
+            {!createdCompId && (
+              <p className="text-xs text-amber-600">
+                WODs disponíveis após criar a competição (Etapa 5).
+              </p>
+            )}
+          </div>
         </div>
       )}
 
@@ -443,8 +823,8 @@ export default function CompetitionWizardPage() {
             <div className="rounded-md bg-gray-50 p-4">
               <p className="text-xs font-medium uppercase text-gray-500">Data</p>
               <p className="mt-1 font-medium text-gray-900">
-                {state.step1.start_date || "—"}
-                {state.step1.end_date ? ` → ${state.step1.end_date}` : ""}
+                {startDateDisplay || "—"}
+                {endDateDisplay ? ` → ${endDateDisplay}` : ""}
               </p>
             </div>
             <div className="rounded-md bg-gray-50 p-4">
@@ -457,6 +837,24 @@ export default function CompetitionWizardPage() {
                   : "—"}
               </p>
             </div>
+            {/* Card: Visibilidade */}
+            <div className="rounded-md bg-gray-50 p-4">
+              <p className="text-xs font-medium uppercase text-gray-500">Visibilidade</p>
+              <p className="mt-1 font-medium text-gray-900">
+                {state.step2.is_public ? "Pública" : "Privada"}
+              </p>
+            </div>
+            {/* Card: WODs (só CrossFit) */}
+            {state.step1.event_type === "crossfit" && (
+              <div className="rounded-md bg-gray-50 p-4">
+                <p className="text-xs font-medium uppercase text-gray-500">WODs</p>
+                <p className="mt-1 font-medium text-gray-900">
+                  {state.step3.wods.length > 0
+                    ? `${state.step3.wods.length} WOD(s) cadastrado(s)`
+                    : "Nenhum WOD"}
+                </p>
+              </div>
+            )}
           </div>
 
           <Button onClick={handleSubmit} disabled={submitting} className="w-full justify-center">
