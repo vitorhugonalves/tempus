@@ -1,14 +1,14 @@
 """competition_core_fields
 
 Revision ID: 20260615_competition_core_fields
-Revises: 20260328_add_sort_order_to_heats
+Revises: 20260328_sort_order_heats
 Create Date: 2026-06-15
 """
 import sqlalchemy as sa
 from alembic import op
 
 revision = "20260615_competition_core_fields"
-down_revision = "20260328_add_sort_order_to_heats"
+down_revision = "20260328_sort_order_heats"
 branch_labels = None
 depends_on = None
 
