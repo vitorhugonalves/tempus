@@ -48,7 +48,16 @@ class WodService:
 
         Returns:
             Lista de WODs.
+
+        Raises:
+            HTTPException 404: Se a competição não existir.
         """
+        competition = await CompetitionRepository.get_by_id(db, competition_id)
+        if competition is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Competição não encontrada",
+            )
         return await WodRepository.list_by_competition(db, competition_id)
 
     @staticmethod

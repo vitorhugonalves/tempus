@@ -143,3 +143,28 @@ async def test_upload_logo_invalido_retorna_422(client: AsyncClient, admin_token
         cookies={"session_id": admin_token},
     )
     assert resp.status_code == 422
+
+
+async def test_banner_inexistente_retorna_404(client: AsyncClient, admin_token: str):
+    comp_id = await _criar_competicao_crossfit(client, admin_token)
+    resp = await client.get(f"/api/v1/competitions/{comp_id}/banner")
+    assert resp.status_code == 404
+
+
+async def test_upload_banner_invalido_retorna_422(
+    client: AsyncClient, admin_token: str
+):
+    comp_id = await _criar_competicao_crossfit(client, admin_token)
+    fake_pdf = b"%PDF-1.4"
+    files = {"file": ("test.pdf", fake_pdf, "application/pdf")}
+    resp = await client.post(
+        f"/api/v1/competitions/{comp_id}/banner",
+        files=files,
+        cookies={"session_id": admin_token},
+    )
+    assert resp.status_code == 422
+
+
+async def test_listar_wods_competicao_inexistente_retorna_404(client: AsyncClient):
+    resp = await client.get("/api/v1/competitions/9999/wods")
+    assert resp.status_code == 404
