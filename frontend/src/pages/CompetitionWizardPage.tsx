@@ -147,10 +147,14 @@ export default function CompetitionWizardPage() {
           tiebreak_criterion: c.tiebreak_criterion ?? "",
         },
       }));
-      if (c.event_type === "crossfit") {
-        const wodsResp = await competitionsApi.listWods(Number(id));
-        const wods = (wodsResp.data ?? wodsResp) as Wod[];
-        setState((prev) => ({ ...prev, step3: { wods } }));
+      try {
+        if (c.event_type === "crossfit") {
+          const wodsResp = await competitionsApi.listWods(Number(id));
+          const wods = (wodsResp.data ?? wodsResp) as Wod[];
+          setState((prev) => ({ ...prev, step3: { wods } }));
+        }
+      } catch {
+        setError("Erro ao carregar WODs. Tente recarregar a página.");
       }
       setState((prev) => ({
         ...prev,
@@ -197,6 +201,11 @@ export default function CompetitionWizardPage() {
   function validateStep1(): string | null {
     if (!state.step1.name.trim()) return "Nome do campeonato é obrigatório";
     if (!state.step1.event_type) return "Selecione o tipo de evento (Hyrox ou CrossFit)";
+    const isoPattern = /^\d{4}-\d{2}-\d{2}$/;
+    if (state.step1.start_date && !isoPattern.test(state.step1.start_date))
+      return "Data de início inválida — use o formato DD/MM/AAAA";
+    if (state.step1.end_date && !isoPattern.test(state.step1.end_date))
+      return "Data de término inválida — use o formato DD/MM/AAAA";
     return null;
   }
 
