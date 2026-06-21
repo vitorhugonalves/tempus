@@ -13,6 +13,7 @@ class WodCreate(BaseModel):
     duration_minutes: int | None = None
     description: str | None = None
     order: int = 0
+    category_ids: list[int] = []
 
 
 class WodResponse(BaseModel):
@@ -27,5 +28,6 @@ class WodResponse(BaseModel):
     order: int
     created_at: datetime
     updated_at: datetime
+    category_ids: list[int] = []
 
     model_config = {"from_attributes": True}

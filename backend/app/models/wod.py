@@ -45,3 +45,7 @@ class Wod(Base):
     categories: Mapped[list["Category"]] = relationship(  # noqa: F821
         "Category", secondary=wod_categories, lazy="selectin"
     )
+
+    @property
+    def category_ids(self) -> list[int]:
+        return [c.id for c in self.categories]

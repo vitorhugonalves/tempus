@@ -1,8 +1,10 @@
 import logging
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.category import Category
 from app.models.wod import Wod
 from app.repositories.competition import CompetitionRepository
 from app.repositories.wod import WodRepository
@@ -35,7 +37,12 @@ class WodService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Competição não encontrada",
             )
-        wod = Wod(competition_id=competition_id, **payload.model_dump())
+        wod = Wod(competition_id=competition_id, **payload.model_dump(exclude={"category_ids"}))
+        if payload.category_ids:
+            result = await db.execute(
+                select(Category).where(Category.id.in_(payload.category_ids))
+            )
+            wod.categories = list(result.scalars().all())
         return await WodRepository.create(db, wod)
 
     @staticmethod

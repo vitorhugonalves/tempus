@@ -5,18 +5,22 @@ from app.models.wod import WodType
 from app.services.wod_result import _compute_leaderboard
 
 
-def _make_wod(id: int, wod_type: str) -> MagicMock:
+def _make_wod(id: int, wod_type: str, category_ids: list[int] | None = None) -> MagicMock:
     w = MagicMock()
     w.id = id
     w.name = f"WOD {id}"
     w.wod_type = WodType(wod_type)
+    # Simular .categories como lista de objetos com .id
+    cats = [MagicMock(id=cid) for cid in (category_ids or [])]
+    w.categories = cats
     return w
 
 
-def _make_team(id: int, name: str) -> MagicMock:
+def _make_team(id: int, name: str, category_id: int = 0) -> MagicMock:
     t = MagicMock()
     t.id = id
     t.name = name
+    t.category_id = category_id
     return t
 
 
@@ -142,3 +146,26 @@ def test_leaderboard_empate_mesma_posicao():
     positions = {e.team_id: e.position for e in lb.entries}
     assert positions[1] == positions[2]   # Empate em 1º
     assert positions[3] == 3             # Gamma em 3º (não em 2º)
+
+
+def test_leaderboard_filtra_equipes_por_categoria_do_wod():
+    """WOD com category_ids só inclui equipes daquela categoria."""
+    wod = _make_wod(1, "for_time", category_ids=[1])  # só categoria 1
+    team_a = _make_team(1, "Alpha", category_id=1)   # participa
+    team_b = _make_team(2, "Beta", category_id=2)    # NÃO participa
+    results = [
+        _make_result(1, 1, time_seconds=300),  # Alpha
+        _make_result(1, 2, time_seconds=200),  # Beta (não deve contar)
+    ]
+
+    lb = _compute_leaderboard("most_points", [wod], [team_a, team_b], results)
+
+    # Alpha (cat 1) deve estar em 1º com 1 ponto (só ela participa)
+    alpha = next(e for e in lb.entries if e.team_id == 1)
+    beta = next(e for e in lb.entries if e.team_id == 2)
+    assert alpha.position == 1
+    assert alpha.total_points == 1   # 1 participante: 1+1-1 = 1
+    assert alpha.wod_entries[0].rank == 1
+    # Beta não participa do WOD: rank=None, points=0
+    assert beta.wod_entries[0].rank is None
+    assert beta.wod_entries[0].points == 0

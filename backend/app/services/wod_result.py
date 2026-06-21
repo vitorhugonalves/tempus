@@ -35,7 +35,7 @@ def _compute_leaderboard(
     Args:
         scoring_model: 'most_points', 'lowest_time' ou None.
         wods: WODs da competição em ordem.
-        teams: Equipes da competição.
+        teams: Equipes da competição (precisam ter category_id).
         results: Resultados cadastrados.
 
     Returns:
@@ -44,17 +44,25 @@ def _compute_leaderboard(
     if not wods or not teams:
         return WodLeaderboard(scoring_model=scoring_model, entries=[])
 
-    n_teams = len(teams)
     result_map: dict[tuple[int, int], WodResult] = {
         (r.wod_id, r.team_id): r for r in results
     }
 
-    # Rankear equipes dentro de cada WOD
+    # Pré-computar categorias por WOD
+    wod_cat_ids: dict[int, set[int]] = {
+        wod.id: {c.id for c in wod.categories} for wod in wods
+    }
+
+    # Rankear equipes dentro de cada WOD (apenas participantes do WOD)
     wod_rank_map: dict[int, dict[int, tuple[int, int]]] = {}
     for wod in wods:
+        cat_ids = wod_cat_ids[wod.id]
+        participating = [t for t in teams if not cat_ids or t.category_id in cat_ids]
+        n_participating = len(participating)
+
         team_results = [
             (t.id, result_map[(wod.id, t.id)])
-            for t in teams
+            for t in participating
             if (wod.id, t.id) in result_map
         ]
 
@@ -67,7 +75,6 @@ def _compute_leaderboard(
                 key=lambda x: (x[1].reps is None, -(x[1].reps or 0))
             )
 
-        # Atribuir ranks com suporte a empates dentro do WOD
         wod_ranks: dict[int, tuple[int, int]] = {}
         prev_key = None
         current_rank = 0
@@ -79,7 +86,7 @@ def _compute_leaderboard(
             if sort_key != prev_key:
                 current_rank = i + 1
             prev_key = sort_key
-            points = n_teams + 1 - current_rank
+            points = n_participating + 1 - current_rank
             wod_ranks[team_id] = (current_rank, points)
         wod_rank_map[wod.id] = wod_ranks
 
@@ -91,6 +98,22 @@ def _compute_leaderboard(
         has_missing = False
 
         for wod in wods:
+            cat_ids = wod_cat_ids[wod.id]
+            participates = not cat_ids or team.category_id in cat_ids
+
+            if not participates:
+                wod_entries.append(
+                    LeaderboardWodEntry(
+                        wod_id=wod.id,
+                        wod_name=wod.name,
+                        time_seconds=None,
+                        reps=None,
+                        points=0,
+                        rank=None,
+                    )
+                )
+                continue
+
             r = result_map.get((wod.id, team.id))
             rank_info = wod_rank_map.get(wod.id, {}).get(team.id)
             rank = rank_info[0] if rank_info else None
