@@ -14,7 +14,9 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("CREATE TYPE gender AS ENUM ('male', 'female', 'mixed')")
+    bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        op.execute("CREATE TYPE gender AS ENUM ('male', 'female', 'mixed')")
 
     with op.batch_alter_table("categories") as batch_op:
         batch_op.add_column(
@@ -43,4 +45,6 @@ def downgrade() -> None:
         batch_op.drop_column("age_restriction_enabled")
         batch_op.drop_column("gender")
 
-    op.execute("DROP TYPE IF EXISTS gender")
+    bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        op.execute("DROP TYPE IF EXISTS gender")

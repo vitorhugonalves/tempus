@@ -53,7 +53,9 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table("wods")
-    op.execute("DROP TYPE IF EXISTS wodtype")
+    bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        op.execute("DROP TYPE IF EXISTS wodtype")
 
     with op.batch_alter_table("competitions") as batch_op:
         batch_op.drop_column("banner_mime_type")

@@ -149,11 +149,19 @@ export default function RankingPage() {
   const loadRanking = useCallback(async () => {
     try {
       if (isCrossfit) {
-        const data = await rankingApi.getCrossfit(id, selectedCategory);
+        const [data, leaderboard] = await Promise.all([
+          rankingApi.getCrossfit(id, selectedCategory),
+          wodResultsApi.getLeaderboard(id).catch(() => null),
+        ]);
         setCrossfitRanking(data);
+        if (leaderboard) setWodLeaderboard(leaderboard);
       } else {
-        const data = await rankingApi.get(id, selectedCategory);
+        const [data, leaderboard] = await Promise.all([
+          rankingApi.get(id, selectedCategory),
+          wodResultsApi.getLeaderboard(id).catch(() => null),
+        ]);
         setRanking(data);
+        if (leaderboard) setWodLeaderboard(leaderboard);
       }
     } catch {
       // silencioso — dados já exibidos
@@ -180,14 +188,14 @@ export default function RankingPage() {
             wodResultsApi.getLeaderboard(id).catch(() => null),
           ]);
           setCrossfitRanking(rankData);
-          if (leaderboard && leaderboard.entries.length > 0) setWodLeaderboard(leaderboard);
+          if (leaderboard) setWodLeaderboard(leaderboard);
         } else {
           const [rankData, leaderboard] = await Promise.all([
             rankingApi.get(id),
             wodResultsApi.getLeaderboard(id).catch(() => null),
           ]);
           setRanking(rankData);
-          if (leaderboard && leaderboard.entries.length > 0) setWodLeaderboard(leaderboard);
+          if (leaderboard) setWodLeaderboard(leaderboard);
         }
       } catch {
         setNotFound(true);

@@ -65,4 +65,6 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table("athletes")
-    op.execute("DROP TYPE IF EXISTS tshirtsize")
+    bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        op.execute("DROP TYPE IF EXISTS tshirtsize")
