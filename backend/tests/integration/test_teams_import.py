@@ -95,8 +95,6 @@ async def test_importar_equipes_csv_duplicata_ignorada(
     client: AsyncClient, admin_token: str, competition: Competition, category: Category
 ):
     """Equipe com mesmo nome já existente é pulada silenciosamente."""
-    from app.models.team import Team as TeamModel
-
     # importar duas vezes o mesmo CSV
     csv_content = (
         "nome_equipe;categoria\n"
