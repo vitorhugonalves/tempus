@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import Enum, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Column, Enum, ForeignKey, Integer, String, Table, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -12,6 +12,14 @@ class WodType(str, enum.Enum):
     for_time = "for_time"
     emom = "emom"
     max_load = "max_load"
+
+
+wod_categories = Table(
+    "wod_categories",
+    Base.metadata,
+    Column("wod_id", Integer, ForeignKey("wods.id", ondelete="CASCADE"), primary_key=True),
+    Column("category_id", Integer, ForeignKey("categories.id", ondelete="CASCADE"), primary_key=True),
+)
 
 
 class Wod(Base):
@@ -33,4 +41,7 @@ class Wod(Base):
 
     competition: Mapped["Competition"] = relationship(  # noqa: F821
         "Competition", back_populates="wods"
+    )
+    categories: Mapped[list["Category"]] = relationship(  # noqa: F821
+        "Category", secondary=wod_categories, lazy="selectin"
     )
