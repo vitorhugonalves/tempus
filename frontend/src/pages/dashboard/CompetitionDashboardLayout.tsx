@@ -10,6 +10,7 @@ import {
 import { competitionsApi } from "../../api/competitions";
 import Badge from "../../components/ui/Badge";
 import type { Competition } from "../../types";
+import { useAuthStore } from "../../store/auth";
 
 const STATUS_VARIANT: Record<string, "gray" | "green" | "red"> = {
   draft: "gray",
@@ -33,7 +34,10 @@ const NAV_ITEMS = [
 export default function CompetitionDashboardLayout() {
   const { competitionId } = useParams<{ competitionId: string }>();
   const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const canManage = user?.role === "admin" || user?.role === "operator";
   const [competition, setCompetition] = useState<Competition | null>(null);
+  const [statusSaving, setStatusSaving] = useState(false);
 
   useEffect(() => {
     if (!competitionId) return;
@@ -41,6 +45,18 @@ export default function CompetitionDashboardLayout() {
       setCompetition(r.data ?? r);
     });
   }, [competitionId]);
+
+  async function handleAdvanceStatus(newStatus: "active" | "finished") {
+    if (!competition) return;
+    if (newStatus === "finished" && !confirm("Encerrar a competição? Esta ação não pode ser revertida.")) return;
+    setStatusSaving(true);
+    try {
+      const updated: any = await competitionsApi.update(competition.id, { status: newStatus });
+      setCompetition(updated.data ?? updated);
+    } finally {
+      setStatusSaving(false);
+    }
+  }
 
   return (
     <div className="flex min-h-screen">
@@ -62,6 +78,24 @@ export default function CompetitionDashboardLayout() {
                   {STATUS_LABEL[competition.status]}
                 </Badge>
               </div>
+              {canManage && competition.status === "draft" && (
+                <button
+                  onClick={() => handleAdvanceStatus("active")}
+                  disabled={statusSaving}
+                  className="mt-2 w-full rounded-md bg-green-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                >
+                  {statusSaving ? "Aguarde..." : "▶ Iniciar Competição"}
+                </button>
+              )}
+              {canManage && competition.status === "active" && (
+                <button
+                  onClick={() => handleAdvanceStatus("finished")}
+                  disabled={statusSaving}
+                  className="mt-2 w-full rounded-md bg-red-700 px-2 py-1.5 text-xs font-medium text-white hover:bg-red-800 disabled:opacity-50"
+                >
+                  {statusSaving ? "Aguarde..." : "■ Encerrar Competição"}
+                </button>
+              )}
             </>
           ) : (
             <div className="h-4 w-32 animate-pulse rounded bg-slate-700" />
