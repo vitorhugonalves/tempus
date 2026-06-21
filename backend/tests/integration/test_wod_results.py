@@ -333,3 +333,31 @@ async def test_leaderboard_most_points_ordena_corretamente(
     assert entries[1]["total_points"] == 1300
     assert entries[1]["position"] == 2
     assert entries[1]["team_name"] == "Alpha"
+
+
+async def test_walkover_retorna_zero_pontos_e_flag(
+    client: AsyncClient,
+    admin_token: str,
+    competition: Competition,
+    wod: Wod,
+    team: Team,
+):
+    """W.O. grava resultado com walkover=True, 0 pts no leaderboard."""
+    r = await client.post(
+        f"/api/v1/competitions/{competition.id}/wod-results",
+        json={"wod_id": wod.id, "team_id": team.id, "walkover": True},
+        cookies={"session_id": admin_token},
+    )
+    assert r.status_code == 201
+    data = r.json()
+    assert data["walkover"] is True
+    assert data["time_seconds"] is None
+    assert data["reps"] is None
+
+    lb_r = await client.get(f"/api/v1/competitions/{competition.id}/wod-leaderboard")
+    lb = lb_r.json()
+    entry = lb["entries"][0]
+    wod_entry = entry["wod_entries"][0]
+    assert wod_entry["walkover"] is True
+    assert wod_entry["points"] == 0
+    assert entry["total_points"] == 0

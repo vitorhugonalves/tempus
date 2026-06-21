@@ -101,6 +101,7 @@ export default function ResultsPage() {
         team_id: editing.teamId,
         time_seconds,
         reps,
+        walkover: false,
       };
       await wodResultsApi.upsert(id, payload);
       await loadData();
@@ -108,6 +109,27 @@ export default function ResultsPage() {
     } catch (err: unknown) {
       const e = err as { response?: { data?: { detail?: string } } };
       setError(e?.response?.data?.detail ?? "Erro ao salvar resultado");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleWalkover() {
+    if (!editing) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const payload: WodResultUpsert = {
+        wod_id: editing.wodId,
+        team_id: editing.teamId,
+        walkover: true,
+      };
+      await wodResultsApi.upsert(id, payload);
+      await loadData();
+      closeEdit();
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { detail?: string } } };
+      setError(e?.response?.data?.detail ?? "Erro ao salvar W.O.");
     } finally {
       setSaving(false);
     }
@@ -234,13 +256,21 @@ export default function ResultsPage() {
                             onChange={(e) => setEditReps(e.target.value)}
                             className="block w-full rounded border border-gray-300 px-2 py-1 text-xs focus:border-primary-500 focus:outline-none"
                           />
-                          <div className="flex gap-1">
+                          <div className="flex gap-1 flex-wrap">
                             <button
                               onClick={handleSave}
                               disabled={saving}
                               className="flex-1 rounded bg-primary-600 px-2 py-1 text-xs font-medium text-white hover:bg-primary-700 disabled:opacity-50"
                             >
                               {saving ? "…" : "Salvar"}
+                            </button>
+                            <button
+                              onClick={handleWalkover}
+                              disabled={saving}
+                              title="Marcar como W.O. — equipe não participou"
+                              className="rounded bg-orange-100 px-2 py-1 text-xs font-medium text-orange-700 hover:bg-orange-200 disabled:opacity-50"
+                            >
+                              W.O.
                             </button>
                             {editing.existingId && (
                               <button
@@ -272,16 +302,22 @@ export default function ResultsPage() {
                       }`}
                     >
                       {result ? (
-                        <div className="space-y-0.5">
-                          {result.time_seconds != null && (
-                            <div className="font-mono text-gray-900">
-                              {formatTime(result.time_seconds)}
-                            </div>
-                          )}
-                          {result.reps != null && (
-                            <div className="text-xs text-gray-500">{result.reps} reps</div>
-                          )}
-                        </div>
+                        result.walkover ? (
+                          <span className="inline-block rounded bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700">
+                            W.O.
+                          </span>
+                        ) : (
+                          <div className="space-y-0.5">
+                            {result.time_seconds != null && (
+                              <div className="font-mono text-gray-900">
+                                {formatTime(result.time_seconds)}
+                              </div>
+                            )}
+                            {result.reps != null && (
+                              <div className="text-xs text-gray-500">{result.reps} reps</div>
+                            )}
+                          </div>
+                        )
                       ) : (
                         <span className="text-gray-300">{canEdit ? "+" : "—"}</span>
                       )}

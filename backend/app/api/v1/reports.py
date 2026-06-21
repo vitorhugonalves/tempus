@@ -191,7 +191,9 @@ async def export_crossfit_ranking_csv(
     for entry in leaderboard.entries:
         wod_cells = []
         for we in entry.wod_entries:
-            if we.points == 0 and we.rank is None and we.reps is None and we.time_seconds is None:
+            if we.walkover:
+                wod_cells.append("W.O.")
+            elif we.points == 0 and we.rank is None and we.reps is None and we.time_seconds is None:
                 wod_cells.append("N/A")
             elif we.wod_type == "amrap":
                 wod_cells.append(f"{we.reps or 0} reps ({we.points} pts)" if we.reps is not None else "—")
@@ -239,7 +241,9 @@ async def export_crossfit_ranking_pdf(
     for entry in leaderboard.entries:
         wod_cells_html = ""
         for we in entry.wod_entries:
-            if we.points == 0 and we.rank is None and we.reps is None and we.time_seconds is None:
+            if we.walkover:
+                cell = "<span style='color:#dc2626;font-weight:bold'>W.O.</span>"
+            elif we.points == 0 and we.rank is None and we.reps is None and we.time_seconds is None:
                 cell = "N/A"
             elif we.wod_type == "amrap":
                 cell = f"{we.reps or 0} reps<br><small>({we.points} pts)</small>" if we.reps is not None else "—"

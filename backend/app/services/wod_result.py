@@ -55,6 +55,7 @@ def _compute_leaderboard(
 
     # FOR_TIME: pré-computar rank por tempo para cada WOD (menor tempo = melhor rank)
     # rank 1 → bônus 500, rank 2 → 490, ..., rank 50 → 10, rank 51+ → 0
+    # W.O. não entra no rank de tempo.
     for_time_rank_map: dict[int, dict[int, int]] = {}
     for wod in wods:
         if wod.wod_type != WodType.for_time:
@@ -65,6 +66,7 @@ def _compute_leaderboard(
             (t.id, result_map[(wod.id, t.id)])
             for t in participating
             if (wod.id, t.id) in result_map
+            and not result_map[(wod.id, t.id)].walkover
             and result_map[(wod.id, t.id)].time_seconds is not None
         ]
         timed.sort(key=lambda x: x[1].time_seconds)  # type: ignore[arg-type]
@@ -103,6 +105,22 @@ def _compute_leaderboard(
                 continue
 
             r = result_map.get((wod.id, team.id))
+
+            # W.O.: equipe não participou; 0 pts, sem rank
+            if r and r.walkover:
+                wod_entries.append(
+                    LeaderboardWodEntry(
+                        wod_id=wod.id,
+                        wod_name=wod.name,
+                        wod_type=wod.wod_type.value,
+                        time_seconds=None,
+                        reps=None,
+                        points=0,
+                        rank=None,
+                        walkover=True,
+                    )
+                )
+                continue
 
             if wod.wod_type == WodType.amrap:
                 points = (r.reps or 0) * 10 if r else 0
@@ -229,13 +247,18 @@ class WodResultService:
                 detail="Equipe não encontrada nesta competição",
             )
 
+        # W.O. zera tempo e reps — a equipe não participou
+        time_seconds = None if data.walkover else data.time_seconds
+        reps = None if data.walkover else data.reps
+
         existing = await WodResultRepository.get_by_wod_and_team(
             db, data.wod_id, data.team_id
         )
         if existing:
-            existing.time_seconds = data.time_seconds
-            existing.reps = data.reps
+            existing.time_seconds = time_seconds
+            existing.reps = reps
             existing.notes = data.notes
+            existing.walkover = data.walkover
             await db.flush()
             await db.refresh(existing)
             return existing
@@ -244,9 +267,10 @@ class WodResultService:
             competition_id=competition_id,
             wod_id=data.wod_id,
             team_id=data.team_id,
-            time_seconds=data.time_seconds,
-            reps=data.reps,
+            time_seconds=time_seconds,
+            reps=reps,
             notes=data.notes,
+            walkover=data.walkover,
         )
         return await WodResultRepository.create(db, new_result)
 

@@ -358,7 +358,9 @@ export default function RankingPage() {
                         <td className="px-4 py-3 text-sm font-medium text-white">{entry.team_name}</td>
                         {entry.wod_entries.map((we) => (
                           <td key={we.wod_id} className="px-4 py-3 text-center text-sm text-gray-300">
-                            {we.points === 0 && we.rank === null && we.reps === null && we.time_seconds === null ? (
+                            {we.walkover ? (
+                              <span className="inline-block rounded bg-orange-500/20 px-1.5 py-0.5 text-xs font-bold text-orange-400">W.O.</span>
+                            ) : we.points === 0 && we.rank === null && we.reps === null && we.time_seconds === null ? (
                               <span className="text-gray-500 text-xs">N/A</span>
                             ) : we.wod_type === "amrap" ? (
                               we.reps != null

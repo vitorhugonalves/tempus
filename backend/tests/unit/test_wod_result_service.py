@@ -23,12 +23,13 @@ def _make_team(id: int, name: str, category_id: int = 0) -> MagicMock:
     return t
 
 
-def _make_result(wod_id: int, team_id: int, time_seconds=None, reps=None) -> MagicMock:
+def _make_result(wod_id: int, team_id: int, time_seconds=None, reps=None, walkover=False) -> MagicMock:
     r = MagicMock()
     r.wod_id = wod_id
     r.team_id = team_id
     r.time_seconds = time_seconds
     r.reps = reps
+    r.walkover = walkover
     return r
 
 
@@ -216,3 +217,45 @@ def test_leaderboard_filtra_equipes_por_categoria_do_wod():
     # Beta não participa: rank=None, points=0
     assert beta.wod_entries[0].rank is None
     assert beta.wod_entries[0].points == 0
+
+
+def test_leaderboard_walkover_recebe_zero_pontos_e_nao_entra_no_rank():
+    """Equipe com W.O. recebe 0 pts e não entra no rank de tempo."""
+    wod = _make_wod(1, "for_time")
+    team_a = _make_team(1, "Alpha")
+    team_b = _make_team(2, "Beta")
+    results = [
+        _make_result(1, 1, time_seconds=300),  # Alpha: rank1 → 500 pts
+        _make_result(1, 2, walkover=True),      # Beta: W.O. → 0 pts, não rankeia
+    ]
+
+    lb = _compute_leaderboard("most_points", [wod], [team_a, team_b], results)
+
+    alpha = next(e for e in lb.entries if e.team_id == 1)
+    beta = next(e for e in lb.entries if e.team_id == 2)
+
+    assert alpha.total_points == 500         # Alpha é rank 1 (única com tempo)
+    assert alpha.wod_entries[0].rank == 1
+    assert beta.total_points == 0
+    assert beta.wod_entries[0].walkover is True
+    assert beta.wod_entries[0].rank is None
+    assert beta.position > alpha.position    # Beta fica após Alpha
+
+
+def test_leaderboard_walkover_exibe_flag_no_entry():
+    """Flag walkover=True aparece no LeaderboardWodEntry e walkover=False no demais."""
+    wod = _make_wod(1, "amrap")
+    team_a = _make_team(1, "Alpha")
+    team_b = _make_team(2, "Beta")
+    results = [
+        _make_result(1, 1, reps=10),      # Alpha: normal
+        _make_result(1, 2, walkover=True), # Beta: W.O.
+    ]
+
+    lb = _compute_leaderboard("most_points", [wod], [team_a, team_b], results)
+
+    alpha = next(e for e in lb.entries if e.team_id == 1)
+    beta = next(e for e in lb.entries if e.team_id == 2)
+
+    assert alpha.wod_entries[0].walkover is False
+    assert beta.wod_entries[0].walkover is True

@@ -286,6 +286,7 @@ export interface WodResult {
   time_seconds: number | null;
   reps: number | null;
   notes: string | null;
+  walkover: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -304,6 +305,7 @@ export interface LeaderboardWodEntry {
   reps: number | null;
   points: number;
   rank: number | null;
+  walkover: boolean;
 }
 
 export interface WodLeaderboardEntry {

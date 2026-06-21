@@ -24,10 +24,11 @@ class WodResultUpsert(BaseModel):
     time_seconds: int | None = None
     reps: int | None = None
     notes: str | None = Field(None, max_length=500)
+    walkover: bool = False
 
     @model_validator(mode="after")
     def validate_at_least_one_value(self) -> Self:
-        if self.time_seconds is None and self.reps is None:
+        if not self.walkover and self.time_seconds is None and self.reps is None:
             raise ValueError("Informe pelo menos 'time_seconds' ou 'reps'")
         return self
 
@@ -42,6 +43,7 @@ class WodResultResponse(BaseModel):
     time_seconds: int | None
     reps: int | None
     notes: str | None
+    walkover: bool
     created_at: datetime
     updated_at: datetime
 
@@ -66,6 +68,7 @@ class LeaderboardWodEntry(BaseModel):
     reps: int | None
     points: int
     rank: int | None
+    walkover: bool = False
 
 
 class WodLeaderboardEntry(BaseModel):

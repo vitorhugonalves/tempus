@@ -7,6 +7,7 @@ export interface WodResultUpsert {
   time_seconds?: number | null;
   reps?: number | null;
   notes?: string | null;
+  walkover?: boolean;
 }
 
 export const wodResultsApi = {
