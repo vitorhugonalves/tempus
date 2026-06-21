@@ -2,6 +2,7 @@ import logging
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.athlete import Athlete
 
@@ -22,7 +23,9 @@ class AthleteRepository:
         Returns:
             Objeto Athlete ou None.
         """
-        result = await db.execute(select(Athlete).where(Athlete.id == athlete_id))
+        result = await db.execute(
+            select(Athlete).options(selectinload(Athlete.team)).where(Athlete.id == athlete_id)
+        )
         return result.scalar_one_or_none()
 
     @staticmethod
@@ -43,7 +46,11 @@ class AthleteRepository:
         Returns:
             Lista de atletas.
         """
-        stmt = select(Athlete).where(Athlete.competition_id == competition_id)
+        stmt = (
+            select(Athlete)
+            .options(selectinload(Athlete.team))
+            .where(Athlete.competition_id == competition_id)
+        )
         if category_id is not None:
             stmt = stmt.where(Athlete.category_id == category_id)
         if team_id is not None:

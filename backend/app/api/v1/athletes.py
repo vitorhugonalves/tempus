@@ -24,6 +24,24 @@ def _competition_not_found() -> HTTPException:
     )
 
 
+def _to_response(a: object) -> AthleteResponse:
+    athlete = a  # type: ignore[assignment]
+    return AthleteResponse(
+        id=athlete.id,
+        competition_id=athlete.competition_id,
+        category_id=athlete.category_id,
+        team_id=athlete.team_id,
+        team_name=athlete.team.name if getattr(athlete, "team", None) is not None else None,
+        name=athlete.name,
+        email=athlete.email,
+        document=athlete.document,
+        phone=athlete.phone,
+        tshirt_size=athlete.tshirt_size,
+        created_at=athlete.created_at,
+        updated_at=athlete.updated_at,
+    )
+
+
 @router.get(
     "/competitions/{competition_id}/athletes",
     response_model=list[AthleteResponse],
@@ -41,7 +59,7 @@ async def list_athletes(
     athletes = await AthleteService.list_by_competition(
         db, competition_id, category_id=category_id, team_id=team_id
     )
-    return [AthleteResponse.model_validate(a) for a in athletes]
+    return [_to_response(a) for a in athletes]
 
 
 @router.post(
@@ -60,7 +78,7 @@ async def create_athlete(
         raise _competition_not_found()
     athlete = await AthleteService.create(db, competition_id, payload)
     logger.info("Atleta criado: id=%s competition_id=%s", athlete.id, competition_id)
-    return AthleteResponse.model_validate(athlete)
+    return _to_response(athlete)
 
 
 @router.put(
@@ -81,7 +99,7 @@ async def update_athlete(
             status_code=status.HTTP_404_NOT_FOUND, detail="Atleta não encontrado"
         )
     updated = await AthleteService.update(db, athlete, payload)
-    return AthleteResponse.model_validate(updated)
+    return _to_response(updated)
 
 
 @router.delete(

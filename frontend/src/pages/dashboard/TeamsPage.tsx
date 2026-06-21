@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useOutletContext, useParams } from "react-router-dom";
-import { PlusIcon, ArrowUpTrayIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, ArrowUpTrayIcon, PencilIcon, ChevronDownIcon, ChevronUpIcon } from "@heroicons/react/24/outline";
 import { teamsApi, type TeamCreate } from "../../api/teams";
+import { athletesApi } from "../../api/athletes";
 import { categoriesApi } from "../../api/categories";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
 import Alert from "../../components/ui/Alert";
-import type { Category, Competition, Team, TeamBulkResult } from "../../types";
+import type { Athlete, Category, Competition, Team, TeamBulkResult } from "../../types";
 
 interface OutletCtx {
   competition: Competition;
@@ -20,6 +21,7 @@ export default function TeamsPage() {
 
   const [teams, setTeams] = useState<Team[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [allAthletes, setAllAthletes] = useState<Athlete[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<string | null>(null);
@@ -32,12 +34,21 @@ export default function TeamsPage() {
     category_id: undefined,
   });
 
+  // Edit state
+  const [editingTeamId, setEditingTeamId] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState("");
+
+  // Athletes panel state
+  const [expandedTeamId, setExpandedTeamId] = useState<number | null>(null);
+  const [selectedAthlete, setSelectedAthlete] = useState<string>("");
+
   useEffect(() => {
     Promise.all([
       teamsApi.list(id),
       categoriesApi.list(id),
+      athletesApi.list(id).then((r: any) => r.data ?? r),
     ])
-      .then(([t, c]) => { setTeams(t); setCategories(c); })
+      .then(([t, c, a]) => { setTeams(t); setCategories(c); setAllAthletes(a); })
       .catch(() => setError("Erro ao carregar dados"))
       .finally(() => setLoading(false));
   }, [id]);
@@ -70,8 +81,56 @@ export default function TeamsPage() {
     try {
       await teamsApi.delete(id, teamId);
       setTeams((p) => p.filter((t) => t.id !== teamId));
+      setAllAthletes((p) => p.map((a) => a.team_id === teamId ? { ...a, team_id: null, team_name: null } : a));
     } catch {
       setError("Erro ao remover equipe");
+    }
+  }
+
+  function startEdit(team: Team) {
+    setEditingTeamId(team.id);
+    setEditingName(team.name);
+  }
+
+  async function handleSaveEdit(teamId: number) {
+    if (!editingName.trim()) return;
+    setError(null);
+    try {
+      const updated = await teamsApi.update(id, teamId, { name: editingName.trim() });
+      setTeams((p) => p.map((t) => t.id === teamId ? updated : t));
+      setEditingTeamId(null);
+    } catch (err: any) {
+      setError(err?.response?.data?.detail ?? "Erro ao salvar equipe");
+    }
+  }
+
+  function toggleExpanded(teamId: number) {
+    setExpandedTeamId((prev) => prev === teamId ? null : teamId);
+    setSelectedAthlete("");
+  }
+
+  async function handleRemoveAthlete(athlete: Athlete) {
+    try {
+      await athletesApi.update(id, athlete.id, { team_id: null } as any);
+      setAllAthletes((p) =>
+        p.map((a) => a.id === athlete.id ? { ...a, team_id: null, team_name: null } : a)
+      );
+    } catch {
+      setError("Erro ao remover atleta da equipe");
+    }
+  }
+
+  async function handleAddAthlete(teamId: number, teamName: string) {
+    const athleteId = Number(selectedAthlete);
+    if (!athleteId) return;
+    try {
+      await athletesApi.update(id, athleteId, { team_id: teamId } as any);
+      setAllAthletes((p) =>
+        p.map((a) => a.id === athleteId ? { ...a, team_id: teamId, team_name: teamName } : a)
+      );
+      setSelectedAthlete("");
+    } catch {
+      setError("Erro ao adicionar atleta à equipe");
     }
   }
 
@@ -196,7 +255,7 @@ export default function TeamsPage() {
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Nome</th>
               <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Categoria</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Membros</th>
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Atletas</th>
               <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">Ações</th>
             </tr>
           </thead>
@@ -210,20 +269,131 @@ export default function TeamsPage() {
             ) : (
               filtered.map((team) => {
                 const cat = categories.find((c) => c.id === team.category_id);
+                const teamAthletes = allAthletes.filter((a) => a.team_id === team.id);
+                const unassigned = allAthletes.filter((a) => !a.team_id);
+                const isExpanded = expandedTeamId === team.id;
+                const isEditing = editingTeamId === team.id;
+
                 return (
-                  <tr key={team.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 font-medium text-gray-900">{team.name}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{cat?.name ?? "—"}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{team.member_count}</td>
-                    <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => handleDelete(team.id)}
-                        className="text-sm font-medium text-red-600 hover:text-red-800"
-                      >
-                        Remover
-                      </button>
-                    </td>
-                  </tr>
+                  <>
+                    <tr key={team.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 font-medium text-gray-900">
+                        {isEditing ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              className="rounded border border-gray-300 px-2 py-1 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                              value={editingName}
+                              onChange={(e) => setEditingName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleSaveEdit(team.id);
+                                if (e.key === "Escape") setEditingTeamId(null);
+                              }}
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => handleSaveEdit(team.id)}
+                              className="text-xs font-medium text-primary-600 hover:text-primary-800"
+                            >
+                              Salvar
+                            </button>
+                            <button
+                              onClick={() => setEditingTeamId(null)}
+                              className="text-xs font-medium text-gray-500 hover:text-gray-700"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        ) : (
+                          team.name
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{cat?.name ?? "—"}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{teamAthletes.length}</td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-3">
+                          <button
+                            onClick={() => toggleExpanded(team.id)}
+                            className="text-sm font-medium text-gray-600 hover:text-gray-800 flex items-center gap-1"
+                          >
+                            {isExpanded ? (
+                              <ChevronUpIcon className="h-4 w-4" />
+                            ) : (
+                              <ChevronDownIcon className="h-4 w-4" />
+                            )}
+                            Atletas
+                          </button>
+                          <button
+                            onClick={() => startEdit(team)}
+                            className="text-sm font-medium text-primary-600 hover:text-primary-800 flex items-center gap-1"
+                          >
+                            <PencilIcon className="h-4 w-4" />
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => handleDelete(team.id)}
+                            className="text-sm font-medium text-red-600 hover:text-red-800"
+                          >
+                            Remover
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {isExpanded && (
+                      <tr key={`${team.id}-athletes`}>
+                        <td colSpan={4} className="bg-gray-50 px-6 py-4">
+                          <div className="space-y-3">
+                            <p className="text-xs font-semibold uppercase text-gray-500">
+                              Atletas — {team.name}
+                            </p>
+
+                            {teamAthletes.length === 0 ? (
+                              <p className="text-sm text-gray-400">Nenhum atleta nesta equipe.</p>
+                            ) : (
+                              <div className="flex flex-wrap gap-2">
+                                {teamAthletes.map((a) => (
+                                  <span
+                                    key={a.id}
+                                    className="flex items-center gap-1 rounded-full bg-white px-3 py-1 text-sm shadow-sm border border-gray-200"
+                                  >
+                                    {a.name}
+                                    <button
+                                      onClick={() => handleRemoveAthlete(a)}
+                                      className="ml-1 text-gray-400 hover:text-red-600 font-bold leading-none"
+                                    >
+                                      ×
+                                    </button>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            {unassigned.length > 0 && (
+                              <div className="flex items-center gap-2 pt-1">
+                                <select
+                                  className="rounded-md border-gray-300 text-sm shadow-sm"
+                                  value={selectedAthlete}
+                                  onChange={(e) => setSelectedAthlete(e.target.value)}
+                                >
+                                  <option value="">Adicionar atleta...</option>
+                                  {unassigned.map((a) => (
+                                    <option key={a.id} value={a.id}>{a.name}</option>
+                                  ))}
+                                </select>
+                                <button
+                                  onClick={() => handleAddAthlete(team.id, team.name)}
+                                  disabled={!selectedAthlete}
+                                  className="rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-40"
+                                >
+                                  Adicionar
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 );
               })
             )}

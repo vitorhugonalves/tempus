@@ -226,13 +226,14 @@ export default function AthletesPage() {
               <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Email</th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Documento</th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Categoria</th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Equipe</th>
               <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 bg-white">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-500">
                   Nenhum atleta encontrado
                 </td>
               </tr>
@@ -245,6 +246,7 @@ export default function AthletesPage() {
                     <td className="px-4 py-3 text-sm text-gray-600">{athlete.email ?? "—"}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{athlete.document ?? "—"}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{cat?.name ?? "—"}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{athlete.team_name ?? "—"}</td>
                     <td className="px-4 py-3 text-right">
                       <button
                         onClick={() => handleDelete(athlete.id)}

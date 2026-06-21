@@ -30,6 +30,7 @@ class AthleteResponse(BaseModel):
     competition_id: int
     category_id: int | None
     team_id: int | None
+    team_name: str | None = None
     name: str
     email: str | None
     document: str | None

@@ -68,6 +68,7 @@ export interface Athlete {
   competition_id: number;
   category_id: number | null;
   team_id: number | null;
+  team_name: string | null;
   name: string;
   email: string | null;
   document: string | null;
