@@ -325,63 +325,70 @@ export default function RankingPage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-6">
-        {wodLeaderboard && wodLeaderboard.entries.length > 0 && (
+        {isCrossfit && (
           <div>
             <div className="flex items-center gap-2 mb-4">
               <TrophyIcon className="h-5 w-5 text-yellow-400" />
               <h2 className="text-lg font-bold text-white">Leaderboard WODs</h2>
             </div>
-            <div className="overflow-x-auto rounded-xl border border-white/10 bg-primary-800/40">
-              <table className="min-w-full divide-y divide-white/10 text-sm">
-                <thead className="bg-white/5">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-400 w-10">#</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-400">Equipe</th>
-                    {wodLeaderboard.entries[0]?.wod_entries.map((we) => (
-                      <th key={we.wod_id} className="px-4 py-3 text-center text-xs font-medium uppercase text-gray-400">
-                        {we.wod_name}
-                      </th>
-                    ))}
-                    <th className="px-4 py-3 text-center text-xs font-medium uppercase text-gray-400">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/10">
-                  {wodLeaderboard.entries.map((entry) => (
-                    <tr key={entry.team_id} className="hover:bg-white/5">
-                      <td className="px-4 py-3 text-sm font-bold text-yellow-400">{entry.position}º</td>
-                      <td className="px-4 py-3 text-sm font-medium text-white">{entry.team_name}</td>
-                      {entry.wod_entries.map((we) => (
-                        <td key={we.wod_id} className="px-4 py-3 text-center text-sm text-gray-300">
-                          {we.points === 0 && we.rank === null && we.reps === null && we.time_seconds === null ? (
-                            <span className="text-gray-500 text-xs">N/A</span>
-                          ) : we.wod_type === "amrap" ? (
-                            we.reps != null
-                              ? <span title={`${we.points} pts`}>{we.reps} reps <span className="text-xs text-gray-400">({we.points}pts)</span></span>
-                              : <span className="text-gray-500">—</span>
-                          ) : we.wod_type === "for_time" ? (
-                            we.time_seconds != null
-                              ? <span title={`${we.points} pts`}>
-                                  {formatSeconds(we.time_seconds)}
-                                  {we.reps != null && <span className="text-xs text-gray-400"> +{we.reps}r</span>}
-                                  {" "}<span className="text-xs text-gray-400">({we.points}pts)</span>
-                                </span>
-                              : <span className="text-gray-500">—</span>
-                          ) : (
-                            <span className="text-gray-500 text-xs">N/D</span>
-                          )}
-                        </td>
+            {!wodLeaderboard || wodLeaderboard.entries.length === 0 ? (
+              <div className="rounded-xl border border-white/10 bg-primary-800/40 px-6 py-12 text-center">
+                <TrophyIcon className="h-10 w-10 text-gray-500 mx-auto mb-3" />
+                <p className="text-gray-400 text-sm">Nenhum resultado disponível ainda.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-white/10 bg-primary-800/40">
+                <table className="min-w-full divide-y divide-white/10 text-sm">
+                  <thead className="bg-white/5">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-400 w-10">#</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-400">Equipe</th>
+                      {wodLeaderboard.entries[0]?.wod_entries.map((we) => (
+                        <th key={we.wod_id} className="px-4 py-3 text-center text-xs font-medium uppercase text-gray-400">
+                          {we.wod_name}
+                        </th>
                       ))}
-                      <td className="px-4 py-3 text-center text-sm font-bold text-white">
-                        {`${entry.total_points} pts`}
-                      </td>
+                      <th className="px-4 py-3 text-center text-xs font-medium uppercase text-gray-400">Total</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-white/10">
+                    {wodLeaderboard.entries.map((entry) => (
+                      <tr key={entry.team_id} className="hover:bg-white/5">
+                        <td className="px-4 py-3 text-sm font-bold text-yellow-400">{entry.position}º</td>
+                        <td className="px-4 py-3 text-sm font-medium text-white">{entry.team_name}</td>
+                        {entry.wod_entries.map((we) => (
+                          <td key={we.wod_id} className="px-4 py-3 text-center text-sm text-gray-300">
+                            {we.points === 0 && we.rank === null && we.reps === null && we.time_seconds === null ? (
+                              <span className="text-gray-500 text-xs">N/A</span>
+                            ) : we.wod_type === "amrap" ? (
+                              we.reps != null
+                                ? <span title={`${we.points} pts`}>{we.reps} reps <span className="text-xs text-gray-400">({we.points}pts)</span></span>
+                                : <span className="text-gray-500">—</span>
+                            ) : we.wod_type === "for_time" ? (
+                              we.time_seconds != null
+                                ? <span title={`${we.points} pts`}>
+                                    {formatSeconds(we.time_seconds)}
+                                    {we.reps != null && <span className="text-xs text-gray-400"> +{we.reps}r</span>}
+                                    {" "}<span className="text-xs text-gray-400">({we.points}pts)</span>
+                                  </span>
+                                : <span className="text-gray-500">—</span>
+                            ) : (
+                              <span className="text-gray-500 text-xs">N/D</span>
+                            )}
+                          </td>
+                        ))}
+                        <td className="px-4 py-3 text-center text-sm font-bold text-white">
+                          {`${entry.total_points} pts`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
-        <Card padding="none">
+        {!isCrossfit && <Card padding="none">
           <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
             <TrophyIcon className="h-5 w-5 text-yellow-500" />
             <h2 className="text-base font-semibold text-gray-900 dark:text-white">Classificação Geral</h2>
@@ -592,7 +599,7 @@ export default function RankingPage() {
               </div>
             )
           )}
-        </Card>
+        </Card>}
       </main>
     </div>
   );
