@@ -777,3 +777,152 @@ class RankingService:
                 pos += 1
 
         return entries
+
+    @staticmethod
+    async def get_crossfit_ranking(
+        db: AsyncSession,
+        competition_id: int,
+        category_id: int | None = None,
+    ) -> list["CrossfitRankingEntry"]:
+        """Ranking agregado para CrossFit — pontos por colocação por WOD (bateria).
+
+        Cada bateria é pontuada individualmente: o 1º colocado recebe N pontos
+        (N = total de finalizadores na bateria), o 2º recebe N-1, etc.
+        O total de pontos é somado entre todas as baterias.
+
+        Args:
+            db: Sessão assíncrona.
+            competition_id: ID da competição.
+            category_id: Filtrar por categoria (opcional).
+
+        Returns:
+            Lista de CrossfitRankingEntry ordenada por total_points DESC.
+        """
+        from collections import defaultdict
+
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+
+        from app.schemas.timer import CrossfitRankingEntry
+
+        # Carrega todos os timers da competição com seus heats
+        query = (
+            select(Timer)
+            .options(
+                selectinload(Timer.user),
+                selectinload(Timer.team),
+                selectinload(Timer.category),
+                selectinload(Timer.events),
+                selectinload(Timer.penalties),
+            )
+            .where(Timer.competition_id == competition_id)
+        )
+        if category_id:
+            query = query.where(Timer.category_id == category_id)
+
+        result = await db.execute(query)
+        timers = list(result.scalars().all())
+
+        # Agrupa timers por heat para calcular pontos por bateria
+        # heat_id None → timers sem bateria (agrupados como um único "WOD" virtual)
+        heats: dict[int | None, list[Timer]] = defaultdict(list)
+        for timer in timers:
+            heats[timer.heat_id].append(timer)
+
+        # Pontos acumulados e métricas por chave única de atleta/equipe
+        # chave: (team_id, user_id)
+        points_map: dict[tuple, int] = defaultdict(int)
+        wods_map: dict[tuple, int] = defaultdict(int)
+        status_map: dict[tuple, str] = {}
+        meta_map: dict[tuple, dict] = {}
+
+        for heat_timers in heats.values():
+            # Filtra apenas os finalizadores desta bateria para calcular posição
+            finished = sorted(
+                [t for t in heat_timers if t.status == TimerStatus.finished],
+                key=lambda t: _compute_accumulated_ms(t)
+                + sum(p.seconds_added for p in t.penalties) * 1000,
+            )
+            n_finishers = len(finished)
+
+            for rank_idx, timer in enumerate(finished):
+                key = (timer.team_id, timer.user_id)
+                pts = n_finishers - rank_idx  # 1º = N pts, 2º = N-1, ...
+                points_map[key] += pts
+                wods_map[key] += 1
+
+            # Registra meta e status para todos os timers (não só finished)
+            for timer in heat_timers:
+                key = (timer.team_id, timer.user_id)
+
+                if timer.user:
+                    athlete_name = timer.user.full_name
+                elif timer.team:
+                    athlete_name = timer.team.name
+                else:
+                    athlete_name = f"Timer #{timer.id}"
+
+                if key not in meta_map:
+                    meta_map[key] = {
+                        "team_id": timer.team_id,
+                        "user_id": timer.user_id,
+                        "athlete_name": athlete_name,
+                        "team_name": timer.team.name if timer.team else None,
+                        "category_name": timer.category.name if timer.category else None,
+                    }
+
+                # Status mais "urgente" vence: running > paused > created > finished
+                _priority = {
+                    "running": 0, "paused": 1, "created": 2, "ready": 2, "finished": 3, "cancelled": 4,
+                }
+                new_s = timer.status.value
+                cur_s = status_map.get(key, "finished")
+                if _priority.get(new_s, 9) < _priority.get(cur_s, 9):
+                    status_map[key] = new_s
+
+        # Garante que atletas/equipes sem nenhum timer ainda aparecem
+        for timer in timers:
+            key = (timer.team_id, timer.user_id)
+            if key not in meta_map:
+                if timer.user:
+                    athlete_name = timer.user.full_name
+                elif timer.team:
+                    athlete_name = timer.team.name
+                else:
+                    athlete_name = f"Timer #{timer.id}"
+                meta_map[key] = {
+                    "team_id": timer.team_id,
+                    "user_id": timer.user_id,
+                    "athlete_name": athlete_name,
+                    "team_name": timer.team.name if timer.team else None,
+                    "category_name": timer.category.name if timer.category else None,
+                }
+            if key not in status_map:
+                status_map[key] = timer.status.value
+
+        entries: list[CrossfitRankingEntry] = []
+        for key, meta in meta_map.items():
+            entries.append(
+                CrossfitRankingEntry(
+                    position=0,
+                    team_id=meta["team_id"],
+                    user_id=meta["user_id"],
+                    athlete_name=meta["athlete_name"],
+                    team_name=meta["team_name"],
+                    category_name=meta["category_name"],
+                    wods_completed=wods_map[key],
+                    total_points=points_map[key],
+                    status=status_map.get(key, "pending"),
+                )
+            )
+
+        # Ordena: mais pontos primeiro; desempate por wods_completed DESC
+        entries.sort(key=lambda e: (-e.total_points, -e.wods_completed))
+
+        # Atribui posições
+        pos = 1
+        for entry in entries:
+            entry.position = pos
+            pos += 1
+
+        return entries

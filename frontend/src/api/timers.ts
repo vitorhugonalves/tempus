@@ -1,5 +1,5 @@
 import apiClient from "./client";
-import type { Penalty, PenaltyType, RankingEntry, Timer, TimerEvent } from "../types";
+import type { CrossfitRankingEntry, Penalty, PenaltyType, RankingEntry, Timer, TimerEvent } from "../types";
 
 export const timersApi = {
   list: (competitionId: number) =>
@@ -61,6 +61,19 @@ export const rankingApi = {
 
   exportPdfUrl: (competitionId: number) =>
     `/api/v1/competitions/${competitionId}/export/pdf`,
+
+  getCrossfit: (competitionId: number, categoryId?: number) => {
+    const params = categoryId ? { category_id: categoryId } : {};
+    return apiClient
+      .get<CrossfitRankingEntry[]>(`/api/v1/competitions/${competitionId}/crossfit-ranking`, { params })
+      .then((r) => r.data);
+  },
+
+  exportCrossfiCsvUrl: (competitionId: number) =>
+    `/api/v1/competitions/${competitionId}/export/crossfit-csv`,
+
+  exportCrossfiPdfUrl: (competitionId: number) =>
+    `/api/v1/competitions/${competitionId}/export/crossfit-pdf`,
 
   certificateUrl: (competitionId: number, userId: number) =>
     `/api/v1/competitions/${competitionId}/certificate/${userId}`,

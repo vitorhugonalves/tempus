@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, require_roles
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.timer import RankingEntry
+from app.schemas.timer import CrossfitRankingEntry, RankingEntry
 from app.services.timer import RankingService
 
 logger = logging.getLogger(__name__)
@@ -145,6 +145,125 @@ async def export_ranking_pdf(
         iter([pdf_bytes]),
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=ranking_{competition_id}.pdf"},
+    )
+
+
+# ── CrossFit Ranking ─────────────────────────────────────────────────────────
+
+
+@router.get("/competitions/{competition_id}/crossfit-ranking", response_model=list[CrossfitRankingEntry])
+async def get_crossfit_ranking(
+    competition_id: int,
+    category_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> list[CrossfitRankingEntry]:
+    """Ranking CrossFit por pontos de colocação por WOD (acesso público)."""
+    return await RankingService.get_crossfit_ranking(db, competition_id, category_id)
+
+
+@router.get("/competitions/{competition_id}/export/crossfit-csv")
+async def export_crossfit_ranking_csv(
+    competition_id: int,
+    category_id: int | None = None,
+    _current_user: User = Depends(require_roles("operator", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """Exporta ranking CrossFit em CSV."""
+    ranking = await RankingService.get_crossfit_ranking(db, competition_id, category_id)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Posição", "Atleta/Equipe", "Categoria", "WODs Concluídos", "Pontos Total", "Status"])
+    for entry in ranking:
+        writer.writerow([
+            entry.position,
+            entry.athlete_name,
+            entry.category_name or "-",
+            entry.wods_completed,
+            entry.total_points,
+            entry.status,
+        ])
+
+    output.seek(0)
+    logger.info("CSV CrossFit exportado: competition_id=%s", competition_id)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=ranking_crossfit_{competition_id}.csv"},
+    )
+
+
+@router.get("/competitions/{competition_id}/export/crossfit-pdf")
+async def export_crossfit_ranking_pdf(
+    competition_id: int,
+    category_id: int | None = None,
+    _current_user: User = Depends(require_roles("operator", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """Exporta ranking CrossFit em PDF."""
+    from app.repositories.competition import CompetitionRepository
+
+    competition = await CompetitionRepository.get_by_id(db, competition_id)
+    comp_name = competition.name if competition else f"Competição #{competition_id}"
+
+    ranking = await RankingService.get_crossfit_ranking(db, competition_id, category_id)
+
+    rows_html = ""
+    for entry in ranking:
+        rows_html += (
+            f"<tr>"
+            f"<td>{entry.position}</td>"
+            f"<td>{entry.athlete_name}</td>"
+            f"<td>{entry.category_name or '-'}</td>"
+            f"<td>{entry.wods_completed}</td>"
+            f"<td><strong>{entry.total_points}</strong></td>"
+            f"<td>{entry.status}</td>"
+            f"</tr>"
+        )
+
+    html = f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<style>
+  body {{ font-family: Arial, sans-serif; font-size: 12px; }}
+  h1 {{ text-align: center; }}
+  table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
+  th {{ background: #1a1a2e; color: white; padding: 8px; }}
+  td {{ padding: 6px 8px; border-bottom: 1px solid #ddd; text-align: center; }}
+  tr:nth-child(even) {{ background: #f5f5f5; }}
+</style>
+</head>
+<body>
+<h1>Ranking CrossFit — {comp_name}</h1>
+<table>
+<thead>
+  <tr>
+    <th>Pos.</th><th>Atleta/Equipe</th><th>Categoria</th>
+    <th>WODs Concluídos</th><th>Pontos Total</th><th>Status</th>
+  </tr>
+</thead>
+<tbody>{rows_html}</tbody>
+</table>
+</body>
+</html>"""
+
+    try:
+        import weasyprint  # type: ignore[import]
+        pdf_bytes = weasyprint.HTML(string=html).write_pdf()
+    except ImportError:
+        logger.warning("WeasyPrint não disponível — retornando HTML")
+        return StreamingResponse(
+            iter([html.encode()]),
+            media_type="text/html",
+            headers={"Content-Disposition": f"attachment; filename=ranking_crossfit_{competition_id}.html"},
+        )
+
+    logger.info("PDF CrossFit exportado: competition_id=%s", competition_id)
+    return StreamingResponse(
+        iter([pdf_bytes]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=ranking_crossfit_{competition_id}.pdf"},
     )
 
 

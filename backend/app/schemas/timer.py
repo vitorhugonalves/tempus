@@ -185,6 +185,18 @@ class RankingEntry(BaseModel):
     status: TimerStatus
 
 
+class CrossfitRankingEntry(BaseModel):
+    position: int
+    team_id: int | None
+    user_id: int | None
+    athlete_name: str
+    team_name: str | None
+    category_name: str | None
+    wods_completed: int
+    total_points: int
+    status: str  # "finished" | "running" | "pending"
+
+
 # ---------------------------------------------------------------------------
 # Helpers: cálculo de tempo acumulado (Redis e DB-events)
 # ---------------------------------------------------------------------------

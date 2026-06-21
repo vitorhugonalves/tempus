@@ -239,6 +239,18 @@ export interface RankingEntry {
   status: TimerStatus;
 }
 
+export interface CrossfitRankingEntry {
+  position: number;
+  team_id: number | null;
+  user_id: number | null;
+  athlete_name: string;
+  team_name: string | null;
+  category_name: string | null;
+  wods_completed: number;
+  total_points: number;
+  status: string;
+}
+
 export type WodType = "amrap" | "for_time" | "emom" | "max_load";
 
 export interface Wod {
