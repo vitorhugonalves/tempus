@@ -516,6 +516,29 @@ class HeatService:
         return await HeatRepository.get_by_competition(db, competition_id)
 
     @staticmethod
+    async def finish(db: AsyncSession, heat_id: int) -> Heat:
+        """Encerra uma bateria em andamento.
+
+        Args:
+            db: Sessão assíncrona.
+            heat_id: ID da bateria.
+
+        Returns:
+            Heat com status finished.
+
+        Raises:
+            HTTPException 409: Bateria não está em andamento.
+        """
+        heat = await HeatService.get_or_404(db, heat_id)
+        if heat.status != HeatStatus.running:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Apenas baterias em andamento podem ser encerradas",
+            )
+        heat.status = HeatStatus.finished
+        return await HeatRepository.save(db, heat)
+
+    @staticmethod
     async def delete(db: AsyncSession, heat_id: int) -> None:
         """Remove bateria (desvincula timers).
 

@@ -766,6 +766,25 @@ async def start_team_in_heat(
     return _heat_to_response(updated_heat)
 
 
+@router.post(
+    "/competitions/{competition_id}/heats/{heat_id}/finish",
+    response_model=HeatResponse,
+)
+async def finish_heat(
+    competition_id: int,
+    heat_id: int,
+    current_user: User = Depends(require_roles("judge", "operator", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> HeatResponse:
+    """Encerra uma bateria em andamento (Judge/Operator/Admin)."""
+    heat = await HeatService.get_or_404(db, heat_id)
+    if heat.competition_id != competition_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bateria não encontrada")
+    updated_heat = await HeatService.finish(db, heat_id)
+    logger.info("Bateria %s encerrada por user_id=%s", heat_id, current_user.id)
+    return _heat_to_response(updated_heat)
+
+
 class HeatMovePayload(BaseModel):
     direction: str  # "up" | "down"
 

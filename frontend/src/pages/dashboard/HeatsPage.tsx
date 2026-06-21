@@ -77,6 +77,17 @@ export default function HeatsPage() {
     }
   }
 
+  async function handleFinish(heatId: number) {
+    if (!window.confirm("Encerrar esta bateria?")) return;
+    setError(null);
+    try {
+      const updated = await heatsApi.finish(id, heatId);
+      setHeats((p) => p.map((h) => (h.id === heatId ? updated : h)));
+    } catch (err: any) {
+      setError(err?.response?.data?.detail ?? "Erro ao encerrar bateria");
+    }
+  }
+
   async function handleAddTeam(heatId: number) {
     const teamId = Number(selectedTeam[heatId]);
     if (!teamId) return;
@@ -181,6 +192,14 @@ export default function HeatsPage() {
                       <Button onClick={() => handleStart(heat.id)} className="text-sm">
                         ▶ Iniciar
                       </Button>
+                    )}
+                    {heat.status === "running" && (
+                      <button
+                        onClick={() => handleFinish(heat.id)}
+                        className="rounded-md bg-red-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-800"
+                      >
+                        ■ Encerrar
+                      </button>
                     )}
                     {heat.status === "pending" && (
                       <button
