@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useOutletContext, useParams } from "react-router-dom";
-import { PlusIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, ArrowUpTrayIcon } from "@heroicons/react/24/outline";
 import { teamsApi, type TeamCreate } from "../../api/teams";
 import { categoriesApi } from "../../api/categories";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
 import Alert from "../../components/ui/Alert";
-import type { Category, Competition, Team } from "../../types";
+import type { Category, Competition, Team, TeamBulkResult } from "../../types";
 
 interface OutletCtx {
   competition: Competition;
@@ -16,11 +16,13 @@ export default function TeamsPage() {
   const { competitionId } = useParams<{ competitionId: string }>();
   useOutletContext<OutletCtx>();
   const id = Number(competitionId);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const [teams, setTeams] = useState<Team[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [importResult, setImportResult] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [filterCat, setFilterCat] = useState<string>("");
   const [search, setSearch] = useState("");
@@ -73,6 +75,26 @@ export default function TeamsPage() {
     }
   }
 
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setImportResult(null);
+    try {
+      const data: TeamBulkResult = await teamsApi.importCsv(id, file);
+      setImportResult(
+        `${data.created} equipe(s) importada(s) com sucesso.${
+          data.errors.length ? ` ${data.errors.length} erro(s).` : ""
+        }`
+      );
+      const updated = await teamsApi.list(id);
+      setTeams(updated);
+    } catch (err: any) {
+      setError(err?.response?.data?.detail ?? "Erro na importação");
+    }
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
   if (loading) return (
     <div className="flex justify-center py-20">
       <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary-600 border-t-transparent" />
@@ -83,12 +105,31 @@ export default function TeamsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Equipes</h1>
-        <Button onClick={() => setShowForm((s) => !s)} className="flex items-center gap-2">
-          <PlusIcon className="h-4 w-4" /> Nova Equipe
-        </Button>
+        <div className="flex items-start gap-3">
+          <div className="flex flex-col items-end gap-1">
+            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+              <ArrowUpTrayIcon className="h-4 w-4" />
+              Importar CSV
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".csv"
+                className="sr-only"
+                onChange={handleImport}
+              />
+            </label>
+            <p className="text-xs text-gray-400">
+              Formato: <code className="font-mono">nome_equipe;categoria</code>
+            </p>
+          </div>
+          <Button onClick={() => setShowForm((s) => !s)} className="flex items-center gap-2">
+            <PlusIcon className="h-4 w-4" /> Nova Equipe
+          </Button>
+        </div>
       </div>
 
       {error && <Alert variant="error">{error}</Alert>}
+      {importResult && <Alert variant="success">{importResult}</Alert>}
 
       {showForm && (
         <form

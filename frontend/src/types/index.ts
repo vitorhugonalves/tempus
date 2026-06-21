@@ -143,6 +143,17 @@ export interface Team {
   updated_at: string;
 }
 
+export interface TeamBulkError {
+  row: number;
+  name: string;
+  error: string;
+}
+
+export interface TeamBulkResult {
+  created: number;
+  errors: TeamBulkError[];
+}
+
 export type TimerStatus =
   | "created"
   | "ready"
