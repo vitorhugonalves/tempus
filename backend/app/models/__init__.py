@@ -9,6 +9,7 @@ from app.models.timer import Penalty, PenaltyType, Timer, TimerEvent, TimerStatu
 from app.models.token import InviteToken, PasswordResetToken
 from app.models.user import User, UserRole
 from app.models.wod import Wod, WodType
+from app.models.wod_result import WodResult
 
 __all__ = [
     "Category",
@@ -33,5 +34,6 @@ __all__ = [
     "User",
     "UserRole",
     "Wod",
+    "WodResult",
     "WodType",
 ]
