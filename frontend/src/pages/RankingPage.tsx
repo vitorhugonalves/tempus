@@ -372,9 +372,7 @@ export default function RankingPage() {
                         </td>
                       ))}
                       <td className="px-4 py-3 text-center text-sm font-bold text-white">
-                        {wodLeaderboard.scoring_model === "lowest_time"
-                          ? formatSeconds(entry.total_points)
-                          : `${entry.total_points} pts`}
+                        {`${entry.total_points} pts`}
                       </td>
                     </tr>
                   ))}
