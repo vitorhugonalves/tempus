@@ -203,9 +203,9 @@ export default function CompetitionWizardPage() {
     if (!state.step1.event_type) return "Selecione o tipo de evento (Hyrox ou CrossFit)";
     const isoPattern = /^\d{4}-\d{2}-\d{2}$/;
     if (state.step1.start_date && !isoPattern.test(state.step1.start_date))
-      return "Data de início inválida — use o formato DD/MM/AAAA";
+      return "Data de início inválida — preencha a data completa (DD/MM/AAAA)";
     if (state.step1.end_date && !isoPattern.test(state.step1.end_date))
-      return "Data de término inválida — use o formato DD/MM/AAAA";
+      return "Data de término inválida — preencha a data completa (DD/MM/AAAA)";
     return null;
   }
 
