@@ -43,6 +43,12 @@ from app.schemas.team import (
     TeamUpdate,
 )
 from app.schemas.wod import WodCreate, WodResponse
+from app.schemas.wod_result import (
+    WodLeaderboard,
+    WodResultResponse,
+    WodResultsData,
+    WodResultUpsert,
+)
 from app.services.category import CategoryService
 from app.services.heat import HeatService
 from app.services.registration import (
@@ -52,6 +58,7 @@ from app.services.registration import (
 )
 from app.services.team import TeamService
 from app.services.wod import WodService
+from app.services.wod_result import WodResultService
 
 logger = logging.getLogger(__name__)
 
@@ -969,3 +976,61 @@ async def delete_wod(
 ) -> None:
     """Remove um WOD (Operador/Admin)."""
     await WodService.delete_wod(db, competition_id, wod_id)
+
+
+# ── WOD Results ───────────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/competitions/{competition_id}/wod-results",
+    response_model=WodResultsData,
+)
+async def list_wod_results(
+    competition_id: int,
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(require_roles("judge", "operator", "admin")),
+) -> WodResultsData:
+    """Retorna WODs, equipes e resultados para a página de entrada (RF-results-01)."""
+    return await WodResultService.get_results_data(db, competition_id)
+
+
+@router.post(
+    "/competitions/{competition_id}/wod-results",
+    response_model=WodResultResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upsert_wod_result(
+    competition_id: int,
+    payload: WodResultUpsert,
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(require_roles("operator", "admin")),
+) -> WodResultResponse:
+    """Cria ou atualiza resultado de uma equipe em um WOD (upsert por wod_id+team_id)."""
+    result = await WodResultService.upsert(db, competition_id, payload)
+    return WodResultResponse.model_validate(result)
+
+
+@router.delete(
+    "/competitions/{competition_id}/wod-results/{result_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_wod_result(
+    competition_id: int,
+    result_id: int,
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(require_roles("operator", "admin")),
+) -> None:
+    """Remove um resultado de WOD."""
+    await WodResultService.delete(db, competition_id, result_id)
+
+
+@router.get(
+    "/competitions/{competition_id}/wod-leaderboard",
+    response_model=WodLeaderboard,
+)
+async def get_wod_leaderboard(
+    competition_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> WodLeaderboard:
+    """Retorna leaderboard calculado de WOD results (público — sem autenticação)."""
+    return await WodResultService.compute_leaderboard(db, competition_id)
