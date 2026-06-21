@@ -276,3 +276,43 @@ export interface LoginResponse {
   email: string;
   role: UserRole;
 }
+
+export interface WodResult {
+  id: number;
+  competition_id: number;
+  wod_id: number;
+  team_id: number;
+  time_seconds: number | null;
+  reps: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WodResultsData {
+  wods: Wod[];
+  teams: { id: number; name: string; category_id: number }[];
+  results: WodResult[];
+}
+
+export interface LeaderboardWodEntry {
+  wod_id: number;
+  wod_name: string;
+  time_seconds: number | null;
+  reps: number | null;
+  points: number;
+  rank: number | null;
+}
+
+export interface WodLeaderboardEntry {
+  position: number;
+  team_id: number;
+  team_name: string;
+  total_points: number;
+  wod_entries: LeaderboardWodEntry[];
+}
+
+export interface WodLeaderboard {
+  scoring_model: string | null;
+  entries: WodLeaderboardEntry[];
+}
