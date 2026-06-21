@@ -37,6 +37,7 @@ export default function TeamsPage() {
   // Edit state
   const [editingTeamId, setEditingTeamId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [editingCategoryId, setEditingCategoryId] = useState<number | undefined>(undefined);
 
   // Athletes panel state
   const [expandedTeamId, setExpandedTeamId] = useState<number | null>(null);
@@ -90,13 +91,17 @@ export default function TeamsPage() {
   function startEdit(team: Team) {
     setEditingTeamId(team.id);
     setEditingName(team.name);
+    setEditingCategoryId(team.category_id);
   }
 
   async function handleSaveEdit(teamId: number) {
     if (!editingName.trim()) return;
     setError(null);
     try {
-      const updated = await teamsApi.update(id, teamId, { name: editingName.trim() });
+      const updated = await teamsApi.update(id, teamId, {
+        name: editingName.trim(),
+        category_id: editingCategoryId,
+      });
       setTeams((p) => p.map((t) => t.id === teamId ? updated : t));
       setEditingTeamId(null);
     } catch (err: any) {
@@ -279,62 +284,82 @@ export default function TeamsPage() {
                     <tr key={team.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 font-medium text-gray-900">
                         {isEditing ? (
-                          <div className="flex items-center gap-2">
-                            <input
-                              className="rounded border border-gray-300 px-2 py-1 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                              value={editingName}
-                              onChange={(e) => setEditingName(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") handleSaveEdit(team.id);
-                                if (e.key === "Escape") setEditingTeamId(null);
-                              }}
-                              autoFocus
-                            />
-                            <button
-                              onClick={() => handleSaveEdit(team.id)}
-                              className="text-xs font-medium text-primary-600 hover:text-primary-800"
-                            >
-                              Salvar
-                            </button>
-                            <button
-                              onClick={() => setEditingTeamId(null)}
-                              className="text-xs font-medium text-gray-500 hover:text-gray-700"
-                            >
-                              Cancelar
-                            </button>
-                          </div>
+                          <input
+                            className="rounded border border-gray-300 px-2 py-1 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 w-40"
+                            value={editingName}
+                            onChange={(e) => setEditingName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleSaveEdit(team.id);
+                              if (e.key === "Escape") setEditingTeamId(null);
+                            }}
+                            autoFocus
+                          />
                         ) : (
                           team.name
                         )}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{cat?.name ?? "—"}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {isEditing ? (
+                          <select
+                            className="rounded border border-gray-300 px-2 py-1 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                            value={editingCategoryId ?? ""}
+                            onChange={(e) => setEditingCategoryId(e.target.value ? Number(e.target.value) : undefined)}
+                          >
+                            <option value="">Sem categoria</option>
+                            {categories.map((c) => (
+                              <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          cat?.name ?? "—"
+                        )}
+                      </td>
                       <td className="px-6 py-4 text-sm text-gray-600">{teamAthletes.length}</td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-3">
-                          <button
-                            onClick={() => toggleExpanded(team.id)}
-                            className="text-sm font-medium text-gray-600 hover:text-gray-800 flex items-center gap-1"
-                          >
-                            {isExpanded ? (
-                              <ChevronUpIcon className="h-4 w-4" />
-                            ) : (
-                              <ChevronDownIcon className="h-4 w-4" />
-                            )}
-                            Atletas
-                          </button>
-                          <button
-                            onClick={() => startEdit(team)}
-                            className="text-sm font-medium text-primary-600 hover:text-primary-800 flex items-center gap-1"
-                          >
-                            <PencilIcon className="h-4 w-4" />
-                            Editar
-                          </button>
-                          <button
-                            onClick={() => handleDelete(team.id)}
-                            className="text-sm font-medium text-red-600 hover:text-red-800"
-                          >
-                            Remover
-                          </button>
+                          {isEditing ? (
+                            <>
+                              <button
+                                onClick={() => handleSaveEdit(team.id)}
+                                className="text-sm font-medium text-primary-600 hover:text-primary-800"
+                              >
+                                Salvar
+                              </button>
+                              <button
+                                onClick={() => setEditingTeamId(null)}
+                                className="text-sm font-medium text-gray-500 hover:text-gray-700"
+                              >
+                                Cancelar
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => toggleExpanded(team.id)}
+                                className="text-sm font-medium text-gray-600 hover:text-gray-800 flex items-center gap-1"
+                              >
+                                {isExpanded ? (
+                                  <ChevronUpIcon className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDownIcon className="h-4 w-4" />
+                                )}
+                                Atletas
+                              </button>
+                              <button
+                                onClick={() => startEdit(team)}
+                                className="text-sm font-medium text-primary-600 hover:text-primary-800 flex items-center gap-1"
+                              >
+                                <PencilIcon className="h-4 w-4" />
+                                Editar
+                              </button>
+                              <button
+                                onClick={() => handleDelete(team.id)}
+                                className="text-sm font-medium text-red-600 hover:text-red-800"
+                              >
+                                Remover
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
