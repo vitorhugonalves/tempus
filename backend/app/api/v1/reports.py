@@ -1,4 +1,5 @@
 import csv
+import html
 import io
 import logging
 
@@ -92,16 +93,16 @@ async def export_ranking_pdf(
         rows_html += (
             f"<tr>"
             f"<td>{entry.position or '-'}</td>"
-            f"<td>{entry.athlete_name}</td>"
-            f"<td>{entry.category_name or '-'}</td>"
+            f"<td>{html.escape(entry.athlete_name)}</td>"
+            f"<td>{html.escape(entry.category_name or '-')}</td>"
             f"<td>{_seconds_to_hms(entry.elapsed_seconds)}</td>"
             f"<td>{entry.total_penalty_seconds}s</td>"
             f"<td><strong>{_seconds_to_hms(entry.final_seconds)}</strong></td>"
-            f"<td>{entry.status.value}</td>"
+            f"<td>{html.escape(entry.status.value)}</td>"
             f"</tr>"
         )
 
-    html = f"""<!DOCTYPE html>
+    doc_html = f"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -115,7 +116,7 @@ async def export_ranking_pdf(
 </style>
 </head>
 <body>
-<h1>Ranking — {comp_name}</h1>
+<h1>Ranking — {html.escape(comp_name)}</h1>
 <table>
 <thead>
   <tr>
@@ -128,14 +129,18 @@ async def export_ranking_pdf(
 </body>
 </html>"""
 
+    # url_fetcher bloqueado: impede WeasyPrint de buscar file:// ou IPs internos
+    def _deny_url_fetcher(url: str, **_kw: object) -> dict:
+        return {"string": b"", "mime_type": "text/plain"}
+
     try:
         import weasyprint  # type: ignore[import]
-        pdf_bytes = weasyprint.HTML(string=html).write_pdf()
+        pdf_bytes = weasyprint.HTML(string=doc_html, url_fetcher=_deny_url_fetcher).write_pdf()
     except ImportError:
         # WeasyPrint não instalado: retorna HTML como fallback
         logger.warning("WeasyPrint não disponível — retornando HTML")
         return StreamingResponse(
-            iter([html.encode()]),
+            iter([doc_html.encode()]),
             media_type="text/html",
             headers={"Content-Disposition": f"attachment; filename=ranking_{competition_id}.html"},
         )
@@ -213,15 +218,15 @@ async def export_crossfit_ranking_pdf(
         rows_html += (
             f"<tr>"
             f"<td>{entry.position}</td>"
-            f"<td>{entry.athlete_name}</td>"
-            f"<td>{entry.category_name or '-'}</td>"
+            f"<td>{html.escape(entry.athlete_name)}</td>"
+            f"<td>{html.escape(entry.category_name or '-')}</td>"
             f"<td>{entry.wods_completed}</td>"
             f"<td><strong>{entry.total_points}</strong></td>"
-            f"<td>{entry.status}</td>"
+            f"<td>{html.escape(entry.status)}</td>"
             f"</tr>"
         )
 
-    html = f"""<!DOCTYPE html>
+    doc_html = f"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -235,7 +240,7 @@ async def export_crossfit_ranking_pdf(
 </style>
 </head>
 <body>
-<h1>Ranking CrossFit — {comp_name}</h1>
+<h1>Ranking CrossFit — {html.escape(comp_name)}</h1>
 <table>
 <thead>
   <tr>
@@ -248,13 +253,16 @@ async def export_crossfit_ranking_pdf(
 </body>
 </html>"""
 
+    def _deny_url_fetcher(url: str, **_kw: object) -> dict:
+        return {"string": b"", "mime_type": "text/plain"}
+
     try:
         import weasyprint  # type: ignore[import]
-        pdf_bytes = weasyprint.HTML(string=html).write_pdf()
+        pdf_bytes = weasyprint.HTML(string=doc_html, url_fetcher=_deny_url_fetcher).write_pdf()
     except ImportError:
         logger.warning("WeasyPrint não disponível — retornando HTML")
         return StreamingResponse(
-            iter([html.encode()]),
+            iter([doc_html.encode()]),
             media_type="text/html",
             headers={"Content-Disposition": f"attachment; filename=ranking_crossfit_{competition_id}.html"},
         )
