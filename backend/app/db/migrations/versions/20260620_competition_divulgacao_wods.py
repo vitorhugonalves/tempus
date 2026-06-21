@@ -1,13 +1,13 @@
 """competition_divulgacao_wods
 
-Revision ID: 20260620_competition_divulgacao_wods
+Revision ID: 20260620_divulgacao_wods
 Revises: 20260615_athletes_table
 Create Date: 2026-06-20
 """
 import sqlalchemy as sa
 from alembic import op
 
-revision = "20260620_competition_divulgacao_wods"
+revision = "20260620_divulgacao_wods"
 down_revision = "20260615_athletes_table"
 branch_labels = None
 depends_on = None
