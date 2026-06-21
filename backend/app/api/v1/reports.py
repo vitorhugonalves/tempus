@@ -173,28 +173,44 @@ async def export_crossfit_ranking_csv(
     _current_user: User = Depends(require_roles("operator", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
-    """Exporta ranking CrossFit em CSV."""
-    ranking = await RankingService.get_crossfit_ranking(db, competition_id, category_id)
+    """Exporta leaderboard de WODs em CSV (espelha o que é exibido em /ranking)."""
+    from app.services.wod_result import WodResultService
+
+    leaderboard = await WodResultService.compute_leaderboard(db, competition_id, category_id)
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Posição", "Atleta/Equipe", "Categoria", "WODs Concluídos", "Pontos Total", "Status"])
-    for entry in ranking:
-        writer.writerow([
-            entry.position,
-            entry.athlete_name,
-            entry.category_name or "-",
-            entry.wods_completed,
-            entry.total_points,
-            entry.status,
-        ])
+
+    wod_headers = (
+        [f"{we.wod_name} ({we.wod_type})" for we in leaderboard.entries[0].wod_entries]
+        if leaderboard.entries
+        else []
+    )
+    writer.writerow(["Posição", "Equipe"] + wod_headers + ["Total (pts)"])
+
+    for entry in leaderboard.entries:
+        wod_cells = []
+        for we in entry.wod_entries:
+            if we.points == 0 and we.rank is None and we.reps is None and we.time_seconds is None:
+                wod_cells.append("N/A")
+            elif we.wod_type == "amrap":
+                wod_cells.append(f"{we.reps or 0} reps ({we.points} pts)" if we.reps is not None else "—")
+            elif we.wod_type == "for_time":
+                if we.time_seconds is not None:
+                    t = _seconds_to_hms(we.time_seconds)
+                    wod_cells.append(f"{t}{f' +{we.reps}r' if we.reps else ''} ({we.points} pts)")
+                else:
+                    wod_cells.append("—")
+            else:
+                wod_cells.append("N/D")
+        writer.writerow([entry.position, entry.team_name] + wod_cells + [entry.total_points])
 
     output.seek(0)
-    logger.info("CSV CrossFit exportado: competition_id=%s", competition_id)
+    logger.info("CSV WOD leaderboard exportado: competition_id=%s", competition_id)
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=ranking_crossfit_{competition_id}.csv"},
+        headers={"Content-Disposition": f"attachment; filename=leaderboard_wods_{competition_id}.csv"},
     )
 
 
@@ -205,24 +221,45 @@ async def export_crossfit_ranking_pdf(
     _current_user: User = Depends(require_roles("operator", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
-    """Exporta ranking CrossFit em PDF."""
+    """Exporta leaderboard de WODs em PDF (espelha o que é exibido em /ranking)."""
     from app.repositories.competition import CompetitionRepository
+    from app.services.wod_result import WodResultService
 
     competition = await CompetitionRepository.get_by_id(db, competition_id)
     comp_name = competition.name if competition else f"Competição #{competition_id}"
 
-    ranking = await RankingService.get_crossfit_ranking(db, competition_id, category_id)
+    leaderboard = await WodResultService.compute_leaderboard(db, competition_id, category_id)
+
+    wod_headers_html = "".join(
+        f"<th>{html.escape(we.wod_name)}<br><small>({we.wod_type})</small></th>"
+        for we in (leaderboard.entries[0].wod_entries if leaderboard.entries else [])
+    )
 
     rows_html = ""
-    for entry in ranking:
+    for entry in leaderboard.entries:
+        wod_cells_html = ""
+        for we in entry.wod_entries:
+            if we.points == 0 and we.rank is None and we.reps is None and we.time_seconds is None:
+                cell = "N/A"
+            elif we.wod_type == "amrap":
+                cell = f"{we.reps or 0} reps<br><small>({we.points} pts)</small>" if we.reps is not None else "—"
+            elif we.wod_type == "for_time":
+                if we.time_seconds is not None:
+                    t = _seconds_to_hms(we.time_seconds)
+                    reps_part = f" +{we.reps}r" if we.reps else ""
+                    cell = f"{t}{reps_part}<br><small>({we.points} pts)</small>"
+                else:
+                    cell = "—"
+            else:
+                cell = "N/D"
+            wod_cells_html += f"<td>{cell}</td>"
+
         rows_html += (
             f"<tr>"
-            f"<td>{entry.position}</td>"
-            f"<td>{html.escape(entry.athlete_name)}</td>"
-            f"<td>{html.escape(entry.category_name or '-')}</td>"
-            f"<td>{entry.wods_completed}</td>"
-            f"<td><strong>{entry.total_points}</strong></td>"
-            f"<td>{html.escape(entry.status)}</td>"
+            f"<td>{entry.position}º</td>"
+            f"<td>{html.escape(entry.team_name)}</td>"
+            f"{wod_cells_html}"
+            f"<td><strong>{entry.total_points} pts</strong></td>"
             f"</tr>"
         )
 
@@ -231,21 +268,21 @@ async def export_crossfit_ranking_pdf(
 <head>
 <meta charset="UTF-8">
 <style>
-  body {{ font-family: Arial, sans-serif; font-size: 12px; }}
-  h1 {{ text-align: center; }}
+  body {{ font-family: Arial, sans-serif; font-size: 11px; }}
+  h1 {{ text-align: center; font-size: 16px; }}
   table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-  th {{ background: #1a1a2e; color: white; padding: 8px; }}
-  td {{ padding: 6px 8px; border-bottom: 1px solid #ddd; text-align: center; }}
+  th {{ background: #1a1a2e; color: white; padding: 6px 4px; font-size: 10px; }}
+  td {{ padding: 5px 4px; border-bottom: 1px solid #ddd; text-align: center; }}
   tr:nth-child(even) {{ background: #f5f5f5; }}
+  small {{ color: #666; }}
 </style>
 </head>
 <body>
-<h1>Ranking CrossFit — {html.escape(comp_name)}</h1>
+<h1>Leaderboard WODs — {html.escape(comp_name)}</h1>
 <table>
 <thead>
   <tr>
-    <th>Pos.</th><th>Atleta/Equipe</th><th>Categoria</th>
-    <th>WODs Concluídos</th><th>Pontos Total</th><th>Status</th>
+    <th>Pos.</th><th>Equipe</th>{wod_headers_html}<th>Total</th>
   </tr>
 </thead>
 <tbody>{rows_html}</tbody>
@@ -264,14 +301,14 @@ async def export_crossfit_ranking_pdf(
         return StreamingResponse(
             iter([doc_html.encode()]),
             media_type="text/html",
-            headers={"Content-Disposition": f"attachment; filename=ranking_crossfit_{competition_id}.html"},
+            headers={"Content-Disposition": f"attachment; filename=leaderboard_wods_{competition_id}.html"},
         )
 
-    logger.info("PDF CrossFit exportado: competition_id=%s", competition_id)
+    logger.info("PDF WOD leaderboard exportado: competition_id=%s", competition_id)
     return StreamingResponse(
         iter([pdf_bytes]),
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=ranking_crossfit_{competition_id}.pdf"},
+        headers={"Content-Disposition": f"attachment; filename=leaderboard_wods_{competition_id}.pdf"},
     )
 
 

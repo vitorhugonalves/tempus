@@ -56,11 +56,11 @@ export const rankingApi = {
     return apiClient.get<RankingEntry[]>(`/api/v1/competitions/${competitionId}/ranking`, { params }).then((r) => r.data);
   },
 
-  exportCsvUrl: (competitionId: number) =>
-    `/api/v1/competitions/${competitionId}/export/csv`,
+  exportCsvUrl: (competitionId: number, categoryId?: number) =>
+    `/api/v1/competitions/${competitionId}/export/csv${categoryId ? `?category_id=${categoryId}` : ""}`,
 
-  exportPdfUrl: (competitionId: number) =>
-    `/api/v1/competitions/${competitionId}/export/pdf`,
+  exportPdfUrl: (competitionId: number, categoryId?: number) =>
+    `/api/v1/competitions/${competitionId}/export/pdf${categoryId ? `?category_id=${categoryId}` : ""}`,
 
   getCrossfit: (competitionId: number, categoryId?: number) => {
     const params = categoryId ? { category_id: categoryId } : {};
@@ -69,11 +69,11 @@ export const rankingApi = {
       .then((r) => r.data);
   },
 
-  exportCrossfiCsvUrl: (competitionId: number) =>
-    `/api/v1/competitions/${competitionId}/export/crossfit-csv`,
+  exportCrossfiCsvUrl: (competitionId: number, categoryId?: number) =>
+    `/api/v1/competitions/${competitionId}/export/crossfit-csv${categoryId ? `?category_id=${categoryId}` : ""}`,
 
-  exportCrossfiPdfUrl: (competitionId: number) =>
-    `/api/v1/competitions/${competitionId}/export/crossfit-pdf`,
+  exportCrossfiPdfUrl: (competitionId: number, categoryId?: number) =>
+    `/api/v1/competitions/${competitionId}/export/crossfit-pdf${categoryId ? `?category_id=${categoryId}` : ""}`,
 
   certificateUrl: (competitionId: number, userId: number) =>
     `/api/v1/competitions/${competitionId}/certificate/${userId}`,

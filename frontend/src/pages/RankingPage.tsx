@@ -286,14 +286,14 @@ export default function RankingPage() {
             <div className="flex items-center gap-3 flex-wrap">
               <Badge variant={variant}>{label}</Badge>
               <a
-                href={isCrossfit ? rankingApi.exportCrossfiCsvUrl(id) : rankingApi.exportCsvUrl(id)}
+                href={isCrossfit ? rankingApi.exportCrossfiCsvUrl(id, selectedCategory) : rankingApi.exportCsvUrl(id, selectedCategory)}
                 className="inline-flex items-center gap-1 text-xs text-primary-100 hover:text-white border border-primary-400 px-3 py-1.5 rounded transition-colors"
               >
                 <ArrowDownTrayIcon className="h-3.5 w-3.5" />
                 CSV
               </a>
               <a
-                href={isCrossfit ? rankingApi.exportCrossfiPdfUrl(id) : rankingApi.exportPdfUrl(id)}
+                href={isCrossfit ? rankingApi.exportCrossfiPdfUrl(id, selectedCategory) : rankingApi.exportPdfUrl(id, selectedCategory)}
                 className="inline-flex items-center gap-1 text-xs text-primary-100 hover:text-white border border-primary-400 px-3 py-1.5 rounded transition-colors"
               >
                 <ArrowDownTrayIcon className="h-3.5 w-3.5" />
