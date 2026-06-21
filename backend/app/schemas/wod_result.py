@@ -61,6 +61,7 @@ class LeaderboardWodEntry(BaseModel):
 
     wod_id: int
     wod_name: str
+    wod_type: str
     time_seconds: int | None
     reps: int | None
     points: int

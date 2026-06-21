@@ -325,7 +325,11 @@ async def test_leaderboard_most_points_ordena_corretamente(
     assert r.status_code == 200
     entries = r.json()["entries"]
     assert len(entries) == 2
-    # Ambos têm 3 pts → mesma posição (empate)
-    assert entries[0]["total_points"] == 3
-    assert entries[1]["total_points"] == 3
-    assert entries[0]["position"] == entries[1]["position"] == 1
+    # Beta: rank2 FOR_TIME(490pts) + AMRAP 100 reps×10(1000pts) = 1490pts → 1º
+    # Alpha: rank1 FOR_TIME(500pts) + AMRAP 80 reps×10(800pts) = 1300pts → 2º
+    assert entries[0]["total_points"] == 1490
+    assert entries[0]["position"] == 1
+    assert entries[0]["team_name"] == "Beta"
+    assert entries[1]["total_points"] == 1300
+    assert entries[1]["position"] == 2
+    assert entries[1]["team_name"] == "Alpha"

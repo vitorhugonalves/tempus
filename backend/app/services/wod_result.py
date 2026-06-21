@@ -53,49 +53,36 @@ def _compute_leaderboard(
         wod.id: {c.id for c in wod.categories} for wod in wods
     }
 
-    # Rankear equipes dentro de cada WOD (apenas participantes do WOD)
-    wod_rank_map: dict[int, dict[int, tuple[int, int]]] = {}
+    # FOR_TIME: pré-computar rank por tempo para cada WOD (menor tempo = melhor rank)
+    # rank 1 → bônus 500, rank 2 → 490, ..., rank 50 → 10, rank 51+ → 0
+    for_time_rank_map: dict[int, dict[int, int]] = {}
     for wod in wods:
+        if wod.wod_type != WodType.for_time:
+            continue
         cat_ids = wod_cat_ids[wod.id]
         participating = [t for t in teams if not cat_ids or t.category_id in cat_ids]
-        n_participating = len(participating)
-
-        team_results = [
+        timed = [
             (t.id, result_map[(wod.id, t.id)])
             for t in participating
             if (wod.id, t.id) in result_map
+            and result_map[(wod.id, t.id)].time_seconds is not None
         ]
-
-        if wod.wod_type == WodType.for_time:
-            team_results.sort(
-                key=lambda x: (x[1].time_seconds is None, x[1].time_seconds or 0)
-            )
-        else:
-            team_results.sort(
-                key=lambda x: (x[1].reps is None, -(x[1].reps or 0))
-            )
-
-        wod_ranks: dict[int, tuple[int, int]] = {}
-        prev_key = None
+        timed.sort(key=lambda x: x[1].time_seconds)  # type: ignore[arg-type]
+        rank_map: dict[int, int] = {}
+        prev_time = None
         current_rank = 0
-        for i, (team_id, r) in enumerate(team_results):
-            if wod.wod_type == WodType.for_time:
-                sort_key = r.time_seconds
-            else:
-                sort_key = r.reps
-            if sort_key != prev_key:
+        for i, (team_id, r) in enumerate(timed):
+            if r.time_seconds != prev_time:
                 current_rank = i + 1
-            prev_key = sort_key
-            points = n_participating + 1 - current_rank
-            wod_ranks[team_id] = (current_rank, points)
-        wod_rank_map[wod.id] = wod_ranks
+            prev_time = r.time_seconds
+            rank_map[team_id] = current_rank
+        for_time_rank_map[wod.id] = rank_map
 
     # Calcular total por equipe
     team_totals = []
     for team in teams:
         wod_entries = []
         total = 0
-        has_missing = False
 
         for wod in wods:
             cat_ids = wod_cat_ids[wod.id]
@@ -106,6 +93,7 @@ def _compute_leaderboard(
                     LeaderboardWodEntry(
                         wod_id=wod.id,
                         wod_name=wod.name,
+                        wod_type=wod.wod_type.value,
                         time_seconds=None,
                         reps=None,
                         points=0,
@@ -115,22 +103,33 @@ def _compute_leaderboard(
                 continue
 
             r = result_map.get((wod.id, team.id))
-            rank_info = wod_rank_map.get(wod.id, {}).get(team.id)
-            rank = rank_info[0] if rank_info else None
-            points = rank_info[1] if rank_info else 0
 
-            if scoring_model == "lowest_time":
-                if r and r.time_seconds is not None:
-                    total += r.time_seconds
+            if wod.wod_type == WodType.amrap:
+                points = (r.reps or 0) * 10 if r else 0
+                rank = None
+
+            elif wod.wod_type == WodType.for_time:
+                if r:
+                    rep_points = (r.reps or 0) * 10
+                    time_rank = for_time_rank_map.get(wod.id, {}).get(team.id)
+                    time_bonus = max(0, 500 - (time_rank - 1) * 10) if time_rank else 0
+                    points = rep_points + time_bonus
+                    rank = time_rank
                 else:
-                    has_missing = True
-            else:
-                total += points
+                    points = 0
+                    rank = None
 
+            else:
+                # EMOM, MAX_LOAD: pontuação ainda não definida
+                points = 0
+                rank = None
+
+            total += points
             wod_entries.append(
                 LeaderboardWodEntry(
                     wod_id=wod.id,
                     wod_name=wod.name,
+                    wod_type=wod.wod_type.value,
                     time_seconds=r.time_seconds if r else None,
                     reps=r.reps if r else None,
                     points=points,
@@ -143,30 +142,22 @@ def _compute_leaderboard(
                 "team_id": team.id,
                 "team_name": team.name,
                 "total": total,
-                "has_missing": has_missing,
                 "wod_entries": wod_entries,
             }
         )
 
-    # Ordenar
-    if scoring_model == "lowest_time":
-        team_totals.sort(
-            key=lambda x: (x["has_missing"], x["total"], x["team_name"])
-        )
-    else:
-        team_totals.sort(key=lambda x: (-x["total"], x["team_name"]))
+    # Ordenar por total decrescente; empate desempata por nome
+    team_totals.sort(key=lambda x: (-x["total"], x["team_name"]))
 
     # Atribuir posições com suporte a empates
     entries: list[WodLeaderboardEntry] = []
     prev_total: int | None = None
-    prev_missing: bool | None = None
     current_pos = 0
 
     for i, t in enumerate(team_totals):
-        if t["total"] != prev_total or t["has_missing"] != prev_missing:
+        if t["total"] != prev_total:
             current_pos = i + 1
         prev_total = t["total"]
-        prev_missing = t["has_missing"]
 
         entries.append(
             WodLeaderboardEntry(

@@ -299,6 +299,7 @@ export interface WodResultsData {
 export interface LeaderboardWodEntry {
   wod_id: number;
   wod_name: string;
+  wod_type: string;
   time_seconds: number | null;
   reps: number | null;
   points: number;

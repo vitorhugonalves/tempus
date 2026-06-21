@@ -352,12 +352,22 @@ export default function RankingPage() {
                       <td className="px-4 py-3 text-sm font-medium text-white">{entry.team_name}</td>
                       {entry.wod_entries.map((we) => (
                         <td key={we.wod_id} className="px-4 py-3 text-center text-sm text-gray-300">
-                          {wodLeaderboard.scoring_model === "lowest_time" ? (
-                            we.time_seconds != null ? formatSeconds(we.time_seconds) : "—"
-                          ) : we.rank != null ? (
-                            <span title={`${we.points} pts`}>{we.rank}º ({we.points}pts)</span>
+                          {we.points === 0 && we.rank === null && we.reps === null && we.time_seconds === null ? (
+                            <span className="text-gray-500 text-xs">N/A</span>
+                          ) : we.wod_type === "amrap" ? (
+                            we.reps != null
+                              ? <span title={`${we.points} pts`}>{we.reps} reps <span className="text-xs text-gray-400">({we.points}pts)</span></span>
+                              : <span className="text-gray-500">—</span>
+                          ) : we.wod_type === "for_time" ? (
+                            we.time_seconds != null
+                              ? <span title={`${we.points} pts`}>
+                                  {formatSeconds(we.time_seconds)}
+                                  {we.reps != null && <span className="text-xs text-gray-400"> +{we.reps}r</span>}
+                                  {" "}<span className="text-xs text-gray-400">({we.points}pts)</span>
+                                </span>
+                              : <span className="text-gray-500">—</span>
                           ) : (
-                            "—"
+                            <span className="text-gray-500 text-xs">N/D</span>
                           )}
                         </td>
                       ))}
