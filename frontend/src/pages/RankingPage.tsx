@@ -151,14 +151,14 @@ export default function RankingPage() {
       if (isCrossfit) {
         const [data, leaderboard] = await Promise.all([
           rankingApi.getCrossfit(id, selectedCategory),
-          wodResultsApi.getLeaderboard(id).catch(() => null),
+          wodResultsApi.getLeaderboard(id, selectedCategory).catch(() => null),
         ]);
         setCrossfitRanking(data);
         if (leaderboard) setWodLeaderboard(leaderboard);
       } else {
         const [data, leaderboard] = await Promise.all([
           rankingApi.get(id, selectedCategory),
-          wodResultsApi.getLeaderboard(id).catch(() => null),
+          wodResultsApi.getLeaderboard(id, selectedCategory).catch(() => null),
         ]);
         setRanking(data);
         if (leaderboard) setWodLeaderboard(leaderboard);

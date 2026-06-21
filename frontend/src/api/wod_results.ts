@@ -25,10 +25,11 @@ export const wodResultsApi = {
       `/api/v1/competitions/${competitionId}/wod-results/${resultId}`
     ),
 
-  getLeaderboard: (competitionId: number) =>
+  getLeaderboard: (competitionId: number, categoryId?: number) =>
     apiClient
       .get<WodLeaderboard>(
-        `/api/v1/competitions/${competitionId}/wod-leaderboard`
+        `/api/v1/competitions/${competitionId}/wod-leaderboard`,
+        { params: categoryId !== undefined ? { category_id: categoryId } : {} }
       )
       .then((r) => r.data),
 };

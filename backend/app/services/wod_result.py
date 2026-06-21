@@ -274,13 +274,14 @@ class WodResultService:
 
     @staticmethod
     async def compute_leaderboard(
-        db: AsyncSession, competition_id: int
+        db: AsyncSession, competition_id: int, category_id: int | None = None
     ) -> WodLeaderboard:
         """Calcula o leaderboard de WOD results para uma competição.
 
         Args:
             db: Sessão assíncrona.
             competition_id: ID da competição.
+            category_id: Filtra apenas equipes desta categoria (opcional).
 
         Returns:
             WodLeaderboard com entries ordenados por posição.
@@ -290,7 +291,12 @@ class WodResultService:
             return WodLeaderboard(scoring_model=None, entries=[])
 
         wods = await WodRepository.list_by_competition(db, competition_id)
-        teams = await TeamRepository.get_by_competition(db, competition_id)
+        all_teams = await TeamRepository.get_by_competition(db, competition_id)
+        teams = (
+            [t for t in all_teams if t.category_id == category_id]
+            if category_id is not None
+            else all_teams
+        )
         results = await WodResultRepository.get_by_competition(db, competition_id)
 
         return _compute_leaderboard(comp.scoring_model, wods, teams, results)

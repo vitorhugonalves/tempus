@@ -1030,7 +1030,8 @@ async def delete_wod_result(
 )
 async def get_wod_leaderboard(
     competition_id: int,
+    category_id: int | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> WodLeaderboard:
     """Retorna leaderboard calculado de WOD results (público — sem autenticação)."""
-    return await WodResultService.compute_leaderboard(db, competition_id)
+    return await WodResultService.compute_leaderboard(db, competition_id, category_id)
