@@ -1,5 +1,8 @@
 """Serviço de equipes."""
 
+import csv
+import io
+
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -193,3 +196,79 @@ class TeamService:
                 detail="Membro não encontrado nesta equipe",
             )
         await TeamRepository.remove_member(db, member)
+
+    @staticmethod
+    async def import_csv(
+        db: AsyncSession,
+        competition_id: int,
+        content: bytes,
+        categories: list[Category],
+    ) -> "TeamBulkResult":
+        """Importa equipes de um arquivo CSV.
+
+        Colunas (separador ponto-e-vírgula):
+            nome_equipe;categoria
+
+        Equipes com nome já existente na competição são puladas silenciosamente.
+        Linhas com categoria inválida geram erro e não são criadas.
+
+        Args:
+            db: Sessão assíncrona.
+            competition_id: ID da competição.
+            content: Conteúdo do CSV em bytes.
+            categories: Categorias da competição para resolução de nomes.
+
+        Returns:
+            TeamBulkResult com contagem de criadas e erros por linha.
+        """
+        from app.schemas.team import TeamBulkError, TeamBulkResult
+
+        category_by_name = {c.name.lower(): c for c in categories}
+        existing = await TeamRepository.get_by_competition(db, competition_id)
+        existing_names = {t.name.lower() for t in existing}
+
+        created_count = 0
+        errors: list[TeamBulkError] = []
+
+        try:
+            text = content.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            text = content.decode("latin-1")
+
+        reader = csv.DictReader(io.StringIO(text), delimiter=";")
+        for row_num, row in enumerate(reader, start=1):
+            name = (row.get("nome_equipe") or "").strip()
+            if not name:
+                errors.append(
+                    TeamBulkError(row=row_num, name="", error="Campo 'nome_equipe' obrigatório")
+                )
+                continue
+
+            if name.lower() in existing_names:
+                continue
+
+            cat_name = (row.get("categoria") or "").strip().lower()
+            category = category_by_name.get(cat_name)
+            if not category:
+                errors.append(
+                    TeamBulkError(
+                        row=row_num,
+                        name=name,
+                        error=f"Categoria '{cat_name}' não encontrada na competição",
+                    )
+                )
+                continue
+
+            team = Team(
+                competition_id=competition_id,
+                name=name,
+                category_id=category.id,
+            )
+            db.add(team)
+            existing_names.add(name.lower())
+            created_count += 1
+
+        if created_count:
+            await db.flush()
+
+        return TeamBulkResult(created=created_count, errors=errors)

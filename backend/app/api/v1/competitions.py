@@ -35,6 +35,7 @@ from app.schemas.heat import (
     HeatUpdate,
 )
 from app.schemas.team import (
+    TeamBulkResult,
     TeamCreate,
     TeamMemberAdd,
     TeamMemberResponse,
@@ -470,6 +471,43 @@ async def delete_team(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Equipe não encontrada")
     await TeamService.delete(db, team_id)
     logger.info("Equipe removida: id=%s", team_id)
+
+
+@router.post(
+    "/competitions/{competition_id}/teams/import",
+    response_model=TeamBulkResult,
+    status_code=status.HTTP_200_OK,
+)
+async def import_teams_csv(
+    competition_id: int,
+    file: UploadFile,
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(require_roles("operator", "admin")),
+) -> TeamBulkResult:
+    """Importa equipes de arquivo CSV (Operador/Admin). Máximo 1 MB.
+
+    Formato: nome_equipe;categoria (separador ponto-e-vírgula).
+    """
+    _max_csv_bytes = 1 * 1024 * 1024
+    if not await CompetitionRepository.get_by_id(db, competition_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Competição não encontrada"
+        )
+    content = await file.read()
+    if len(content) > _max_csv_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Arquivo CSV excede o tamanho máximo de 1 MB",
+        )
+    categories = await CategoryService.list_by_competition(db, competition_id)
+    result = await TeamService.import_csv(db, competition_id, content, categories)
+    logger.info(
+        "Import CSV equipes: competition_id=%s created=%s errors=%s",
+        competition_id,
+        result.created,
+        len(result.errors),
+    )
+    return result
 
 
 @router.get(
