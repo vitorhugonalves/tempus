@@ -163,9 +163,9 @@ async def test_importar_atletas_csv_retorna_200(
     client: AsyncClient, admin_token: str, competition: Competition, category: Category
 ):
     csv_content = (
-        "nome,email,documento,telefone,categoria,tamanho_camiseta\n"
-        f"Pedro Alves,pedro@example.com,123.456.789-00,(11)91111-2222,{category.name},M\n"
-        "Rita Souza,,,,,"
+        "nome;email;documento;telefone;categoria;tamanho_camiseta\n"
+        f"Pedro Alves;pedro@example.com;123.456.789-00;(11)91111-2222;{category.name};M\n"
+        "Rita Souza;;;;;"
     ).encode("utf-8")
 
     r = await client.post(
@@ -182,7 +182,7 @@ async def test_importar_atletas_csv_retorna_200(
 async def test_importar_atletas_csv_sem_nome_gera_erro(
     client: AsyncClient, admin_token: str, competition: Competition
 ):
-    csv_content = b"nome,email\n,pedro@example.com"
+    csv_content = b"nome;email\n;pedro@example.com"
 
     r = await client.post(
         f"/api/v1/competitions/{competition.id}/athletes/import",
@@ -194,3 +194,87 @@ async def test_importar_atletas_csv_sem_nome_gera_erro(
     assert data["created"] == 0
     assert len(data["errors"]) == 1
     assert data["errors"][0]["row"] == 1
+
+
+async def test_importar_atletas_csv_cria_equipe_automaticamente(
+    client: AsyncClient, admin_token: str, competition: Competition, category: Category
+):
+    csv_content = (
+        "nome;categoria;equipe\n"
+        f"Carlos Silva;{category.name};Equipe Alpha\n"
+        f"Ana Souza;{category.name};Equipe Alpha\n"
+    ).encode("utf-8")
+
+    r = await client.post(
+        f"/api/v1/competitions/{competition.id}/athletes/import",
+        files={"file": ("atletas.csv", io.BytesIO(csv_content), "text/csv")},
+        cookies={"session_id": admin_token},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["created"] == 2
+    assert data["errors"] == []
+
+    # Verifica que apenas UMA equipe foi criada (reutilizada na segunda linha)
+    teams_r = await client.get(
+        f"/api/v1/competitions/{competition.id}/teams",
+        cookies={"session_id": admin_token},
+    )
+    teams = teams_r.json()
+    assert len([t for t in teams if t["name"] == "Equipe Alpha"]) == 1
+
+
+async def test_importar_atletas_csv_equipe_sem_categoria_nao_cria_equipe(
+    client: AsyncClient, admin_token: str, competition: Competition
+):
+    """Equipe não é criada se categoria está ausente; atleta é criado sem equipe."""
+    csv_content = b"nome;categoria;equipe\nJoao Lima;;Orfaos FC"
+
+    r = await client.post(
+        f"/api/v1/competitions/{competition.id}/athletes/import",
+        files={"file": ("atletas.csv", io.BytesIO(csv_content), "text/csv")},
+        cookies={"session_id": admin_token},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["created"] == 1  # atleta criado
+    assert len(data["errors"]) == 1  # erro de equipe sem categoria
+    assert "equipe" in data["errors"][0]["error"].lower()
+
+
+async def test_importar_atletas_csv_vincula_equipe_existente(
+    client: AsyncClient, admin_token: str, competition: Competition, category: Category,
+    db: AsyncSession
+):
+    """Se a equipe já existe, o atleta é vinculado sem criar duplicata."""
+    from app.models.team import Team as TeamModel
+
+    existing_team = TeamModel(
+        competition_id=competition.id,
+        name="Time Beta",
+        category_id=category.id,
+    )
+    db.add(existing_team)
+    await db.commit()
+    await db.refresh(existing_team)
+
+    csv_content = (
+        f"nome;categoria;equipe\nMaria Nunes;{category.name};Time Beta\n"
+    ).encode("utf-8")
+
+    r = await client.post(
+        f"/api/v1/competitions/{competition.id}/athletes/import",
+        files={"file": ("atletas.csv", io.BytesIO(csv_content), "text/csv")},
+        cookies={"session_id": admin_token},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["created"] == 1
+    assert data["errors"] == []
+
+    # Verifica que nenhuma equipe duplicada foi criada
+    teams_r = await client.get(
+        f"/api/v1/competitions/{competition.id}/teams",
+        cookies={"session_id": admin_token},
+    )
+    assert len([t for t in teams_r.json() if t["name"] == "Time Beta"]) == 1

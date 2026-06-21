@@ -115,10 +115,11 @@ class AthleteService:
     ) -> AthleteBulkResult:
         """Importa atletas de um arquivo CSV.
 
-        Colunas esperadas (separador vírgula):
-            nome, email, documento, telefone, categoria, tamanho_camiseta
+        Colunas (separador ponto-e-vírgula):
+            nome;categoria;equipe;email;documento;telefone;tamanho_camiseta
 
-        Apenas 'nome' é obrigatório. Categorias são resolvidas por nome (case-insensitive).
+        Apenas 'nome' é obrigatório. Se 'equipe' for informada e a equipe não existir,
+        ela será criada automaticamente usando a mesma categoria do atleta.
 
         Args:
             db: Sessão assíncrona.
@@ -129,7 +130,14 @@ class AthleteService:
         Returns:
             AthleteBulkResult com contagens e erros por linha.
         """
+        from app.models.team import Team
+        from app.repositories.team import TeamRepository
+
         category_by_name = {c.name.lower(): c for c in categories}
+
+        existing_teams = await TeamRepository.get_by_competition(db, competition_id)
+        teams_by_name: dict[str, Team] = {t.name.lower(): t for t in existing_teams}
+
         created_count = 0
         errors: list[AthleteBulkError] = []
 
@@ -138,7 +146,7 @@ class AthleteService:
         except UnicodeDecodeError:
             text = content.decode("latin-1")
 
-        reader = csv.DictReader(io.StringIO(text))
+        reader = csv.DictReader(io.StringIO(text), delimiter=";")
         for row_num, row in enumerate(reader, start=1):
             name = (row.get("nome") or "").strip()
             if not name:
@@ -148,10 +156,37 @@ class AthleteService:
                 continue
 
             cat_name = (row.get("categoria") or "").strip().lower()
-            category_id = category_by_name[cat_name].id if cat_name in category_by_name else None
+            category = category_by_name.get(cat_name) if cat_name else None
+            category_id = category.id if category else None
 
             raw_size = (row.get("tamanho_camiseta") or "").strip().upper()
             tshirt_size = TshirtSize(raw_size) if raw_size in _TSHIRT_SIZES else None
+
+            team_name = (row.get("equipe") or "").strip()
+            team_id: int | None = None
+            if team_name:
+                team_key = team_name.lower()
+                if team_key in teams_by_name:
+                    team_id = teams_by_name[team_key].id
+                elif category_id is None:
+                    errors.append(
+                        AthleteBulkError(
+                            row=row_num,
+                            name=name,
+                            error=f"Equipe '{team_name}' não pode ser criada sem categoria válida",
+                        )
+                    )
+                else:
+                    new_team = Team(
+                        competition_id=competition_id,
+                        name=team_name,
+                        category_id=category_id,
+                    )
+                    db.add(new_team)
+                    await db.flush()
+                    await db.refresh(new_team)
+                    teams_by_name[team_key] = new_team
+                    team_id = new_team.id
 
             athlete = Athlete(
                 competition_id=competition_id,
@@ -161,6 +196,7 @@ class AthleteService:
                 phone=(row.get("telefone") or "").strip() or None,
                 category_id=category_id,
                 tshirt_size=tshirt_size,
+                team_id=team_id,
             )
             db.add(athlete)
             created_count += 1
