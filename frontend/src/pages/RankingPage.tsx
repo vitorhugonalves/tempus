@@ -4,11 +4,12 @@ import { ArrowLeftIcon, TrophyIcon, ArrowDownTrayIcon } from "@heroicons/react/2
 import { competitionsApi } from "../api/competitions";
 import { adminApi } from "../api/admin";
 import { rankingApi } from "../api/timers";
+import { wodResultsApi } from "../api/wod_results";
 import { categoriesApi } from "../api/categories";
 import { Card } from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
-import type { Category, Competition, CrossfitRankingEntry, RankingEntry } from "../types";
+import type { Category, Competition, CrossfitRankingEntry, RankingEntry, WodLeaderboard } from "../types";
 import { secondsToDisplay } from "../utils/time";
 import { useAuthStore } from "../store/auth";
 
@@ -32,6 +33,15 @@ function formatRemaining(seconds: number | null): string {
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
   return [h, m, s].map((v) => String(v).padStart(2, "0")).join(":");
+}
+
+function formatSeconds(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0)
+    return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 // ─── RankingSelectPage (sem competitionId na URL) ────────────────────────────
@@ -132,6 +142,7 @@ export default function RankingPage() {
   const [crossfitRanking, setCrossfitRanking] = useState<CrossfitRankingEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [wodLeaderboard, setWodLeaderboard] = useState<WodLeaderboard | null>(null);
 
   const isCrossfit = competition?.event_type === "crossfit";
 
@@ -164,11 +175,19 @@ export default function RankingPage() {
         setCompetition(comp);
         setCategories(cats);
         if (comp.event_type === "crossfit") {
-          const rankData = await rankingApi.getCrossfit(id);
+          const [rankData, leaderboard] = await Promise.all([
+            rankingApi.getCrossfit(id),
+            wodResultsApi.getLeaderboard(id).catch(() => null),
+          ]);
           setCrossfitRanking(rankData);
+          if (leaderboard && leaderboard.entries.length > 0) setWodLeaderboard(leaderboard);
         } else {
-          const rankData = await rankingApi.get(id);
+          const [rankData, leaderboard] = await Promise.all([
+            rankingApi.get(id),
+            wodResultsApi.getLeaderboard(id).catch(() => null),
+          ]);
           setRanking(rankData);
+          if (leaderboard && leaderboard.entries.length > 0) setWodLeaderboard(leaderboard);
         }
       } catch {
         setNotFound(true);
@@ -297,7 +316,55 @@ export default function RankingPage() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 py-8">
+      <main className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+        {wodLeaderboard && wodLeaderboard.entries.length > 0 && (
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <TrophyIcon className="h-5 w-5 text-yellow-400" />
+              <h2 className="text-lg font-bold text-white">Leaderboard WODs</h2>
+            </div>
+            <div className="overflow-x-auto rounded-xl border border-white/10 bg-primary-800/40">
+              <table className="min-w-full divide-y divide-white/10 text-sm">
+                <thead className="bg-white/5">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-400 w-10">#</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-400">Equipe</th>
+                    {wodLeaderboard.entries[0]?.wod_entries.map((we) => (
+                      <th key={we.wod_id} className="px-4 py-3 text-center text-xs font-medium uppercase text-gray-400">
+                        {we.wod_name}
+                      </th>
+                    ))}
+                    <th className="px-4 py-3 text-center text-xs font-medium uppercase text-gray-400">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {wodLeaderboard.entries.map((entry) => (
+                    <tr key={entry.team_id} className="hover:bg-white/5">
+                      <td className="px-4 py-3 text-sm font-bold text-yellow-400">{entry.position}º</td>
+                      <td className="px-4 py-3 text-sm font-medium text-white">{entry.team_name}</td>
+                      {entry.wod_entries.map((we) => (
+                        <td key={we.wod_id} className="px-4 py-3 text-center text-sm text-gray-300">
+                          {wodLeaderboard.scoring_model === "lowest_time" ? (
+                            we.time_seconds != null ? formatSeconds(we.time_seconds) : "—"
+                          ) : we.rank != null ? (
+                            <span title={`${we.points} pts`}>{we.rank}º ({we.points}pts)</span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                      ))}
+                      <td className="px-4 py-3 text-center text-sm font-bold text-white">
+                        {wodLeaderboard.scoring_model === "lowest_time"
+                          ? formatSeconds(entry.total_points)
+                          : `${entry.total_points} pts`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
         <Card padding="none">
           <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
             <TrophyIcon className="h-5 w-5 text-yellow-500" />
