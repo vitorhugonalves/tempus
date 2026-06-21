@@ -24,6 +24,13 @@ function parseTimeInput(value: string): number | null {
   return parseInt(match[1]) * 60 + parseInt(match[2]);
 }
 
+function teamParticipatesInWod(
+  team: { id: number; name: string; category_id: number },
+  wod: { id: number; category_ids: number[] }
+): boolean {
+  return wod.category_ids.length === 0 || wod.category_ids.includes(team.category_id);
+}
+
 interface EditingCell {
   teamId: number;
   wodId: number;
@@ -193,9 +200,21 @@ export default function ResultsPage() {
               <tr key={team.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 text-sm font-medium text-gray-900">{team.name}</td>
                 {data.wods.map((wod) => {
+                  const participates = teamParticipatesInWod(team, wod);
                   const result = getResult(team.id, wod.id);
                   const isEditing =
                     editing?.teamId === team.id && editing?.wodId === wod.id;
+
+                  if (!participates) {
+                    return (
+                      <td
+                        key={wod.id}
+                        className="px-4 py-3 text-center text-xs text-gray-300 bg-gray-50"
+                      >
+                        N/A
+                      </td>
+                    );
+                  }
 
                   if (isEditing) {
                     return (

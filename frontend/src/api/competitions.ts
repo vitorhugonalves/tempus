@@ -7,6 +7,7 @@ export interface WodCreate {
   duration_minutes?: number | null;
   description?: string | null;
   order?: number;
+  category_ids?: number[];
 }
 
 export interface MemberInput {

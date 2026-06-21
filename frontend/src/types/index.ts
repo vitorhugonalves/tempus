@@ -261,6 +261,7 @@ export interface Wod {
   duration_minutes: number | null;
   description: string | null;
   order: number;
+  category_ids: number[];
   created_at: string;
   updated_at: string;
 }

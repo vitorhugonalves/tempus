@@ -136,6 +136,7 @@ export default function CompetitionWizardPage() {
     duration_minutes: undefined,
     description: "",
     order: 0,
+    category_ids: [],
   });
 
   const INITIAL_CAT_FORM: CatForm = {
@@ -249,19 +250,47 @@ export default function CompetitionWizardPage() {
     return null;
   }
 
-  function handleNext() {
+  async function handleNext() {
     setError(null);
     if (currentStep === 1) {
       const err = validateStep1();
       if (err) { setError(err); return; }
+      // Criar competição transparentemente ao avançar do step 1 no modo de criação
+      if (!isEdit && !createdCompId) {
+        setSubmitting(true);
+        try {
+          const locationParts = [
+            state.step1.logradouro,
+            state.step1.numero,
+            state.step1.bairro,
+            state.step1.cidade,
+            state.step1.uf,
+          ].filter(Boolean);
+          const createPayload: CompetitionCreate = {
+            name: state.step1.name,
+            location: locationParts.join(", ") || undefined,
+            start_date: state.step1.start_date || undefined,
+            end_date: state.step1.end_date || undefined,
+            event_type: (state.step1.event_type as EventType) || undefined,
+          };
+          const result: any = await competitionsApi.create(createPayload);
+          const comp = result.data ?? result;
+          setCreatedCompId(comp.id);
+        } catch (e: any) {
+          setError(e?.response?.data?.detail ?? "Erro ao criar campeonato");
+          return;
+        } finally {
+          setSubmitting(false);
+        }
+      }
     }
-    if (currentStep === 4) {
+    if (currentStep === 5) {
       const err = validateStep4();
       if (err) { setError(err); return; }
     }
-    // Pular Etapa 3 (WODs) para eventos Hyrox
-    if (currentStep === 2 && state.step1.event_type === "hyrox") {
-      setCurrentStep(4);
+    // Pular Etapa 4 (WODs) para eventos Hyrox
+    if (currentStep === 3 && state.step1.event_type === "hyrox") {
+      setCurrentStep(5);
       return;
     }
     setCurrentStep((s) => Math.min(s + 1, 6));
@@ -269,9 +298,9 @@ export default function CompetitionWizardPage() {
 
   function handleBack() {
     setError(null);
-    // Pular Etapa 3 (WODs) ao voltar para Hyrox
-    if (currentStep === 4 && state.step1.event_type === "hyrox") {
-      setCurrentStep(2);
+    // Pular Etapa 4 (WODs) ao voltar para Hyrox
+    if (currentStep === 5 && state.step1.event_type === "hyrox") {
+      setCurrentStep(3);
       return;
     }
     setCurrentStep((s) => Math.max(s - 1, 1));
@@ -307,15 +336,17 @@ export default function CompetitionWizardPage() {
     };
 
     try {
-      let result: any;
-      if (isEdit && id) {
-        result = await competitionsApi.update(Number(id), payload);
+      // Em modo de criação a competição já existe (criada na transição step 1→2)
+      const targetId = createdCompId ?? (id ? Number(id) : null);
+      if (targetId) {
+        await competitionsApi.update(targetId, payload);
+        navigate(`/competitions/${targetId}/dashboard`);
       } else {
-        result = await competitionsApi.create(payload);
+        const result: any = await competitionsApi.create(payload);
+        const comp = result.data ?? result;
+        setCreatedCompId(comp.id);
+        navigate(`/competitions/${comp.id}/dashboard`);
       }
-      const comp = result.data ?? result;
-      setCreatedCompId(comp.id);
-      navigate(`/competitions/${comp.id}/dashboard`);
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? "Erro ao salvar campeonato");
     } finally {
@@ -363,7 +394,7 @@ export default function CompetitionWizardPage() {
       });
       const newWod = (resp.data ?? resp) as Wod;
       setState((p) => ({ ...p, step3: { wods: [...p.step3.wods, newWod] } }));
-      setWodForm({ name: "", wod_type: "amrap", duration_minutes: undefined, description: "", order: 0 });
+      setWodForm({ name: "", wod_type: "amrap", duration_minutes: undefined, description: "", order: 0, category_ids: [] });
     } catch {
       setError("Erro ao adicionar WOD.");
     } finally {
@@ -475,7 +506,7 @@ export default function CompetitionWizardPage() {
 
   // ── Render por etapa ───────────────────────────────────────────────────────
 
-  const STEPS = ["Informações", "Divulgação", "WODs", "Pontuação", "Categorias", "Finalização"];
+  const STEPS = ["Informações", "Categorias", "Divulgação", "WODs", "Pontuação", "Finalização"];
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 py-8">
@@ -646,14 +677,11 @@ export default function CompetitionWizardPage() {
             </div>
           </div>
 
-          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-            Categorias podem ser adicionadas após a criação no dashboard do campeonato.
-          </div>
         </div>
       )}
 
-      {/* Etapa 2: Divulgação */}
-      {currentStep === 2 && (
+      {/* Etapa 3: Divulgação */}
+      {currentStep === 3 && (
         <div className="space-y-6 rounded-lg border border-gray-200 bg-white p-6">
           <h2 className="text-lg font-semibold text-gray-900">Divulgação</h2>
 
@@ -736,7 +764,7 @@ export default function CompetitionWizardPage() {
             <h3 className="font-medium text-gray-700">Imagens</h3>
             {!createdCompId && (
               <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
-                Upload disponível após criar a competição (Etapa 5).
+                Upload disponível após criar a competição.
               </p>
             )}
             <div className="grid grid-cols-2 gap-4">
@@ -783,8 +811,8 @@ export default function CompetitionWizardPage() {
         </div>
       )}
 
-      {/* Etapa 3: WODs (apenas CrossFit) */}
-      {currentStep === 3 && (
+      {/* Etapa 4: WODs (apenas CrossFit) */}
+      {currentStep === 4 && (
         <div className="space-y-6 rounded-lg border border-gray-200 bg-white p-6">
           <h2 className="text-lg font-semibold text-gray-900">WODs</h2>
 
@@ -802,6 +830,14 @@ export default function CompetitionWizardPage() {
                 </p>
                 {wod.description && (
                   <p className="text-sm text-gray-600">{wod.description}</p>
+                )}
+                {wod.category_ids && wod.category_ids.length > 0 && (
+                  <p className="text-xs text-blue-600">
+                    {state.step5.categories
+                      .filter((c) => wod.category_ids.includes(c.id))
+                      .map((c) => c.name)
+                      .join(", ")}
+                  </p>
                 )}
               </div>
               <button
@@ -861,6 +897,35 @@ export default function CompetitionWizardPage() {
                 onChange={(e) => setWodForm((f) => ({ ...f, description: e.target.value }))}
               />
             </div>
+            {state.step5.categories.length > 0 && (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Categorias participantes
+                </label>
+                <p className="text-xs text-gray-500">Deixe em branco para aplicar a todas as categorias</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {state.step5.categories.map((cat) => (
+                    <label key={cat.id} className="flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={(wodForm.category_ids ?? []).includes(cat.id)}
+                        onChange={(e) => {
+                          const ids = wodForm.category_ids ?? [];
+                          setWodForm((f) => ({
+                            ...f,
+                            category_ids: e.target.checked
+                              ? [...ids, cat.id]
+                              : ids.filter((cid) => cid !== cat.id),
+                          }));
+                        }}
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                      {cat.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
             <Button
               onClick={handleAddWod}
               disabled={!wodForm.name.trim() || wodAdding || !createdCompId}
@@ -870,15 +935,15 @@ export default function CompetitionWizardPage() {
             </Button>
             {!createdCompId && (
               <p className="text-xs text-amber-600">
-                WODs disponíveis após criar a competição (Etapa 5).
+                WODs disponíveis após a criação da competição.
               </p>
             )}
           </div>
         </div>
       )}
 
-      {/* Etapa 4: Pontuação */}
-      {currentStep === 4 && (
+      {/* Etapa 5: Pontuação */}
+      {currentStep === 5 && (
         <div className="space-y-6 rounded-lg border border-gray-200 bg-white p-6">
           <h2 className="text-lg font-semibold text-gray-900">Modelo de Pontuação</h2>
 
@@ -937,15 +1002,14 @@ export default function CompetitionWizardPage() {
         </div>
       )}
 
-      {/* Etapa 5: Categorias */}
-      {currentStep === 5 && (
+      {/* Etapa 2: Categorias */}
+      {currentStep === 2 && (
         <div className="space-y-6 rounded-lg border border-gray-200 bg-white p-6">
           <h2 className="text-lg font-semibold text-gray-900">Categorias</h2>
 
           {!createdCompId ? (
             <p className="rounded-md bg-blue-50 px-4 py-3 text-sm text-blue-700">
-              Categorias ficam disponíveis após criar a competição. Prossiga para a etapa de
-              Finalização e volte para adicionar categorias.
+              Competição sendo configurada. Avance para criar a competição primeiro.
             </p>
           ) : (
             <div className="space-y-6">
@@ -1347,8 +1411,12 @@ export default function CompetitionWizardPage() {
           Voltar
         </Button>
         {currentStep < 6 && (
-          <Button onClick={handleNext}>
-            {currentStep === 5 ? "Revisar" : "Avançar"}
+          <Button onClick={handleNext} disabled={submitting}>
+            {submitting && currentStep === 1
+              ? "Criando..."
+              : currentStep === 5
+              ? "Revisar"
+              : "Avançar"}
           </Button>
         )}
       </div>
