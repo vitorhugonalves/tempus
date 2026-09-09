@@ -3,10 +3,11 @@ import { useParams } from "react-router-dom";
 import { PlusIcon, ArrowUpTrayIcon } from "@heroicons/react/24/outline";
 import { athletesApi } from "../../api/athletes";
 import { categoriesApi } from "../../api/categories";
+import { teamsApi } from "../../api/teams";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
 import Alert from "../../components/ui/Alert";
-import type { Athlete, AthleteCreate, Category, TshirtSize } from "../../types";
+import type { Athlete, AthleteCreate, Category, Team, TshirtSize } from "../../types";
 
 const TSHIRT_SIZES: TshirtSize[] = ["P", "M", "G", "GG", "XG"];
 
@@ -16,6 +17,7 @@ export default function AthletesPage() {
 
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<string | null>(null);
@@ -25,13 +27,16 @@ export default function AthletesPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<AthleteCreate>({ name: "" });
+  const [editingAthlete, setEditingAthlete] = useState<Athlete | null>(null);
+  const [editForm, setEditForm] = useState<AthleteCreate>({ name: "" });
 
   useEffect(() => {
     Promise.all([
       athletesApi.list(id).then((r: any) => r.data ?? r),
       categoriesApi.list(id),
+      teamsApi.list(id),
     ])
-      .then(([a, c]) => { setAthletes(a); setCategories(c); })
+      .then(([a, c, t]) => { setAthletes(a); setCategories(c); setTeams(t); })
       .catch(() => setError("Erro ao carregar dados"))
       .finally(() => setLoading(false));
   }, [id]);
@@ -52,6 +57,20 @@ export default function AthletesPage() {
       setShowForm(false);
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? "Erro ao criar atleta");
+    }
+  }
+
+  async function handleEditSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingAthlete) return;
+    setError(null);
+    try {
+      const res: any = await athletesApi.update(id, editingAthlete.id, editForm);
+      const updated = res.data ?? res;
+      setAthletes((p) => p.map((a) => (a.id === updated.id ? updated : a)));
+      setEditingAthlete(null);
+    } catch (err: any) {
+      setError(err?.response?.data?.detail ?? "Erro ao editar atleta");
     }
   }
 
@@ -153,7 +172,33 @@ export default function AthletesPage() {
               onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value || undefined }))}
             />
             <div>
-              <label className="block text-sm font-medium text-gray-700">Categoria</label>
+              <label className="block text-sm font-medium text-gray-700">Equipe *</label>
+              <select
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                value={form.team_id ?? ""}
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    team_id: e.target.value ? Number(e.target.value) : undefined,
+                  }))
+                }
+              >
+                <option value="">Nova equipe (usa a categoria abaixo)</option>
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+              {!form.team_id && (
+                <p className="mt-1 text-xs text-gray-400">
+                  Sem selecionar uma equipe existente, é criada uma equipe solo com o
+                  nome do atleta — exige categoria escolhida ao lado.
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                {form.team_id ? "Categoria" : "Categoria *"}
+              </label>
               <select
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
                 value={form.category_id ?? ""}
@@ -249,6 +294,23 @@ export default function AthletesPage() {
                     <td className="px-4 py-3 text-sm text-gray-600">{athlete.team_name ?? "—"}</td>
                     <td className="px-4 py-3 text-right">
                       <button
+                        onClick={() => {
+                          setEditingAthlete(athlete);
+                          setEditForm({
+                            name: athlete.name,
+                            email: athlete.email ?? undefined,
+                            document: athlete.document ?? undefined,
+                            phone: athlete.phone ?? undefined,
+                            category_id: athlete.category_id ?? undefined,
+                            team_id: athlete.team_id ?? undefined,
+                            tshirt_size: athlete.tshirt_size ?? undefined,
+                          });
+                        }}
+                        className="mr-3 text-sm font-medium text-primary-600 hover:text-primary-800"
+                      >
+                        Editar
+                      </button>
+                      <button
                         onClick={() => handleDelete(athlete.id)}
                         className="text-sm font-medium text-red-600 hover:text-red-800"
                       >
@@ -262,6 +324,44 @@ export default function AthletesPage() {
           </tbody>
         </table>
       </div>
+
+      {editingAthlete && (
+        <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/30">
+          <form
+            onSubmit={handleEditSave}
+            className="w-full max-w-lg space-y-4 rounded-lg bg-white p-6 shadow-xl"
+          >
+            <h3 className="font-medium">Editar Atleta</h3>
+            <Input
+              label="Nome *"
+              value={editForm.name}
+              onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))}
+              required
+            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Equipe *</label>
+              <select
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"
+                value={editForm.team_id ?? ""}
+                onChange={(e) =>
+                  setEditForm((p) => ({ ...p, team_id: Number(e.target.value) }))
+                }
+                required
+              >
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <Button type="submit">Salvar</Button>
+              <Button variant="secondary" type="button" onClick={() => setEditingAthlete(null)}>
+                Cancelar
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
