@@ -53,6 +53,8 @@ export default function AthletesPage() {
     try {
       const res: any = await athletesApi.create(id, form);
       setAthletes((p) => [...p, res.data ?? res]);
+      const updatedTeams = await teamsApi.list(id);
+      setTeams(updatedTeams);
       setForm({ name: "" });
       setShowForm(false);
     } catch (err: any) {
