@@ -58,4 +58,7 @@ Thumbs.db
 
 *.csv
 *.pdf
-*.xlsx.worktrees/
+*.xlsx
+
+# Worktrees locais
+.worktrees/
