@@ -58,4 +58,4 @@ Thumbs.db
 
 *.csv
 *.pdf
-*.xlsx
+*.xlsx.worktrees/
