@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import Enum, ForeignKey, String, func
+from sqlalchemy import Enum, ForeignKey, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -22,6 +22,11 @@ class Athlete(Base):
     """
 
     __tablename__ = "athletes"
+    __table_args__ = (
+        UniqueConstraint(
+            "competition_id", "user_id", name="uq_athlete_user_per_competition"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     competition_id: Mapped[int] = mapped_column(
@@ -37,6 +42,9 @@ class Athlete(Base):
     # A garantia de integridade real está na camada de serviço, não na FK.
     team_id: Mapped[int] = mapped_column(
         ForeignKey("teams.id", ondelete="SET NULL"), nullable=False, index=True
+    )
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     email: Mapped[str | None] = mapped_column(String(200), nullable=True)
@@ -59,3 +67,4 @@ class Athlete(Base):
     team: Mapped["Team"] = relationship(  # noqa: F821
         "Team", back_populates="athletes"
     )
+    user: Mapped["User | None"] = relationship("User")  # noqa: F821
