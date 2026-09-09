@@ -1,13 +1,13 @@
 """Testes de integração para CRUD de atletas."""
+
 import io
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.competition import Competition, CompetitionStatus
 from app.models.category import Category, CategoryType
-
+from app.models.competition import Competition, CompetitionStatus
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -26,6 +26,19 @@ async def category(db: AsyncSession, competition: Competition) -> Category:
     cat = Category(
         competition_id=competition.id,
         name="Elite",
+        category_type=CategoryType.individual,
+    )
+    db.add(cat)
+    await db.commit()
+    await db.refresh(cat)
+    return cat
+
+
+@pytest.fixture
+async def outra_categoria(db: AsyncSession, competition: Competition) -> Category:
+    cat = Category(
+        competition_id=competition.id,
+        name="Master",
         category_type=CategoryType.individual,
     )
     db.add(cat)
@@ -69,23 +82,24 @@ async def test_criar_atleta_retorna_201(
 
 
 async def test_criar_atleta_campos_minimos(
-    client: AsyncClient, admin_token: str, competition: Competition
+    client: AsyncClient, admin_token: str, competition: Competition, category: Category
 ):
     r = await client.post(
         f"/api/v1/competitions/{competition.id}/athletes",
-        json={"name": "Ana Lima"},
+        json={"name": "Ana Lima", "category_id": category.id},
         cookies={"session_id": admin_token},
     )
     assert r.status_code == 201
     assert r.json()["name"] == "Ana Lima"
+    assert r.json()["team_id"] is not None
 
 
 async def test_editar_atleta_retorna_200(
-    client: AsyncClient, admin_token: str, competition: Competition
+    client: AsyncClient, admin_token: str, competition: Competition, category: Category
 ):
     create_r = await client.post(
         f"/api/v1/competitions/{competition.id}/athletes",
-        json={"name": "João Silva"},
+        json={"name": "João Silva", "category_id": category.id},
         cookies={"session_id": admin_token},
     )
     athlete_id = create_r.json()["id"]
@@ -102,11 +116,11 @@ async def test_editar_atleta_retorna_200(
 
 
 async def test_remover_atleta_retorna_204(
-    client: AsyncClient, admin_token: str, competition: Competition
+    client: AsyncClient, admin_token: str, competition: Competition, category: Category
 ):
     create_r = await client.post(
         f"/api/v1/competitions/{competition.id}/athletes",
-        json={"name": "Maria Costa"},
+        json={"name": "Maria Costa", "category_id": category.id},
         cookies={"session_id": admin_token},
     )
     athlete_id = create_r.json()["id"]
@@ -136,7 +150,11 @@ async def test_competidor_nao_pode_criar_atleta(
 
 
 async def test_listar_atletas_filtra_por_categoria(
-    client: AsyncClient, admin_token: str, competition: Competition, category: Category
+    client: AsyncClient,
+    admin_token: str,
+    competition: Competition,
+    category: Category,
+    outra_categoria: Category,
 ):
     await client.post(
         f"/api/v1/competitions/{competition.id}/athletes",
@@ -145,7 +163,7 @@ async def test_listar_atletas_filtra_por_categoria(
     )
     await client.post(
         f"/api/v1/competitions/{competition.id}/athletes",
-        json={"name": "Sem Categoria"},
+        json={"name": "Outra Categoria", "category_id": outra_categoria.id},
         cookies={"session_id": admin_token},
     )
 
@@ -159,14 +177,68 @@ async def test_listar_atletas_filtra_por_categoria(
     assert data[0]["name"] == "Com Categoria"
 
 
+async def test_criar_atleta_sem_equipe_nem_categoria_retorna_422(
+    client: AsyncClient, admin_token: str, competition: Competition
+):
+    r = await client.post(
+        f"/api/v1/competitions/{competition.id}/athletes",
+        json={"name": "Sem Vinculo"},
+        cookies={"session_id": admin_token},
+    )
+    assert r.status_code == 422
+    assert "equipe" in r.json()["detail"].lower()
+
+
+async def test_criar_atleta_com_categoria_cria_equipe_solo_automaticamente(
+    client: AsyncClient, admin_token: str, competition: Competition, category: Category
+):
+    r = await client.post(
+        f"/api/v1/competitions/{competition.id}/athletes",
+        json={"name": "Carlos Solo", "category_id": category.id},
+        cookies={"session_id": admin_token},
+    )
+    assert r.status_code == 201
+    data = r.json()
+    assert data["team_id"] is not None
+    assert data["team_name"] == "Equipe Carlos Solo"
+
+
+async def test_criar_atleta_com_team_id_existente_usa_equipe_informada(
+    client: AsyncClient,
+    admin_token: str,
+    competition: Competition,
+    category: Category,
+    db: AsyncSession,
+):
+    from app.models.team import Team as TeamModel
+
+    team = TeamModel(
+        competition_id=competition.id,
+        name="Equipe Existente",
+        category_id=category.id,
+    )
+    db.add(team)
+    await db.commit()
+    await db.refresh(team)
+
+    r = await client.post(
+        f"/api/v1/competitions/{competition.id}/athletes",
+        json={"name": "Maria Vinculada", "team_id": team.id},
+        cookies={"session_id": admin_token},
+    )
+    assert r.status_code == 201
+    assert r.json()["team_id"] == team.id
+
+
 async def test_importar_atletas_csv_retorna_200(
     client: AsyncClient, admin_token: str, competition: Competition, category: Category
 ):
     csv_content = (
         "nome;email;documento;telefone;categoria;tamanho_camiseta\n"
-        f"Pedro Alves;pedro@example.com;123.456.789-00;(11)91111-2222;{category.name};M\n"
-        "Rita Souza;;;;;"
-    ).encode("utf-8")
+        f"Pedro Alves;pedro@example.com;123.456.789-00;(11)91111-2222;"
+        f"{category.name};M\n"
+        f"Rita Souza;;;;;;"
+    ).encode()
 
     r = await client.post(
         f"/api/v1/competitions/{competition.id}/athletes/import",
@@ -175,8 +247,9 @@ async def test_importar_atletas_csv_retorna_200(
     )
     assert r.status_code == 200
     data = r.json()
-    assert data["created"] == 2
-    assert data["errors"] == []
+    assert data["created"] == 1
+    assert len(data["errors"]) == 1
+    assert "equipe" in data["errors"][0]["error"].lower()
 
 
 async def test_importar_atletas_csv_sem_nome_gera_erro(
@@ -203,7 +276,7 @@ async def test_importar_atletas_csv_cria_equipe_automaticamente(
         "nome;categoria;equipe\n"
         f"Carlos Silva;{category.name};Equipe Alpha\n"
         f"Ana Souza;{category.name};Equipe Alpha\n"
-    ).encode("utf-8")
+    ).encode()
 
     r = await client.post(
         f"/api/v1/competitions/{competition.id}/athletes/import",
@@ -224,10 +297,10 @@ async def test_importar_atletas_csv_cria_equipe_automaticamente(
     assert len([t for t in teams if t["name"] == "Equipe Alpha"]) == 1
 
 
-async def test_importar_atletas_csv_equipe_sem_categoria_nao_cria_equipe(
+async def test_importar_atletas_csv_sem_equipe_nem_categoria_gera_erro_e_nao_cria(
     client: AsyncClient, admin_token: str, competition: Competition
 ):
-    """Equipe não é criada se categoria está ausente; atleta é criado sem equipe."""
+    """Sem equipe resolvível e sem categoria: linha inteira falha."""
     csv_content = b"nome;categoria;equipe\nJoao Lima;;Orfaos FC"
 
     r = await client.post(
@@ -237,14 +310,41 @@ async def test_importar_atletas_csv_equipe_sem_categoria_nao_cria_equipe(
     )
     assert r.status_code == 200
     data = r.json()
-    assert data["created"] == 1  # atleta criado
-    assert len(data["errors"]) == 1  # erro de equipe sem categoria
+    assert data["created"] == 0
+    assert len(data["errors"]) == 1
     assert "equipe" in data["errors"][0]["error"].lower()
 
 
+async def test_importar_atletas_csv_sem_coluna_equipe_cria_equipe_solo(
+    client: AsyncClient, admin_token: str, competition: Competition, category: Category
+):
+    """Sem coluna 'equipe' no CSV, mas com categoria: cria equipe solo."""
+    csv_content = f"nome;categoria\nPedro Alves;{category.name}\n".encode()
+
+    r = await client.post(
+        f"/api/v1/competitions/{competition.id}/athletes/import",
+        files={"file": ("atletas.csv", io.BytesIO(csv_content), "text/csv")},
+        cookies={"session_id": admin_token},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["created"] == 1
+    assert data["errors"] == []
+
+    athletes_r = await client.get(
+        f"/api/v1/competitions/{competition.id}/athletes",
+        cookies={"session_id": admin_token},
+    )
+    athlete = athletes_r.json()[0]
+    assert athlete["team_name"] == "Equipe Pedro Alves"
+
+
 async def test_importar_atletas_csv_vincula_equipe_existente(
-    client: AsyncClient, admin_token: str, competition: Competition, category: Category,
-    db: AsyncSession
+    client: AsyncClient,
+    admin_token: str,
+    competition: Competition,
+    category: Category,
+    db: AsyncSession,
 ):
     """Se a equipe já existe, o atleta é vinculado sem criar duplicata."""
     from app.models.team import Team as TeamModel
@@ -260,7 +360,7 @@ async def test_importar_atletas_csv_vincula_equipe_existente(
 
     csv_content = (
         f"nome;categoria;equipe\nMaria Nunes;{category.name};Time Beta\n"
-    ).encode("utf-8")
+    ).encode()
 
     r = await client.post(
         f"/api/v1/competitions/{competition.id}/athletes/import",

@@ -1,4 +1,5 @@
 """Serviço de atletas — CRUD e importação CSV."""
+
 import csv
 import io
 import logging
@@ -8,7 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.athlete import Athlete, TshirtSize
 from app.models.category import Category
+from app.models.team import Team
 from app.repositories.athlete import AthleteRepository
+from app.repositories.category import CategoryRepository
+from app.repositories.team import TeamRepository
 from app.schemas.athlete import (
     AthleteBulkError,
     AthleteBulkResult,
@@ -69,8 +73,104 @@ class AthleteService:
         return athlete
 
     @staticmethod
-    async def create(db: AsyncSession, competition_id: int, data: AthleteCreate) -> Athlete:
-        """Cria um novo atleta.
+    async def _resolve_team(
+        db: AsyncSession,
+        competition_id: int,
+        *,
+        athlete_name: str,
+        team_id: int | None,
+        team_name: str | None,
+        category_id: int | None,
+    ) -> int:
+        """Resolve team_id: usa o informado, busca por nome ou cria um novo.
+
+        Todo atleta pertence a uma equipe (mesmo que solo). Se `team_id` for informado,
+        é usado diretamente. Caso contrário, tenta localizar uma equipe existente pelo
+        nome; se não encontrar, cria uma equipe nova — o que exige `category_id`.
+
+        Args:
+            db: Sessão assíncrona.
+            competition_id: ID da competição.
+            athlete_name: Nome do atleta (usado para equipe solo).
+            team_id: ID de equipe existente, se já escolhida explicitamente.
+            team_name: Nome de equipe pra buscar/criar quando `team_id` não é informado.
+            category_id: Categoria do atleta — obrigatória pra criar equipe nova.
+
+        Returns:
+            ID da equipe resolvida ou criada.
+
+        Raises:
+            HTTPException 404: `team_id` informado não existe na competição.
+            HTTPException 422: Nenhuma equipe pôde ser resolvida (sem team_id, sem nome
+                de equipe existente e sem categoria pra criar uma nova).
+        """
+        if team_id is not None:
+            team = await TeamRepository.get_by_id(db, team_id)
+            if not team or team.competition_id != competition_id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Equipe não encontrada nesta competição",
+                )
+            return team_id
+
+        if team_name:
+            existing = await TeamRepository.get_by_name_in_competition(
+                db, competition_id, team_name
+            )
+            if existing:
+                return existing.id
+            if category_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        f"Equipe '{team_name}' não pode ser criada sem categoria válida"
+                    ),
+                )
+            category = await CategoryRepository.get_by_id(db, category_id)
+            if not category or category.competition_id != competition_id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Categoria não encontrada nesta competição",
+                )
+            new_team = Team(
+                competition_id=competition_id, name=team_name, category_id=category_id
+            )
+            db.add(new_team)
+            await db.flush()
+            await db.refresh(new_team)
+            return new_team.id
+
+        # Sem team_id nem nome de equipe: cria equipe solo a partir da categoria
+        if category_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    "Todo atleta precisa de uma equipe. Informe 'team_id' de "
+                    "uma equipe existente ou 'category_id' para criar uma "
+                    "equipe solo automaticamente."
+                ),
+            )
+        category = await CategoryRepository.get_by_id(db, category_id)
+        if not category or category.competition_id != competition_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Categoria não encontrada nesta competição",
+            )
+        solo_team = Team(
+            competition_id=competition_id,
+            name=f"Equipe {athlete_name}",
+            category_id=category_id,
+        )
+        db.add(solo_team)
+        await db.flush()
+        await db.refresh(solo_team)
+        return solo_team.id
+
+    @staticmethod
+    async def create(
+        db: AsyncSession, competition_id: int, data: AthleteCreate
+    ) -> Athlete:
+        """Cria um novo atleta, resolvendo (ou criando) a equipe à qual ele pertence.
 
         Args:
             db: Sessão assíncrona.
@@ -78,13 +178,25 @@ class AthleteService:
             data: Dados do atleta.
 
         Returns:
-            Objeto Athlete criado.
+            Objeto Athlete criado, sempre com team_id preenchido.
         """
-        athlete = Athlete(competition_id=competition_id, **data.model_dump())
+        team_id = await AthleteService._resolve_team(
+            db,
+            competition_id,
+            athlete_name=data.name,
+            team_id=data.team_id,
+            team_name=None,
+            category_id=data.category_id,
+        )
+        payload = data.model_dump()
+        payload["team_id"] = team_id
+        athlete = Athlete(competition_id=competition_id, **payload)
         return await AthleteRepository.create(db, athlete)
 
     @staticmethod
-    async def update(db: AsyncSession, athlete: Athlete, data: AthleteUpdate) -> Athlete:
+    async def update(
+        db: AsyncSession, athlete: Athlete, data: AthleteUpdate
+    ) -> Athlete:
         """Atualiza dados de um atleta.
 
         Args:
@@ -111,7 +223,10 @@ class AthleteService:
 
     @staticmethod
     async def import_csv(
-        db: AsyncSession, competition_id: int, content: bytes, categories: list[Category]
+        db: AsyncSession,
+        competition_id: int,
+        content: bytes,
+        categories: list[Category],
     ) -> AthleteBulkResult:
         """Importa atletas de um arquivo CSV.
 
@@ -130,13 +245,7 @@ class AthleteService:
         Returns:
             AthleteBulkResult com contagens e erros por linha.
         """
-        from app.models.team import Team
-        from app.repositories.team import TeamRepository
-
         category_by_name = {c.name.lower(): c for c in categories}
-
-        existing_teams = await TeamRepository.get_by_competition(db, competition_id)
-        teams_by_name: dict[str, Team] = {t.name.lower(): t for t in existing_teams}
 
         created_count = 0
         errors: list[AthleteBulkError] = []
@@ -151,7 +260,9 @@ class AthleteService:
             name = (row.get("nome") or "").strip()
             if not name:
                 errors.append(
-                    AthleteBulkError(row=row_num, name="", error="Campo 'nome' obrigatório")
+                    AthleteBulkError(
+                        row=row_num, name="", error="Campo 'nome' obrigatório"
+                    )
                 )
                 continue
 
@@ -162,31 +273,22 @@ class AthleteService:
             raw_size = (row.get("tamanho_camiseta") or "").strip().upper()
             tshirt_size = TshirtSize(raw_size) if raw_size in _TSHIRT_SIZES else None
 
-            team_name = (row.get("equipe") or "").strip()
-            team_id: int | None = None
-            if team_name:
-                team_key = team_name.lower()
-                if team_key in teams_by_name:
-                    team_id = teams_by_name[team_key].id
-                elif category_id is None:
-                    errors.append(
-                        AthleteBulkError(
-                            row=row_num,
-                            name=name,
-                            error=f"Equipe '{team_name}' não pode ser criada sem categoria válida",
-                        )
-                    )
-                else:
-                    new_team = Team(
-                        competition_id=competition_id,
-                        name=team_name,
-                        category_id=category_id,
-                    )
-                    db.add(new_team)
-                    await db.flush()
-                    await db.refresh(new_team)
-                    teams_by_name[team_key] = new_team
-                    team_id = new_team.id
+            team_name = (row.get("equipe") or "").strip() or None
+
+            try:
+                resolved_team_id = await AthleteService._resolve_team(
+                    db,
+                    competition_id,
+                    athlete_name=name,
+                    team_id=None,
+                    team_name=team_name,
+                    category_id=category_id,
+                )
+            except HTTPException as exc:
+                errors.append(
+                    AthleteBulkError(row=row_num, name=name, error=str(exc.detail))
+                )
+                continue
 
             athlete = Athlete(
                 competition_id=competition_id,
@@ -196,7 +298,7 @@ class AthleteService:
                 phone=(row.get("telefone") or "").strip() or None,
                 category_id=category_id,
                 tshirt_size=tshirt_size,
-                team_id=team_id,
+                team_id=resolved_team_id,
             )
             db.add(athlete)
             created_count += 1

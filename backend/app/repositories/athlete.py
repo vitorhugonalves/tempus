@@ -24,7 +24,9 @@ class AthleteRepository:
             Objeto Athlete ou None.
         """
         result = await db.execute(
-            select(Athlete).options(selectinload(Athlete.team)).where(Athlete.id == athlete_id)
+            select(Athlete)
+            .options(selectinload(Athlete.team))
+            .where(Athlete.id == athlete_id)
         )
         return result.scalar_one_or_none()
 
@@ -68,12 +70,13 @@ class AthleteRepository:
             athlete: Objeto Athlete a criar.
 
         Returns:
-            Athlete com ID populado.
+            Athlete com ID populado (com team carregado).
         """
         db.add(athlete)
         await db.flush()
-        await db.refresh(athlete)
-        return athlete
+        athlete_id = athlete.id
+        # Recarrega o atleta com o team relacionado
+        return await AthleteRepository.get_by_id(db, athlete_id) or athlete
 
     @staticmethod
     async def update(db: AsyncSession, athlete: Athlete) -> Athlete:
