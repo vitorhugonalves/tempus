@@ -133,6 +133,30 @@ async def test_excluir_equipe_como_admin_retorna_204(
     assert response.status_code == 204
 
 
+async def test_excluir_equipe_com_atletas_retorna_409(
+    client: AsyncClient, admin_token: str
+):
+    """Athlete.team_id é NOT NULL — excluir equipe com atletas deve ser bloqueado (409)."""
+    comp_id = await _create_competition(client, admin_token, "Copa Delete Atletas")
+    cat_id = await _create_category(client, admin_token, comp_id)
+    team = await _create_team(
+        client, admin_token, comp_id, "Equipe Com Atleta", category_id=cat_id
+    )
+    athlete_resp = await client.post(
+        f"/api/v1/competitions/{comp_id}/athletes",
+        json={"name": "Atleta Um", "category_id": cat_id, "team_id": team["id"]},
+        cookies={"session_id": admin_token},
+    )
+    assert athlete_resp.status_code == 201
+
+    response = await client.delete(
+        f"/api/v1/competitions/{comp_id}/teams/{team['id']}",
+        cookies={"session_id": admin_token},
+    )
+    assert response.status_code == 409
+    assert "atleta" in response.json()["detail"].lower()
+
+
 # ── Membros ────────────────────────────────────────────────────────────────────
 
 async def test_adicionar_membro_retorna_201(

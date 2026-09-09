@@ -30,8 +30,13 @@ class Athlete(Base):
     category_id: Mapped[int | None] = mapped_column(
         ForeignKey("categories.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # A FK no banco é ON DELETE SET NULL (é o que a migration 20260909 de fato
+    # aplicou — nunca chegou a criar uma constraint RESTRICT). Na prática esse
+    # SET NULL nunca dispara: TeamService.delete bloqueia com 409 a exclusão de
+    # qualquer equipe que ainda tenha atletas, antes do DELETE chegar ao banco.
+    # A garantia de integridade real está na camada de serviço, não na FK.
     team_id: Mapped[int] = mapped_column(
-        ForeignKey("teams.id", ondelete="RESTRICT"), nullable=False, index=True
+        ForeignKey("teams.id", ondelete="SET NULL"), nullable=False, index=True
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     email: Mapped[str | None] = mapped_column(String(200), nullable=True)

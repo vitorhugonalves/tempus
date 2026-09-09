@@ -41,7 +41,6 @@ export default function TeamsPage() {
 
   // Athletes panel state
   const [expandedTeamId, setExpandedTeamId] = useState<number | null>(null);
-  const [selectedAthlete, setSelectedAthlete] = useState<string>("");
 
   useEffect(() => {
     Promise.all([
@@ -82,9 +81,8 @@ export default function TeamsPage() {
     try {
       await teamsApi.delete(id, teamId);
       setTeams((p) => p.filter((t) => t.id !== teamId));
-      setAllAthletes((p) => p.map((a) => a.team_id === teamId ? { ...a, team_id: null, team_name: null } : a));
-    } catch {
-      setError("Erro ao remover equipe");
+    } catch (err: any) {
+      setError(err?.response?.data?.detail ?? "Erro ao remover equipe");
     }
   }
 
@@ -111,32 +109,6 @@ export default function TeamsPage() {
 
   function toggleExpanded(teamId: number) {
     setExpandedTeamId((prev) => prev === teamId ? null : teamId);
-    setSelectedAthlete("");
-  }
-
-  async function handleRemoveAthlete(athlete: Athlete) {
-    try {
-      await athletesApi.update(id, athlete.id, { team_id: null } as any);
-      setAllAthletes((p) =>
-        p.map((a) => a.id === athlete.id ? { ...a, team_id: null, team_name: null } : a)
-      );
-    } catch {
-      setError("Erro ao remover atleta da equipe");
-    }
-  }
-
-  async function handleAddAthlete(teamId: number, teamName: string) {
-    const athleteId = Number(selectedAthlete);
-    if (!athleteId) return;
-    try {
-      await athletesApi.update(id, athleteId, { team_id: teamId } as any);
-      setAllAthletes((p) =>
-        p.map((a) => a.id === athleteId ? { ...a, team_id: teamId, team_name: teamName } : a)
-      );
-      setSelectedAthlete("");
-    } catch {
-      setError("Erro ao adicionar atleta à equipe");
-    }
   }
 
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
@@ -275,7 +247,6 @@ export default function TeamsPage() {
               filtered.map((team) => {
                 const cat = categories.find((c) => c.id === team.category_id);
                 const teamAthletes = allAthletes.filter((a) => a.team_id === team.id);
-                const unassigned = allAthletes.filter((a) => !a.team_id);
                 const isExpanded = expandedTeamId === team.id;
                 const isEditing = editingTeamId === team.id;
 
@@ -382,38 +353,14 @@ export default function TeamsPage() {
                                     className="flex items-center gap-1 rounded-full bg-white px-3 py-1 text-sm shadow-sm border border-gray-200"
                                   >
                                     {a.name}
-                                    <button
-                                      onClick={() => handleRemoveAthlete(a)}
-                                      className="ml-1 text-gray-400 hover:text-red-600 font-bold leading-none"
-                                    >
-                                      ×
-                                    </button>
                                   </span>
                                 ))}
                               </div>
                             )}
 
-                            {unassigned.length > 0 && (
-                              <div className="flex items-center gap-2 pt-1">
-                                <select
-                                  className="rounded-md border-gray-300 text-sm shadow-sm"
-                                  value={selectedAthlete}
-                                  onChange={(e) => setSelectedAthlete(e.target.value)}
-                                >
-                                  <option value="">Adicionar atleta...</option>
-                                  {unassigned.map((a) => (
-                                    <option key={a.id} value={a.id}>{a.name}</option>
-                                  ))}
-                                </select>
-                                <button
-                                  onClick={() => handleAddAthlete(team.id, team.name)}
-                                  disabled={!selectedAthlete}
-                                  className="rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-40"
-                                >
-                                  Adicionar
-                                </button>
-                              </div>
-                            )}
+                            <p className="text-xs text-gray-400">
+                              Para mover um atleta para outra equipe, edite-o na página de Atletas.
+                            </p>
                           </div>
                         </td>
                       </tr>

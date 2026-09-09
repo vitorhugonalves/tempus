@@ -32,17 +32,21 @@ def upgrade() -> None:
         )
 
     for row in orphans:
+        # `RETURNING id` (SQLite >= 3.35 e PostgreSQL) em vez de `result.lastrowid`,
+        # que é específico do SQLite e não é a PK em outros bancos (ex.: psycopg2
+        # retorna OID ou 0) — usá-lo corromperia silenciosamente o backfill.
         result = bind.execute(
             sa.text(
                 "INSERT INTO teams "
                 "(competition_id, name, category_id, created_at, updated_at) "
                 "SELECT competition_id, :team_name, category_id, "
                 "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP "
-                "FROM athletes WHERE id = :athlete_id"
+                "FROM athletes WHERE id = :athlete_id "
+                "RETURNING id"
             ),
             {"team_name": f"Equipe {row.name}", "athlete_id": row.id},
         )
-        new_team_id = result.lastrowid
+        new_team_id = result.scalar_one()
         bind.execute(
             sa.text("UPDATE athletes SET team_id = :team_id WHERE id = :athlete_id"),
             {"team_id": new_team_id, "athlete_id": row.id},

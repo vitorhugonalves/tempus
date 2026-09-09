@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.category import Category
 from app.models.competitor import CompetitorRegistration
 from app.models.team import Team, TeamMember
+from app.repositories.athlete import AthleteRepository
 from app.repositories.competition import CompetitionRepository
 from app.repositories.team import TeamRepository
 from app.repositories.user import UserRepository
@@ -103,8 +104,27 @@ class TeamService:
         Args:
             db: Sessão assíncrona.
             team_id: ID da equipe.
+
+        Raises:
+            HTTPException 409: Equipe possui atletas vinculados (`Athlete.team_id`
+                é NOT NULL — não é possível deixá-los órfãos ao excluir a equipe).
         """
         team = await TeamService.get_or_404(db, team_id)
+
+        # RN: athletes.team_id é obrigatório (NOT NULL) — excluir uma equipe com
+        # atletas vinculados violaria a constraint no DELETE. Bloqueia antes de
+        # tentar remover, com uma mensagem acionável para o usuário.
+        athletes = await AthleteRepository.list_by_competition(
+            db, team.competition_id, team_id=team_id
+        )
+        if athletes:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Equipe possui {len(athletes)} atleta(s). Mova-os para outra "
+                    "equipe antes de remover."
+                ),
+            )
 
         # Cancela inscrições de todos os membros nesta competição
         member_ids = [m.user_id for m in team.members]

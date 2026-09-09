@@ -99,6 +99,8 @@ export default function AthletesPage() {
       );
       const updated: any = await athletesApi.list(id);
       setAthletes(updated.data ?? updated);
+      const updatedTeams = await teamsApi.list(id);
+      setTeams(updatedTeams);
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? "Erro na importação");
     }
