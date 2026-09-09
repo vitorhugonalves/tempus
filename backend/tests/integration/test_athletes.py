@@ -378,3 +378,34 @@ async def test_importar_atletas_csv_vincula_equipe_existente(
         cookies={"session_id": admin_token},
     )
     assert len([t for t in teams_r.json() if t["name"] == "Time Beta"]) == 1
+
+
+async def test_importar_atletas_csv_case_insensitive_team_matching(
+    client: AsyncClient, admin_token: str, competition: Competition, category: Category
+):
+    """Equipes com mesmo nome em diferentes cases são tratadas como uma."""
+    csv_content = (
+        f"nome;categoria;equipe\n"
+        f"Pedro Silva;{category.name};Equipe Teste\n"
+        f"Ana Costa;{category.name};equipe teste\n"
+    ).encode()
+
+    r = await client.post(
+        f"/api/v1/competitions/{competition.id}/athletes/import",
+        files={"file": ("atletas.csv", io.BytesIO(csv_content), "text/csv")},
+        cookies={"session_id": admin_token},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["created"] == 2
+    assert data["errors"] == []
+
+    # Verifica que apenas UMA equipe foi criada (case-insensitive matching)
+    teams_r = await client.get(
+        f"/api/v1/competitions/{competition.id}/teams",
+        cookies={"session_id": admin_token},
+    )
+    teams = teams_r.json()
+    # Should have exactly one team with "Equipe Teste" (first case used)
+    matching_teams = [t for t in teams if t["name"].lower() == "equipe teste"]
+    assert len(matching_teams) == 1
