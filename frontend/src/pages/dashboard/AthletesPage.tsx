@@ -338,6 +338,22 @@ export default function AthletesPage() {
               onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))}
               required
             />
+            <Input
+              label="Email"
+              type="email"
+              value={editForm.email ?? ""}
+              onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value || undefined }))}
+            />
+            <Input
+              label="Documento (CPF)"
+              value={editForm.document ?? ""}
+              onChange={(e) => setEditForm((p) => ({ ...p, document: e.target.value || undefined }))}
+            />
+            <Input
+              label="Telefone"
+              value={editForm.phone ?? ""}
+              onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value || undefined }))}
+            />
             <div>
               <label className="block text-sm font-medium text-gray-700">Equipe *</label>
               <select
@@ -350,6 +366,42 @@ export default function AthletesPage() {
               >
                 {teams.map((t) => (
                   <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Categoria</label>
+              <select
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                value={editForm.category_id ?? ""}
+                onChange={(e) =>
+                  setEditForm((p) => ({
+                    ...p,
+                    category_id: e.target.value ? Number(e.target.value) : undefined,
+                  }))
+                }
+              >
+                <option value="">Sem categoria</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Tamanho de Camiseta</label>
+              <select
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                value={editForm.tshirt_size ?? ""}
+                onChange={(e) =>
+                  setEditForm((p) => ({
+                    ...p,
+                    tshirt_size: (e.target.value as TshirtSize) || undefined,
+                  }))
+                }
+              >
+                <option value="">—</option>
+                {TSHIRT_SIZES.map((s) => (
+                  <option key={s} value={s}>{s}</option>
                 ))}
               </select>
             </div>
