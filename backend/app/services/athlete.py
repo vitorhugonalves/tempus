@@ -197,7 +197,7 @@ class AthleteService:
     async def update(
         db: AsyncSession, athlete: Athlete, data: AthleteUpdate
     ) -> Athlete:
-        """Atualiza dados de um atleta.
+        """Atualiza dados de um atleta, validando reatribuição de equipe.
 
         Args:
             db: Sessão assíncrona.
@@ -206,8 +206,26 @@ class AthleteService:
 
         Returns:
             Objeto Athlete atualizado.
+
+        Raises:
+            HTTPException 422: `team_id` informado explicitamente como nulo —
+                todo atleta precisa pertencer a uma equipe.
+            HTTPException 404: `team_id` informado não pertence à mesma competição.
         """
-        for field, value in data.model_dump(exclude_unset=True).items():
+        updates = data.model_dump(exclude_unset=True)
+        if "team_id" in updates and updates["team_id"] is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="team_id não pode ser nulo — todo atleta pertence a uma equipe",
+            )
+        if "team_id" in updates and updates["team_id"] is not None:
+            team = await TeamRepository.get_by_id(db, updates["team_id"])
+            if not team or team.competition_id != athlete.competition_id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Equipe não encontrada nesta competição",
+                )
+        for field, value in updates.items():
             setattr(athlete, field, value)
         return await AthleteRepository.update(db, athlete)
 

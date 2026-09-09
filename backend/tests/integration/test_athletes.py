@@ -115,6 +115,95 @@ async def test_editar_atleta_retorna_200(
     assert data["phone"] == "(11)99999-0000"
 
 
+async def test_editar_atleta_reatribui_equipe(
+    client: AsyncClient,
+    admin_token: str,
+    competition: Competition,
+    category: Category,
+    db: AsyncSession,
+):
+    from app.models.team import Team as TeamModel
+
+    nova_equipe = TeamModel(
+        competition_id=competition.id, name="Nova Equipe", category_id=category.id
+    )
+    db.add(nova_equipe)
+    await db.commit()
+    await db.refresh(nova_equipe)
+
+    create_r = await client.post(
+        f"/api/v1/competitions/{competition.id}/athletes",
+        json={"name": "Reatribuido", "category_id": category.id},
+        cookies={"session_id": admin_token},
+    )
+    athlete_id = create_r.json()["id"]
+
+    r = await client.put(
+        f"/api/v1/competitions/{competition.id}/athletes/{athlete_id}",
+        json={"team_id": nova_equipe.id},
+        cookies={"session_id": admin_token},
+    )
+    assert r.status_code == 200
+    assert r.json()["team_id"] == nova_equipe.id
+
+
+async def test_editar_atleta_equipe_de_outra_competicao_retorna_404(
+    client: AsyncClient,
+    admin_token: str,
+    competition: Competition,
+    category: Category,
+    db: AsyncSession,
+):
+    from app.models.competition import Competition as CompModel
+    from app.models.team import Team as TeamModel
+
+    outra_comp = CompModel(name="Outra Comp", status=CompetitionStatus.active)
+    db.add(outra_comp)
+    await db.commit()
+    await db.refresh(outra_comp)
+    equipe_alheia = TeamModel(
+        competition_id=outra_comp.id, name="Alheia", category_id=category.id
+    )
+    db.add(equipe_alheia)
+    await db.commit()
+    await db.refresh(equipe_alheia)
+
+    create_r = await client.post(
+        f"/api/v1/competitions/{competition.id}/athletes",
+        json={"name": "Vitima", "category_id": category.id},
+        cookies={"session_id": admin_token},
+    )
+    athlete_id = create_r.json()["id"]
+
+    r = await client.put(
+        f"/api/v1/competitions/{competition.id}/athletes/{athlete_id}",
+        json={"team_id": equipe_alheia.id},
+        cookies={"session_id": admin_token},
+    )
+    assert r.status_code == 404
+
+
+async def test_editar_atleta_team_id_nulo_retorna_422(
+    client: AsyncClient,
+    admin_token: str,
+    competition: Competition,
+    category: Category,
+):
+    create_r = await client.post(
+        f"/api/v1/competitions/{competition.id}/athletes",
+        json={"name": "Sem Equipe Nula", "category_id": category.id},
+        cookies={"session_id": admin_token},
+    )
+    athlete_id = create_r.json()["id"]
+
+    r = await client.put(
+        f"/api/v1/competitions/{competition.id}/athletes/{athlete_id}",
+        json={"team_id": None},
+        cookies={"session_id": admin_token},
+    )
+    assert r.status_code == 422
+
+
 async def test_remover_atleta_retorna_204(
     client: AsyncClient, admin_token: str, competition: Competition, category: Category
 ):
