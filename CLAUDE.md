@@ -66,15 +66,15 @@ Este código será lido, modificado e debugado por pessoas. Otimize para clareza
 
 **Ao concluir qualquer sessão de desenvolvimento — incluindo subagentes — o Claude DEVE atualizar a memória do projeto.**
 
-O arquivo a manter é:
-`~/.claude/projects/-home-vitoralves-projects-seumikrotik/memory/project_state.md`
+O diretório a manter é:
+`~/.claude/projects/-home-vitoralves-projects-tempus/memory/`
 
 Regras:
 - Qualquer módulo novo implementado deve ser adicionado à lista de módulos implementados.
 - Qualquer decisão arquitetural nova deve ser registrada.
 - Pendências resolvidas devem ser removidas da seção de pendências.
 - Pendências novas descobertas durante a implementação devem ser adicionadas.
-- O `MEMORY.md` (`~/.claude/projects/-home-vitoralves-projects-seumikrotik/memory/MEMORY.md`) deve refletir o índice atualizado.
+- O `MEMORY.md` (`~/.claude/projects/-home-vitoralves-projects-tempus/memory/MEMORY.md`) deve refletir o índice atualizado, com pointers para os arquivos de memória individuais por tópico.
 
 **Esta atualização é obrigatória, não opcional. Não conclua uma sessão sem atualizar a memória.**
 
