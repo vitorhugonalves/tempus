@@ -6,6 +6,10 @@ import Input from "../../components/ui/Input";
 import Alert from "../../components/ui/Alert";
 import type { Athlete, CheckinCandidate } from "../../types";
 
+function candidateKey(candidate: CheckinCandidate): string {
+  return `${candidate.kind}-${candidate.source_id}`;
+}
+
 export default function CheckinPage() {
   const { competitionId } = useParams<{ competitionId: string }>();
   const id = Number(competitionId);
@@ -15,26 +19,34 @@ export default function CheckinPage() {
   const [checkedIn, setCheckedIn] = useState<Athlete | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [lastQuery, setLastQuery] = useState("");
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     if (!query.trim()) return;
+    const searchedQuery = query.trim();
     setError(null);
     setCheckedIn(null);
     setSearching(true);
     try {
-      const data = await checkinApi.search(id, query.trim());
+      const data = await checkinApi.search(id, searchedQuery);
       setResults(data);
     } catch {
       setError("Erro ao buscar");
       setResults([]);
     } finally {
       setSearching(false);
+      setHasSearched(true);
+      setLastQuery(searchedQuery);
     }
   }
 
   async function handleEnsure(candidate: CheckinCandidate) {
     setError(null);
+    const key = candidateKey(candidate);
+    setConfirmingId(key);
     try {
       const athlete = await checkinApi.ensure(id, candidate.kind, candidate.source_id);
       setCheckedIn(athlete);
@@ -42,6 +54,8 @@ export default function CheckinPage() {
       setQuery("");
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? "Erro ao confirmar check-in");
+    } finally {
+      setConfirmingId(null);
     }
   }
 
@@ -70,25 +84,36 @@ export default function CheckinPage() {
       <div className="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
         {results.length === 0 ? (
           <p className="p-6 text-center text-sm text-gray-500">
-            {searching ? "Buscando..." : "Nenhum resultado ainda."}
+            {searching
+              ? "Buscando..."
+              : hasSearched
+                ? `Nenhum resultado para "${lastQuery}".`
+                : "Nenhum resultado ainda."}
           </p>
         ) : (
-          results.map((c) => (
-            <div key={`${c.kind}-${c.source_id}`} className="flex items-center justify-between p-4">
-              <div>
-                <p className="font-medium text-gray-900">{c.name}</p>
-                <p className="text-xs text-gray-500">
-                  {c.email ?? "—"} ·{" "}
-                  {c.kind === "athlete"
-                    ? `Equipe ${c.team_name ?? "—"}`
-                    : "Inscrito online — sem check-in ainda"}
-                </p>
+          results.map((c) => {
+            const key = candidateKey(c);
+            return (
+              <div key={key} className="flex items-center justify-between p-4">
+                <div>
+                  <p className="font-medium text-gray-900">{c.name}</p>
+                  <p className="text-xs text-gray-500">
+                    {c.email ?? "—"} ·{" "}
+                    {c.kind === "athlete"
+                      ? `Equipe ${c.team_name ?? "—"}`
+                      : "Inscrito online — sem check-in ainda"}
+                  </p>
+                </div>
+                <Button
+                  onClick={() => handleEnsure(c)}
+                  disabled={confirmingId === key}
+                  className="text-sm"
+                >
+                  {c.has_athlete_record ? "Selecionar" : "Confirmar check-in"}
+                </Button>
               </div>
-              <Button onClick={() => handleEnsure(c)} className="text-sm">
-                {c.has_athlete_record ? "Selecionar" : "Confirmar check-in"}
-              </Button>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

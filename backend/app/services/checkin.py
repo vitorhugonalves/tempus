@@ -3,6 +3,7 @@
 registro Athlete antes do credenciamento físico (pareamento de tag RFID)."""
 
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.athlete import Athlete
@@ -10,6 +11,9 @@ from app.repositories.athlete import AthleteRepository
 from app.repositories.competitor_registration import CompetitorRegistrationRepository
 from app.repositories.team import TeamRepository
 from app.schemas.checkin import CheckinCandidate, CheckinEnsureRequest
+
+_MAX_ATHLETE_DOCUMENT_LENGTH = 20
+_MAX_ATHLETE_EMAIL_LENGTH = 200
 
 
 class CheckinService:
@@ -38,6 +42,7 @@ class CheckinService:
             or (a.email and query.lower() in a.email.lower())
         ]
         linked_user_ids = {a.user_id for a in athletes if a.user_id is not None}
+        athletes_by_email = {a.email.lower(): a for a in athletes if a.email}
 
         registrations = await CompetitorRegistrationRepository.search(
             db, competition_id, query
@@ -57,6 +62,8 @@ class CheckinService:
         for reg in registrations:
             if reg.user_id in linked_user_ids:
                 continue  # já tem Athlete vinculado — evita duplicar na lista
+            if reg.user.email.lower() in athletes_by_email:
+                continue  # mesma pessoa já tem Athlete com este e-mail — evita duplicar
             candidates.append(
                 CheckinCandidate(
                     kind="registration",
@@ -108,13 +115,50 @@ class CheckinService:
                 status_code=status.HTTP_404_NOT_FOUND, detail="Inscrição não encontrada"
             )
 
+        # Capturado antes de qualquer flush/rollback: após um rollback (corrida
+        # de duplo-clique, abaixo) o objeto `registration` fica expirado e um
+        # acesso a `.user_id` dispararia um reload síncrono inválido em sessão
+        # assíncrona.
+        registration_user_id = registration.user_id
+
         existing = await AthleteRepository.list_by_competition(db, competition_id)
-        already = next((a for a in existing if a.user_id == registration.user_id), None)
+        already = next((a for a in existing if a.user_id == registration_user_id), None)
         if already:
             return already
 
+        # Mesma pessoa pode já existir como Athlete importado em massa (mesmo
+        # e-mail, sem user_id ainda) — vincula em vez de duplicar o cadastro.
+        registration_email = registration.user.email.lower()
+        matched_by_email = next(
+            (a for a in existing if a.email and a.email.lower() == registration_email),
+            None,
+        )
+        if matched_by_email:
+            matched_by_email.user_id = registration_user_id
+            return await AthleteRepository.update(db, matched_by_email)
+
+        if (
+            registration.document is not None
+            and len(registration.document) > _MAX_ATHLETE_DOCUMENT_LENGTH
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    "Documento excede o tamanho máximo permitido para o "
+                    "registro de atleta (20 caracteres)"
+                ),
+            )
+        if len(registration.user.email) > _MAX_ATHLETE_EMAIL_LENGTH:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    "E-mail excede o tamanho máximo permitido para o "
+                    "registro de atleta (200 caracteres)"
+                ),
+            )
+
         team_member = await TeamRepository.get_member_in_competition(
-            db, competition_id, registration.user_id
+            db, competition_id, registration_user_id
         )
         if not team_member:
             raise HTTPException(
@@ -126,9 +170,24 @@ class CheckinService:
             competition_id=competition_id,
             category_id=registration.category_id,
             team_id=team_member.team_id,
-            user_id=registration.user_id,
+            user_id=registration_user_id,
             name=registration.user.full_name,
             email=registration.user.email,
             document=registration.document,
         )
-        return await AthleteRepository.create(db, new_athlete)
+        try:
+            return await AthleteRepository.create(db, new_athlete)
+        except IntegrityError:
+            # Corrida de duplo-clique: outra requisição já criou o Athlete
+            # para este user_id entre nossa checagem e o insert. Não é erro
+            # do usuário — devolve o registro vencedor em vez de propagar 500.
+            await db.rollback()
+            existing_after = await AthleteRepository.list_by_competition(
+                db, competition_id
+            )
+            winner = next(
+                (a for a in existing_after if a.user_id == registration_user_id), None
+            )
+            if winner:
+                return winner
+            raise
