@@ -84,3 +84,9 @@ class Competition(Base):
     wods: Mapped[list["Wod"]] = relationship(  # noqa: F821
         "Wod", back_populates="competition", cascade="all, delete-orphan", order_by="Wod.order"
     )
+    consent_term: Mapped["ConsentTerm | None"] = relationship(  # noqa: F821
+        "ConsentTerm",
+        back_populates="competition",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )

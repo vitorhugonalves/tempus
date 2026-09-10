@@ -65,6 +65,18 @@ async def test_upload_termo_formato_invalido_retorna_422(
     assert resp.status_code == 422
 
 
+async def test_upload_termo_com_extensao_pdf_mas_bytes_invalidos_retorna_422(
+    client: AsyncClient, competition: dict, admin_token: str
+):
+    """Extensão/content-type de PDF não bastam — magic bytes reais são validados."""
+    resp = await client.post(
+        f"/api/v1/competitions/{competition['id']}/consent-term",
+        files={"file": ("termo.pdf", b"not a real pdf", "application/pdf")},
+        cookies={"session_id": admin_token},
+    )
+    assert resp.status_code == 422
+
+
 async def test_upload_termo_maior_que_limite_retorna_413(
     client: AsyncClient, competition: dict, admin_token: str
 ):

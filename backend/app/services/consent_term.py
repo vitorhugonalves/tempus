@@ -5,9 +5,19 @@ import hashlib
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.constants import MAX_CONSENT_TERM_BYTES
+from app.core.constants import MAX_CONSENT_TERM_BYTES, PDF_MAGIC_BYTES
 from app.models.consent_term import ConsentTerm
 from app.repositories.consent_term import ConsentTermRepository
+
+
+def _invalid_pdf_format() -> HTTPException:
+    """Erro padrão para upload que não é um PDF válido (extensão ou conteúdo)."""
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail=(
+            "Formato não suportado. Apenas PDF é aceito para o termo de consentimento."
+        ),
+    )
 
 
 class ConsentTermService:
@@ -41,20 +51,15 @@ class ConsentTermService:
             ConsentTerm criado ou atualizado.
 
         Raises:
-            HTTPException 422: formato não é PDF.
+            HTTPException 422: formato não é PDF (pela extensão/content-type
+                declarados ou pelos magic bytes do conteúdo real).
             HTTPException 413: arquivo excede o tamanho máximo.
         """
         content_type = (file.content_type or "").lower()
         filename = file.filename or ""
         is_pdf = content_type == "application/pdf" or filename.lower().endswith(".pdf")
         if not is_pdf:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=(
-                    "Formato não suportado. Apenas PDF é aceito para o "
-                    "termo de consentimento."
-                ),
-            )
+            raise _invalid_pdf_format()
         data = await file.read()
         if len(data) > MAX_CONSENT_TERM_BYTES:
             raise HTTPException(
@@ -64,6 +69,10 @@ class ConsentTermService:
                     f"{MAX_CONSENT_TERM_BYTES // (1024 * 1024)} MB."
                 ),
             )
+        # Não confia apenas em extensão/content-type (facilmente forjáveis pelo
+        # cliente): valida os magic bytes reais do conteúdo antes de aceitar.
+        if not data.startswith(PDF_MAGIC_BYTES):
+            raise _invalid_pdf_format()
         file_hash = hashlib.sha256(data).hexdigest()
         return await ConsentTermRepository.upsert(
             db, competition_id, data, filename or "termo.pdf", file_hash

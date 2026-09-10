@@ -107,17 +107,6 @@ class RegistrationService:
                 detail="Inscrições só são permitidas em competições ativas",
             )
 
-        # 1.1 Verifica aceite do termo de consentimento, quando a competição possui um
-        # (feature invisível quando nenhum termo foi cadastrado pelo admin/operador)
-        consent_term = await ConsentTermService.get(db, competition_id)
-        if consent_term and data.consent_accepted is not True:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=(
-                    "É necessário aceitar o termo de consentimento para se inscrever"
-                ),
-            )
-
         # 2. Verifica categoria pertence à competição e está ativa
         cat_result = await db.execute(
             select(Category).where(
@@ -144,6 +133,19 @@ class RegistrationService:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Você já está inscrito nesta competição",
+            )
+
+        # 3.1 Verifica aceite do termo de consentimento, quando a competição possui um
+        # (feature invisível quando nenhum termo foi cadastrado pelo admin/operador).
+        # Roda depois do check de "já inscrito" para que um reenvio de quem já está
+        # inscrito receba o 409 mais informativo, não um 422 de consentimento confuso.
+        consent_term = await ConsentTermService.get(db, competition_id)
+        if consent_term and data.consent_accepted is not True:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    "É necessário aceitar o termo de consentimento para se inscrever"
+                ),
             )
 
         # 4. Validação específica para categoria equipe

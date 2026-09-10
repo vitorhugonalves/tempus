@@ -495,6 +495,34 @@ async def test_inscricao_com_termo_aceito_retorna_201_e_registra_aceite(
     assert registration.consent_accepted_at is not None
 
 
+async def test_reinscricao_ja_registrado_sem_aceite_retorna_409_nao_422(
+    client: AsyncClient,
+    competition_with_term: dict,
+    individual_category: dict,
+    competitor_token: str,
+):
+    """Quem já está inscrito recebe 409 (duplicidade), mesmo sem aceitar o termo.
+
+    O check de "já inscrito" roda antes do check de consentimento — reenviar o
+    formulário sem `consent_accepted` não deve mascarar o 409 mais informativo
+    atrás de um 422 de consentimento.
+    """
+    first = await client.post(
+        f"/api/v1/competitions/{competition_with_term['id']}/register",
+        json={"category_id": individual_category["id"], "consent_accepted": True},
+        cookies={"session_id": competitor_token},
+    )
+    assert first.status_code == 201
+
+    second = await client.post(
+        f"/api/v1/competitions/{competition_with_term['id']}/register",
+        json={"category_id": individual_category["id"]},
+        cookies={"session_id": competitor_token},
+    )
+    assert second.status_code == 409
+    assert "já está inscrito" in second.json()["detail"].lower()
+
+
 async def test_inscricao_sem_termo_ignora_consent_accepted(
     client: AsyncClient,
     active_competition: dict,

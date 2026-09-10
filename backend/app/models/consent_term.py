@@ -32,4 +32,6 @@ class ConsentTerm(Base):
         server_default=func.now(), onupdate=func.now()
     )
 
-    competition: Mapped["Competition"] = relationship("Competition")  # noqa: F821
+    competition: Mapped["Competition"] = relationship(  # noqa: F821
+        "Competition", back_populates="consent_term"
+    )
