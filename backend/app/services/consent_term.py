@@ -100,4 +100,4 @@ class ConsentTermService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Nenhum termo de consentimento cadastrado para esta competição.",
             )
-        await ConsentTermRepository.soft_delete(db, term)
+        await ConsentTermRepository.soft_delete(db, competition_id)

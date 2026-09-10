@@ -355,6 +355,94 @@ async def test_reupload_termo_mantem_versao_antiga_no_banco(
     assert file_names == {"v1.pdf", "v2.pdf"}
 
 
+async def test_delete_apos_multiplos_uploads_nao_ressuscita_versao_antiga(
+    client: AsyncClient,
+    competition: dict,
+    admin_token: str,
+    db: AsyncSession,
+):
+    """Regressão: v1 → v2 (v1 fica com deleted_at NULL, só v2 é a vigente) →
+    remover deve marcar TODA versão ainda ativa (não só a vigente), senão
+    `get_by_competition_id` volta a encontrar v1 (nunca excluída) como se
+    fosse a versão vigente depois do delete.
+
+    Depois confirma que um novo upload (v3) volta a funcionar normalmente e
+    vira a vigente.
+    """
+    from sqlalchemy import select
+    from sqlalchemy.orm import undefer
+
+    from app.models.consent_term import ConsentTerm
+
+    v1_content = b"%PDF-1.4\n%versao1\n%%EOF"
+    v2_content = b"%PDF-1.4\n%versao2\n%%EOF"
+    v3_content = b"%PDF-1.4\n%versao3\n%%EOF"
+
+    resp_v1 = await client.post(
+        f"/api/v1/competitions/{competition['id']}/consent-term",
+        files=_pdf_file(name="versao1.pdf", content=v1_content),
+        cookies={"session_id": admin_token},
+    )
+    assert resp_v1.status_code == 200
+
+    resp_v2 = await client.post(
+        f"/api/v1/competitions/{competition['id']}/consent-term",
+        files=_pdf_file(name="versao2.pdf", content=v2_content),
+        cookies={"session_id": admin_token},
+    )
+    assert resp_v2.status_code == 200
+
+    delete_resp = await client.delete(
+        f"/api/v1/competitions/{competition['id']}/consent-term",
+        cookies={"session_id": admin_token},
+    )
+    assert delete_resp.status_code == 204
+
+    meta_resp = await client.get(
+        f"/api/v1/competitions/{competition['id']}/consent-term",
+    )
+    meta = meta_resp.json()
+    assert meta["has_term"] is False
+    assert meta.get("file_name") is None
+
+    # v1 e v2 continuam no banco, ambas marcadas como excluídas, bytes intactos.
+    rows = await db.execute(
+        select(ConsentTerm)
+        .where(ConsentTerm.competition_id == competition["id"])
+        .options(undefer(ConsentTerm.file_data))
+        .order_by(ConsentTerm.id.asc())
+    )
+    versions_after_delete = rows.scalars().all()
+    assert len(versions_after_delete) == 2
+    v1_row, v2_row = versions_after_delete
+    assert v1_row.file_name == "versao1.pdf"
+    assert v1_row.deleted_at is not None
+    assert v1_row.file_data == v1_content
+    assert v2_row.file_name == "versao2.pdf"
+    assert v2_row.deleted_at is not None
+    assert v2_row.file_data == v2_content
+
+    # Upload após remoção total continua funcionando normalmente.
+    resp_v3 = await client.post(
+        f"/api/v1/competitions/{competition['id']}/consent-term",
+        files=_pdf_file(name="versao3.pdf", content=v3_content),
+        cookies={"session_id": admin_token},
+    )
+    assert resp_v3.status_code == 200
+
+    meta_after_v3 = await client.get(
+        f"/api/v1/competitions/{competition['id']}/consent-term",
+    )
+    data_after_v3 = meta_after_v3.json()
+    assert data_after_v3["has_term"] is True
+    assert data_after_v3["file_name"] == "versao3.pdf"
+
+    file_after_v3 = await client.get(
+        f"/api/v1/competitions/{competition['id']}/consent-term/file",
+    )
+    assert file_after_v3.content == v3_content
+
+
 async def test_delete_seguido_de_novo_upload_preserva_versao_excluida(
     client: AsyncClient,
     competition: dict,

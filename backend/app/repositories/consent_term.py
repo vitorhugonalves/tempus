@@ -75,17 +75,28 @@ class ConsentTermRepository:
         return term
 
     @staticmethod
-    async def soft_delete(db: AsyncSession, term: ConsentTerm) -> None:
-        """Marca uma versão do termo de consentimento como não-vigente.
+    async def soft_delete(db: AsyncSession, competition_id: int) -> None:
+        """Marca todas as versões vigentes do termo de uma competição como não-vigentes.
 
-        Não remove a linha nem os bytes do PDF — apenas define `deleted_at`,
-        para que deixe de ser retornada por `get_by_competition_id` (a
-        competição volta a não exigir aceite em novas inscrições) mantendo o
-        histórico íntegro para inscrições antigas que a referenciam.
+        Marca TODA versão ainda ativa (`deleted_at IS NULL`), não só a mais
+        recente — se marcasse apenas uma linha, `get_by_competition_id`
+        (que busca a mais recente ainda não excluída) voltaria a encontrar uma
+        versão anterior mais antiga e não excluída, "ressuscitando-a" como
+        vigente. Não remove nenhuma linha nem bytes de PDF — apenas define
+        `deleted_at`, para que a competição volte a não exigir aceite em
+        novas inscrições, mantendo o histórico íntegro.
 
         Args:
             db: Sessão assíncrona.
-            term: Instância a ser marcada como excluída.
+            competition_id: ID da competição.
         """
-        term.deleted_at = datetime.now(UTC)
+        result = await db.execute(
+            select(ConsentTerm).where(
+                ConsentTerm.competition_id == competition_id,
+                ConsentTerm.deleted_at.is_(None),
+            )
+        )
+        now = datetime.now(UTC)
+        for term in result.scalars().all():
+            term.deleted_at = now
         await db.flush()
