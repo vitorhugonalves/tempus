@@ -20,6 +20,7 @@ import TeamsPage from "./pages/dashboard/TeamsPage";
 import AthletesPage from "./pages/dashboard/AthletesPage";
 import HeatsPage from "./pages/dashboard/HeatsPage";
 import ResultsPage from "./pages/dashboard/ResultsPage";
+import CheckinPage from "./pages/dashboard/CheckinPage";
 import UsersPage from "./pages/UsersPage";
 import TimersPage from "./pages/TimersPage";
 import LivePage from "./pages/LivePage";
@@ -98,6 +99,7 @@ export default function App() {
               <Route index element={<DashboardOverviewPage />} />
               <Route path="equipes" element={<TeamsPage />} />
               <Route path="atletas" element={<AthletesPage />} />
+              <Route path="checkin" element={<CheckinPage />} />
               <Route path="baterias" element={<HeatsPage />} />
               <Route path="resultados" element={<ResultsPage />} />
             </Route>

@@ -93,6 +93,15 @@ export interface AthleteBulkResult {
   errors: Array<{ row: number; name: string; error: string }>;
 }
 
+export interface CheckinCandidate {
+  kind: "athlete" | "registration";
+  source_id: number;
+  name: string;
+  email: string | null;
+  team_name: string | null;
+  has_athlete_record: boolean;
+}
+
 export interface CepResult {
   cep: string | null;
   logradouro: string | null;

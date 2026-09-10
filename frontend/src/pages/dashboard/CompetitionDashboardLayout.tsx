@@ -6,6 +6,7 @@ import {
   PlayIcon,
   TrophyIcon,
   ArrowLeftIcon,
+  ClipboardDocumentCheckIcon,
 } from "@heroicons/react/24/outline";
 import { competitionsApi } from "../../api/competitions";
 import Badge from "../../components/ui/Badge";
@@ -27,6 +28,7 @@ const NAV_ITEMS = [
   { to: "", label: "Visão Geral", icon: ChartBarIcon, end: true },
   { to: "equipes", label: "Equipes", icon: UserGroupIcon, end: false },
   { to: "atletas", label: "Atletas", icon: UserGroupIcon, end: false },
+  { to: "checkin", label: "Check-in", icon: ClipboardDocumentCheckIcon, end: false },
   { to: "baterias", label: "Baterias", icon: PlayIcon, end: false },
   { to: "resultados", label: "Resultados", icon: TrophyIcon, end: false },
 ];
