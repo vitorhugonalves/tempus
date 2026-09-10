@@ -303,3 +303,116 @@ async def test_delete_termo_competicao_inexistente_retorna_404(
         cookies={"session_id": admin_token},
     )
     assert resp.status_code == 404
+
+
+# ── Versionamento (histórico append-only) ──────────────────────────────────────
+
+
+async def test_reupload_termo_mantem_versao_antiga_no_banco(
+    client: AsyncClient,
+    competition: dict,
+    admin_token: str,
+    db: AsyncSession,
+):
+    """Um segundo upload substitui a versão vigente, mas não apaga a primeira."""
+    from sqlalchemy import select
+
+    from app.models.consent_term import ConsentTerm
+
+    first_content = _MINIMAL_PDF
+    second_content = b"%PDF-1.4\n%segunda versao do termo\n%%EOF"
+
+    first_resp = await client.post(
+        f"/api/v1/competitions/{competition['id']}/consent-term",
+        files=_pdf_file(name="v1.pdf", content=first_content),
+        cookies={"session_id": admin_token},
+    )
+    assert first_resp.status_code == 200
+
+    second_resp = await client.post(
+        f"/api/v1/competitions/{competition['id']}/consent-term",
+        files=_pdf_file(name="v2.pdf", content=second_content),
+        cookies={"session_id": admin_token},
+    )
+    assert second_resp.status_code == 200
+
+    meta_resp = await client.get(
+        f"/api/v1/competitions/{competition['id']}/consent-term",
+    )
+    assert meta_resp.json()["file_name"] == "v2.pdf"
+
+    file_resp = await client.get(
+        f"/api/v1/competitions/{competition['id']}/consent-term/file",
+    )
+    assert file_resp.content == second_content
+
+    rows = await db.execute(
+        select(ConsentTerm).where(ConsentTerm.competition_id == competition["id"])
+    )
+    all_versions = rows.scalars().all()
+    assert len(all_versions) == 2
+    file_names = {v.file_name for v in all_versions}
+    assert file_names == {"v1.pdf", "v2.pdf"}
+
+
+async def test_delete_seguido_de_novo_upload_preserva_versao_excluida(
+    client: AsyncClient,
+    competition: dict,
+    admin_token: str,
+    db: AsyncSession,
+):
+    """Delete (soft) não ressuscita/corrompe nada; novo upload vira o vigente e
+    a versão excluída continua íntegra no banco (deleted_at setado, bytes intactos).
+    """
+    from sqlalchemy import select
+    from sqlalchemy.orm import undefer
+
+    from app.models.consent_term import ConsentTerm
+
+    original_content = _MINIMAL_PDF
+    new_content = b"%PDF-1.4\n%versao apos exclusao\n%%EOF"
+
+    upload_resp = await client.post(
+        f"/api/v1/competitions/{competition['id']}/consent-term",
+        files=_pdf_file(name="original.pdf", content=original_content),
+        cookies={"session_id": admin_token},
+    )
+    assert upload_resp.status_code == 200
+
+    delete_resp = await client.delete(
+        f"/api/v1/competitions/{competition['id']}/consent-term",
+        cookies={"session_id": admin_token},
+    )
+    assert delete_resp.status_code == 204
+
+    reupload_resp = await client.post(
+        f"/api/v1/competitions/{competition['id']}/consent-term",
+        files=_pdf_file(name="novo.pdf", content=new_content),
+        cookies={"session_id": admin_token},
+    )
+    assert reupload_resp.status_code == 200
+
+    meta_resp = await client.get(
+        f"/api/v1/competitions/{competition['id']}/consent-term",
+    )
+    meta = meta_resp.json()
+    assert meta["has_term"] is True
+    assert meta["file_name"] == "novo.pdf"
+
+    rows = await db.execute(
+        select(ConsentTerm)
+        .where(ConsentTerm.competition_id == competition["id"])
+        .options(undefer(ConsentTerm.file_data))
+        .order_by(ConsentTerm.id.asc())
+    )
+    all_versions = rows.scalars().all()
+    assert len(all_versions) == 2
+
+    original_row = all_versions[0]
+    assert original_row.file_name == "original.pdf"
+    assert original_row.deleted_at is not None
+    assert original_row.file_data == original_content
+
+    new_row = all_versions[1]
+    assert new_row.file_name == "novo.pdf"
+    assert new_row.deleted_at is None

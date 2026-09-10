@@ -84,9 +84,12 @@ class Competition(Base):
     wods: Mapped[list["Wod"]] = relationship(  # noqa: F821
         "Wod", back_populates="competition", cascade="all, delete-orphan", order_by="Wod.order"
     )
-    consent_term: Mapped["ConsentTerm | None"] = relationship(  # noqa: F821
+    # Log de versões do termo de consentimento (append-only) — ver docstring de
+    # ConsentTerm. Não é mais um singleton (uma competição pode ter N versões),
+    # então a relação deixou de ser escalar (uselist=False) para evitar
+    # MultipleResultsFound/aviso de linhas ambíguas ao carregar via ORM.
+    consent_terms: Mapped[list["ConsentTerm"]] = relationship(  # noqa: F821
         "ConsentTerm",
         back_populates="competition",
         cascade="all, delete-orphan",
-        uselist=False,
     )

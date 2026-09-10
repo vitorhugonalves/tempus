@@ -41,7 +41,11 @@ class CompetitorRegisterRequest(BaseModel):
     box_name: str | None = Field(None, max_length=200)
     # Campos para categoria do tipo equipe
     team_name: str | None = Field(None, min_length=1, max_length=200)
-    additional_members: list[MemberInput] = []
+    # max_length=20: um único request autenticado não pode criar um número
+    # ilimitado de contas nem disparar um número ilimitado de e-mails de
+    # boas-vindas com senha temporária (o cap de category.max_team_size é
+    # pulado quando essa coluna é NULL, então este é o limite de última linha).
+    additional_members: list[MemberInput] = Field(default_factory=list, max_length=20)
     # Aceite do termo de consentimento (LGPD/waiver), obrigatório apenas quando
     # a competição possui um termo cadastrado (RF de consentimento na inscrição)
     consent_accepted: bool = False

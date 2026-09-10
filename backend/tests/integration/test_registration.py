@@ -300,6 +300,31 @@ async def test_inscricao_equipe_acima_do_limite_retorna_409(
     assert "máximo" in resp.json()["detail"].lower()
 
 
+async def test_inscricao_com_mais_de_20_membros_adicionais_retorna_422(
+    client: AsyncClient,
+    active_competition: dict,
+    team_category: dict,
+    competitor_token: str,
+):
+    """`additional_members` acima do cap de 20 é rejeitado pela validação do
+    Pydantic (422), antes mesmo de chegar à checagem de `max_team_size` — um
+    único request não pode criar contas/enviar e-mails em quantidade ilimitada.
+    """
+    resp = await client.post(
+        f"/api/v1/competitions/{active_competition['id']}/register",
+        json={
+            "category_id": team_category["id"],
+            "team_name": "Equipe Enorme",
+            "additional_members": [
+                {"full_name": f"Membro {i}", "email": f"membro{i}@example.com"}
+                for i in range(21)
+            ],
+        },
+        cookies={"session_id": competitor_token},
+    )
+    assert resp.status_code == 422
+
+
 # ── Limite via endpoint de equipes (max_team_size) ────────────────────────────
 
 

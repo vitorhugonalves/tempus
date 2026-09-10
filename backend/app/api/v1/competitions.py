@@ -5,6 +5,7 @@ from fastapi import (
     Depends,
     File,
     HTTPException,
+    Request,
     Response,
     UploadFile,
     status,
@@ -15,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_roles
 from app.core.config import settings
+from app.core.limiter import limiter as _limiter
 from app.core.redis import get_redis
 from app.db.session import get_db
 from app.models.competition import Competition, CompetitionStatus
@@ -323,7 +325,9 @@ async def delete_category(
     response_model=CompetitorRegisterResponse,
     status_code=status.HTTP_201_CREATED,
 )
+@_limiter.limit("10/minute")  # RNF-06: máx. 10 tentativas por minuto por IP
 async def self_register(
+    request: Request,
     competition_id: int,
     payload: CompetitorRegisterRequest,
     current_user: User = Depends(get_current_user),

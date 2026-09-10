@@ -4,8 +4,10 @@ Revision ID: 20260910_consent_term
 Revises: 20260909_athlete_user_link
 Create Date: 2026-09-10
 
-Cria a tabela consent_terms (singleton por competição, armazena o PDF em binário)
-e adiciona os campos de rastreio de aceite em competitor_registrations.
+Cria a tabela consent_terms — log de versões append-only por competição (a
+versão vigente é a mais recente com deleted_at IS NULL; nenhuma linha é
+sobrescrita ou removida, só marcada como excluída) — e adiciona os campos de
+rastreio de aceite em competitor_registrations.
 """
 
 import sqlalchemy as sa
@@ -42,6 +44,7 @@ def upgrade() -> None:
             server_default=sa.func.now(),
             nullable=False,
         ),
+        sa.Column("deleted_at", sa.DateTime(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_consent_terms_id"), "consent_terms", ["id"], unique=False)
@@ -49,7 +52,7 @@ def upgrade() -> None:
         op.f("ix_consent_terms_competition_id"),
         "consent_terms",
         ["competition_id"],
-        unique=True,
+        unique=False,
     )
 
     with op.batch_alter_table("competitor_registrations") as batch_op:

@@ -103,6 +103,14 @@ async def get_consent_term_file(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Nenhum termo de consentimento cadastrado para esta competição.",
         )
+    # `file_data` é `deferred=True` (não vem na query de `get`, que serve também
+    # a rota pública de metadados — ver Finding 3). Esta é a única rota que
+    # realmente precisa dos bytes, então carrega explicitamente aqui via
+    # `db.refresh`: em SQLAlchemy assíncrono, um carregamento adiado disparado
+    # implicitamente por um simples acesso de atributo (`term.file_data`) fora
+    # de uma chamada do AsyncSession lança `MissingGreenlet` — não existe
+    # "carregamento preguiçoso automático" fora do event loop aqui.
+    await db.refresh(term, attribute_names=["file_data"])
     return Response(content=term.file_data, media_type="application/pdf")
 
 

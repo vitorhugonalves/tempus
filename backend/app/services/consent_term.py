@@ -74,22 +74,25 @@ class ConsentTermService:
         if not data.startswith(PDF_MAGIC_BYTES):
             raise _invalid_pdf_format()
         file_hash = hashlib.sha256(data).hexdigest()
-        return await ConsentTermRepository.upsert(
+        return await ConsentTermRepository.create_version(
             db, competition_id, data, filename or "termo.pdf", file_hash
         )
 
     @staticmethod
     async def delete(db: AsyncSession, competition_id: int) -> None:
-        """Remove o termo de consentimento da competição, se existir.
+        """Remove (soft delete) a versão vigente do termo de consentimento.
 
-        Torna a competição sem exigência de aceite novamente (feature opcional).
+        Torna a competição sem exigência de aceite novamente (feature opcional),
+        de forma não-destrutiva: a versão marcada como excluída permanece no
+        banco, com os bytes do PDF intactos, para que inscrições antigas que a
+        referenciam continuem tendo um arquivo recuperável.
 
         Args:
             db: Sessão assíncrona.
             competition_id: ID da competição.
 
         Raises:
-            HTTPException 404: nenhum termo cadastrado para esta competição.
+            HTTPException 404: nenhum termo vigente para esta competição.
         """
         term = await ConsentTermRepository.get_by_competition_id(db, competition_id)
         if not term:
@@ -97,4 +100,4 @@ class ConsentTermService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Nenhum termo de consentimento cadastrado para esta competição.",
             )
-        await ConsentTermRepository.delete(db, term)
+        await ConsentTermRepository.soft_delete(db, term)
