@@ -27,6 +27,7 @@ export default function CheckinPage() {
       setResults(data);
     } catch {
       setError("Erro ao buscar");
+      setResults([]);
     } finally {
       setSearching(false);
     }
