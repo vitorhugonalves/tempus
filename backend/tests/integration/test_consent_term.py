@@ -137,6 +137,16 @@ async def test_get_arquivo_sem_termo_retorna_404(
     assert resp.status_code == 404
 
 
+async def test_get_arquivo_competicao_inexistente_retorna_404(
+    client: AsyncClient, competitor_token: str
+):
+    resp = await client.get(
+        "/api/v1/competitions/999999/consent-term/file",
+        cookies={"session_id": competitor_token},
+    )
+    assert resp.status_code == 404
+
+
 async def test_get_arquivo_apos_upload_retorna_200_com_pdf(
     client: AsyncClient, competition: dict, admin_token: str, competitor_token: str
 ):
