@@ -15,6 +15,7 @@ from app.api.v1 import (
     cep,
     checkin,
     competitions,
+    consent_term,
     judges,
     modalities,
     reports,
@@ -75,6 +76,7 @@ app.include_router(auth.router, prefix="/api/v1", tags=["auth"])
 app.include_router(users.router, prefix="/api/v1", tags=["users"])
 app.include_router(modalities.router, prefix="/api/v1", tags=["modalities"])
 app.include_router(competitions.router, prefix="/api/v1", tags=["competitions"])
+app.include_router(consent_term.router, prefix="/api/v1", tags=["consent-term"])
 app.include_router(timers.router, prefix="/api/v1", tags=["timers"])
 app.include_router(judges.router, prefix="/api/v1", tags=["judges"])
 app.include_router(reports.router, prefix="/api/v1", tags=["reports"])
