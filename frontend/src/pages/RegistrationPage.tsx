@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
 import {
   competitionsApi,
@@ -7,6 +7,9 @@ import {
   type MemberInput,
 } from "../api/competitions";
 import { categoriesApi } from "../api/categories";
+import { authApi } from "../api/auth";
+import { consentTermApi, type ConsentTermMeta } from "../api/consentTerm";
+import { useAuthStore } from "../store/auth";
 import type { Category, Competition } from "../types";
 import { Card } from "../components/ui/Card";
 import Button from "../components/ui/Button";
@@ -16,6 +19,7 @@ import Alert from "../components/ui/Alert";
 export default function RegistrationPage() {
   const { competitionId } = useParams<{ competitionId?: string }>();
   const navigate = useNavigate();
+  const { user, initialize } = useAuthStore();
 
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [selectedCompetitionId, setSelectedCompetitionId] = useState<number | null>(
@@ -28,9 +32,18 @@ export default function RegistrationPage() {
   const [teamName, setTeamName] = useState("");
   const [additionalMembers, setAdditionalMembers] = useState<MemberInput[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<React.ReactNode>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [alreadyRegistered, setAlreadyRegistered] = useState(false);
+
+  // Dados de cadastro para visitante anônimo (sem conta ainda)
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  // Termo de consentimento da competição selecionada
+  const [consentTerm, setConsentTerm] = useState<ConsentTermMeta | null>(null);
+  const [consentAccepted, setConsentAccepted] = useState(false);
 
   // Carrega competições ativas
   useEffect(() => {
@@ -68,6 +81,20 @@ export default function RegistrationPage() {
     });
   }, [selectedCompetitionId]);
 
+  // Carrega termo de consentimento quando competição é selecionada; nunca reaproveita
+  // o aceite entre competições diferentes
+  useEffect(() => {
+    setConsentAccepted(false);
+    if (!selectedCompetitionId) {
+      setConsentTerm(null);
+      return;
+    }
+    consentTermApi
+      .get(selectedCompetitionId)
+      .then(setConsentTerm)
+      .catch(() => setConsentTerm(null));
+  }, [selectedCompetitionId]);
+
   const selectedCategory = categories.find((c) => c.id === selectedCategoryId) ?? null;
   const isTeam = selectedCategory?.category_type === "team";
   const maxAdditional = selectedCategory?.max_team_size
@@ -98,12 +125,34 @@ export default function RegistrationPage() {
     setLoading(true);
 
     try {
+      if (!user) {
+        try {
+          await authApi.signup({ full_name: fullName, email, password });
+        } catch (err: unknown) {
+          const status = (err as { response?: { status?: number } })?.response?.status;
+          if (status === 409) {
+            setError(
+              <>
+                Esse e-mail já tem conta. Faça login para continuar.{" "}
+                <Link to="/login" className="underline font-medium">
+                  Fazer login
+                </Link>
+              </>
+            );
+            return;
+          }
+          throw err;
+        }
+        await initialize();
+      }
+
       const payload: CompetitorRegisterRequest = {
         category_id: selectedCategoryId,
         document: document || undefined,
         box_name: boxName || undefined,
         team_name: isTeam ? teamName : undefined,
         additional_members: isTeam ? additionalMembers : [],
+        consent_accepted: consentAccepted,
       };
       const { data } = await competitionsApi.register(selectedCompetitionId, payload);
       let msg = `Inscrição realizada com sucesso! Equipe: ${data.team_name}`;
@@ -148,6 +197,42 @@ export default function RegistrationPage() {
       {!success && !alreadyRegistered && (
         <Card>
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Cadastro de conta — apenas para visitantes ainda não logados */}
+            {!user && (
+              <>
+                <Input
+                  label="Nome completo"
+                  type="text"
+                  placeholder="Seu nome"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                  autoFocus
+                />
+
+                <Input
+                  label="E-mail"
+                  type="email"
+                  placeholder="seu@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                />
+
+                <Input
+                  label="Senha"
+                  type="password"
+                  placeholder="Mínimo 8 caracteres"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                />
+              </>
+            )}
+
             {/* Seleção de competição */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -317,6 +402,30 @@ export default function RegistrationPage() {
               </>
             )}
 
+            {/* Aceite do termo de consentimento — só aparece se a competição tiver um termo */}
+            {selectedCategoryId && consentTerm?.has_term && selectedCompetitionId && (
+              <div className="flex items-start gap-2">
+                <input
+                  id="consent-accepted"
+                  type="checkbox"
+                  checked={consentAccepted}
+                  onChange={(e) => setConsentAccepted(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                />
+                <label htmlFor="consent-accepted" className="text-sm text-gray-700">
+                  Li e concordo com o{" "}
+                  <a
+                    href={consentTermApi.fileUrl(selectedCompetitionId)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary-600 underline font-medium"
+                  >
+                    termo de consentimento
+                  </a>
+                </label>
+              </div>
+            )}
+
             {selectedCategoryId && (
               <div className="pt-2">
                 <Button
@@ -324,6 +433,7 @@ export default function RegistrationPage() {
                   variant="primary"
                   className="w-full"
                   isLoading={loading}
+                  disabled={Boolean(consentTerm?.has_term) && !consentAccepted}
                 >
                   Confirmar Inscrição
                 </Button>

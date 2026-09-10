@@ -21,6 +21,7 @@ export interface CompetitorRegisterRequest {
   box_name?: string;
   team_name?: string;
   additional_members?: MemberInput[];
+  consent_accepted?: boolean;
 }
 
 export interface CompetitorRegisterResponse {

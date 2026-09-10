@@ -17,13 +17,15 @@ apiClient.interceptors.request.use((config) => {
 });
 
 // Rotas públicas que não devem ser redirecionadas para /login ao receber 401
-const PUBLIC_PATHS = ["/login", "/reset-password", "/forgot-password", "/register", "/signup", "/ranking", "/wod-leaderboard"];
+const PUBLIC_PATHS = ["/login", "/reset-password", "/forgot-password", "/register", "/signup", "/ranking", "/wod-leaderboard", "/inscricao"];
 
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    // `includes` (não `startsWith`) porque algumas rotas públicas são aninhadas,
+    // ex.: /competitions/:id/inscricao e /competitions/:id/ranking
     const isPublicPath = PUBLIC_PATHS.some((p) =>
-      window.location.pathname.startsWith(p)
+      window.location.pathname.includes(p)
     );
     if (error.response?.status === 401 && !isPublicPath) {
       window.location.href = "/login";
