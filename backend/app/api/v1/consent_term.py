@@ -11,7 +11,7 @@ from fastapi import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import require_roles
 from app.db.session import get_db
 from app.models.consent_term import ConsentTerm
 from app.models.user import User
@@ -72,14 +72,13 @@ async def upload_consent_term(
 )
 async def get_consent_term_metadata(
     competition_id: int,
-    _current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ConsentTermResponse:
     """Retorna os metadados do termo de consentimento da competição.
 
-    Disponível para qualquer usuário autenticado — o competidor precisa saber
-    se deve exibir o checkbox de aceite. Retorna `has_term=false` (não 404)
-    quando a competição não possui termo cadastrado.
+    Pública — a página de auto-inscrição é pública e precisa saber, antes de
+    qualquer login, se deve exibir o checkbox de aceite. Retorna `has_term=false`
+    (não 404) quando a competição não possui termo cadastrado.
     """
     await _ensure_competition_exists(db, competition_id)
     term = await ConsentTermService.get(db, competition_id)
@@ -89,13 +88,13 @@ async def get_consent_term_metadata(
 @router.get("/competitions/{competition_id}/consent-term/file")
 async def get_consent_term_file(
     competition_id: int,
-    _current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     """Retorna o arquivo PDF do termo de consentimento.
 
-    Requer autenticação (diferente do logotipo público do Box): o termo pode
-    conter informações sensíveis do evento. Retorna 404 se não houver termo.
+    Pública — igual ao logotipo público do Box: um visitante precisa poder ler
+    o termo antes de criar conta e se inscrever, na página pública de
+    auto-inscrição. Retorna 404 se não houver termo.
     """
     await _ensure_competition_exists(db, competition_id)
     term = await ConsentTermService.get(db, competition_id)

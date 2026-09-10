@@ -2,6 +2,9 @@
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.competition import Competition
 
 _MINIMAL_PDF = b"%PDF-1.4\n%mock pdf content for tests\n%%EOF"
 
@@ -126,14 +129,36 @@ async def test_get_metadata_competicao_inexistente_retorna_404(
     assert resp.status_code == 404
 
 
-async def test_get_metadata_sem_autenticacao_retorna_401(client: AsyncClient):
-    """GET metadata sem cookie de sessão retorna 401. Auth check ocorre antes do 404.
+async def test_get_metadata_sem_autenticacao_retorna_404_para_competicao_inexistente(
+    client: AsyncClient,
+):
+    """Rota é pública (a página de auto-inscrição também é pública) — sem cookie
+    de sessão, o único erro possível é a competição não existir, não 401.
 
     Não usa a fixture `competition` (que autentica como admin) para evitar que o
     cookie de sessão fique persistido no client — ver armadilha conhecida de testes.
     """
     resp = await client.get("/api/v1/competitions/999999/consent-term")
-    assert resp.status_code == 401
+    assert resp.status_code == 404
+
+
+async def test_get_metadata_sem_autenticacao_retorna_200(
+    client: AsyncClient, db: AsyncSession
+):
+    """Um visitante sem conta precisa conseguir ver se há termo antes de se cadastrar.
+
+    Cria a competição direto no banco (não via API+admin_token) para garantir que
+    o `client` nunca autentica nesta sessão de teste — verificação genuína de acesso
+    público, não apenas "a rota não checa o cookie que por acaso está no jar".
+    """
+    comp = Competition(name="Copa Pública Sem Auth")
+    db.add(comp)
+    await db.commit()
+    await db.refresh(comp)
+
+    resp = await client.get(f"/api/v1/competitions/{comp.id}/consent-term")
+    assert resp.status_code == 200
+    assert resp.json()["has_term"] is False
 
 
 # ── GET file ──────────────────────────────────────────────────────────────────
@@ -178,14 +203,46 @@ async def test_get_arquivo_apos_upload_retorna_200_com_pdf(
     assert resp.content == _MINIMAL_PDF
 
 
-async def test_get_arquivo_sem_autenticacao_retorna_401(client: AsyncClient):
-    """GET do arquivo sem cookie de sessão retorna 401. Auth check ocorre antes do 404.
-
-    Não usa a fixture `competition` (que autentica como admin) para evitar que o
-    cookie de sessão fique persistido no client — ver armadilha conhecida de testes.
+async def test_get_arquivo_sem_autenticacao_competicao_inexistente_retorna_404(
+    client: AsyncClient,
+):
+    """Rota é pública — sem cookie de sessão, o único erro possível é a competição
+    não existir, não 401.
     """
     resp = await client.get("/api/v1/competitions/999999/consent-term/file")
-    assert resp.status_code == 401
+    assert resp.status_code == 404
+
+
+async def test_get_arquivo_sem_autenticacao_retorna_200_com_pdf(
+    client: AsyncClient, db: AsyncSession
+):
+    """Um visitante sem conta precisa poder ler o termo antes de aceitar/se inscrever.
+
+    Cria competição + termo direto no banco (nunca autentica o `client`) para uma
+    verificação genuína de acesso público.
+    """
+    from app.models.consent_term import ConsentTerm
+
+    comp = Competition(name="Copa Arquivo Público Sem Auth")
+    db.add(comp)
+    await db.commit()
+    await db.refresh(comp)
+
+    import hashlib
+
+    term = ConsentTerm(
+        competition_id=comp.id,
+        file_data=_MINIMAL_PDF,
+        file_name="termo.pdf",
+        file_hash=hashlib.sha256(_MINIMAL_PDF).hexdigest(),
+    )
+    db.add(term)
+    await db.commit()
+
+    resp = await client.get(f"/api/v1/competitions/{comp.id}/consent-term/file")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/pdf"
+    assert resp.content == _MINIMAL_PDF
 
 
 # ── DELETE ────────────────────────────────────────────────────────────────────
