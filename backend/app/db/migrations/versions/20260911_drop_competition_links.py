@@ -1,6 +1,6 @@
 """drop competitions.regulations_url e registration_url — obsoletos após inscrição pública nativa
 
-Revision ID: 20260911_drop_competition_external_links
+Revision ID: 20260911_drop_competition_links
 Revises: 20260910_consent_term
 Create Date: 2026-09-11
 """
@@ -8,7 +8,7 @@ Create Date: 2026-09-11
 import sqlalchemy as sa
 from alembic import op
 
-revision = "20260911_drop_competition_external_links"
+revision = "20260911_drop_competition_links"
 down_revision = "20260910_consent_term"
 branch_labels = None
 depends_on = None
