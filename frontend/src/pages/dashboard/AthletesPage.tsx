@@ -117,7 +117,7 @@ export default function AthletesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Atletas</h1>
-        <div className="flex gap-2">
+        <div className="flex items-start gap-2">
           <div className="flex flex-col items-end gap-1">
             <label className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
               <ArrowUpTrayIcon className="h-4 w-4" />
