@@ -27,8 +27,6 @@ export interface Competition {
   tiebreak_criterion: TiebreakCriterion | null;
   status: CompetitionStatus;
   description?: string | null;
-  regulations_url?: string | null;
-  registration_url?: string | null;
   instagram_url?: string | null;
   whatsapp_url?: string | null;
   has_logo?: boolean;

@@ -20,8 +20,6 @@ class CompetitionCreate(BaseModel):
     scoring_model: ScoringModel | None = None
     tiebreak_criterion: TiebreakCriterion | None = None
     description: str | None = None
-    regulations_url: str | None = None
-    registration_url: str | None = None
     instagram_url: str | None = None
     whatsapp_url: str | None = None
 
@@ -45,8 +43,6 @@ class CompetitionUpdate(BaseModel):
     tiebreak_criterion: TiebreakCriterion | None = None
     status: CompetitionStatus | None = None
     description: str | None = None
-    regulations_url: str | None = None
-    registration_url: str | None = None
     instagram_url: str | None = None
     whatsapp_url: str | None = None
 
@@ -71,8 +67,6 @@ class CompetitionResponse(BaseModel):
     tiebreak_criterion: TiebreakCriterion | None
     status: CompetitionStatus
     description: str | None
-    regulations_url: str | None
-    registration_url: str | None
     instagram_url: str | None
     whatsapp_url: str | None
     has_logo: bool = False

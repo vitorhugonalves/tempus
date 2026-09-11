@@ -48,8 +48,6 @@ class Competition(Base):
     )
     # Divulgação
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    regulations_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    registration_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     instagram_url: Mapped[str | None] = mapped_column(String(200), nullable=True)
     whatsapp_url: Mapped[str | None] = mapped_column(String(200), nullable=True)
     logo_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)

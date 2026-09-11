@@ -41,8 +41,6 @@ export interface CompetitionCreate {
   scoring_model?: ScoringModel;
   tiebreak_criterion?: TiebreakCriterion;
   description?: string;
-  regulations_url?: string;
-  registration_url?: string;
   instagram_url?: string;
   whatsapp_url?: string;
 }

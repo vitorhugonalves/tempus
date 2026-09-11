@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import QRCode from "qrcode";
 import { consentTermApi, type ConsentTermMeta } from "../../api/consentTerm";
 import { Card } from "../../components/ui/Card";
 import Button from "../../components/ui/Button";
@@ -22,6 +23,27 @@ export default function RegistrationSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+
+  const registrationUrl = `${window.location.origin}/competitions/${id}/inscricao`;
+
+  useEffect(() => {
+    QRCode.toDataURL(registrationUrl, { width: 200, margin: 1 })
+      .then(setQrDataUrl)
+      .catch(() => setQrDataUrl(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  async function handleCopyLink() {
+    try {
+      await navigator.clipboard.writeText(registrationUrl);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      setError("Não foi possível copiar o link. Copie manualmente.");
+    }
+  }
 
   function loadMeta() {
     return consentTermApi
@@ -70,6 +92,39 @@ export default function RegistrationSettingsPage() {
       <h1 className="text-2xl font-bold text-gray-900">Inscrição</h1>
 
       {error && <Alert variant="error">{error}</Alert>}
+
+      <Card>
+        <h2 className="text-lg font-semibold text-gray-900 mb-1">
+          Tela de inscrição do atleta
+        </h2>
+        <p className="text-sm text-gray-500 mb-4">
+          Compartilhe este link (ou o QR code) com os atletas para que se
+          inscrevam diretamente nesta competição.
+        </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+          <div className="flex-1 space-y-2">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                readOnly
+                value={registrationUrl}
+                onFocus={(e) => e.target.select()}
+                className="flex-1 rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700"
+              />
+              <Button type="button" variant="secondary" onClick={handleCopyLink}>
+                {linkCopied ? "Copiado!" : "Copiar"}
+              </Button>
+            </div>
+          </div>
+          {qrDataUrl && (
+            <img
+              src={qrDataUrl}
+              alt="QR code da inscrição"
+              className="h-32 w-32 rounded-md border border-gray-200"
+            />
+          )}
+        </div>
+      </Card>
 
       <Card>
         <h2 className="text-lg font-semibold text-gray-900 mb-1">

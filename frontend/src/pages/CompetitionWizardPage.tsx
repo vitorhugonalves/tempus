@@ -48,8 +48,6 @@ interface WizardStep1 {
 interface WizardStep2 {
   is_public: boolean;
   description: string;
-  regulations_url: string;
-  registration_url: string;
   instagram_url: string;
   whatsapp_url: string;
 }
@@ -102,8 +100,6 @@ const INITIAL_STATE: WizardState = {
   step2: {
     is_public: false,
     description: "",
-    regulations_url: "",
-    registration_url: "",
     instagram_url: "",
     whatsapp_url: "",
   },
@@ -197,8 +193,6 @@ export default function CompetitionWizardPage() {
         step2: {
           is_public: c.is_public ?? false,
           description: c.description ?? "",
-          regulations_url: c.regulations_url ?? "",
-          registration_url: c.registration_url ?? "",
           instagram_url: c.instagram_url ?? "",
           whatsapp_url: c.whatsapp_url ?? "",
         },
@@ -329,8 +323,6 @@ export default function CompetitionWizardPage() {
       tiebreak_criterion: (state.step4.tiebreak_criterion as TiebreakCriterion) || undefined,
       is_public: state.step2.is_public,
       description: state.step2.description || undefined,
-      regulations_url: state.step2.regulations_url || undefined,
-      registration_url: state.step2.registration_url || undefined,
       instagram_url: state.step2.instagram_url || undefined,
       whatsapp_url: state.step2.whatsapp_url || undefined,
     };
@@ -711,27 +703,6 @@ export default function CompetitionWizardPage() {
               value={state.step2.description}
               onChange={(e) =>
                 setState((p) => ({ ...p, step2: { ...p.step2, description: e.target.value } }))
-              }
-            />
-          </div>
-
-          {/* Links */}
-          <div className="space-y-4 border-t pt-4">
-            <h3 className="font-medium text-gray-700">Links</h3>
-            <Input
-              label="Regulamento (URL)"
-              placeholder="https://..."
-              value={state.step2.regulations_url}
-              onChange={(e) =>
-                setState((p) => ({ ...p, step2: { ...p.step2, regulations_url: e.target.value } }))
-              }
-            />
-            <Input
-              label="Inscrições externas (URL)"
-              placeholder="https://..."
-              value={state.step2.registration_url}
-              onChange={(e) =>
-                setState((p) => ({ ...p, step2: { ...p.step2, registration_url: e.target.value } }))
               }
             />
           </div>
