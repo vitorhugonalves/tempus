@@ -35,9 +35,30 @@ export default function RegistrationSettingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  function copyViaTextarea(text: string): boolean {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    const copied = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    return copied;
+  }
+
   async function handleCopyLink() {
+    setError(null);
     try {
-      await navigator.clipboard.writeText(registrationUrl);
+      // navigator.clipboard só existe em contexto seguro (HTTPS ou localhost) —
+      // em produção sem TLS (acesso via IP/hostname puro em HTTP) ela é
+      // `undefined`, então cai no fallback via textarea + execCommand.
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(registrationUrl);
+      } else if (!copyViaTextarea(registrationUrl)) {
+        throw new Error("execCommand copy retornou false");
+      }
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2000);
     } catch {
