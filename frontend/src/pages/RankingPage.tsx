@@ -9,7 +9,7 @@ import { categoriesApi } from "../api/categories";
 import { Card } from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
-import type { Category, Competition, CrossfitRankingEntry, RankingEntry, WodLeaderboard } from "../types";
+import type { Category, Competition, CrossfitRankingEntry, RankingEntry, TimerStatus, WodLeaderboard } from "../types";
 import { secondsToDisplay } from "../utils/time";
 import { useAuthStore } from "../store/auth";
 
@@ -19,11 +19,13 @@ const STATUS_BADGE: Record<string, { label: string; variant: "gray" | "green" | 
   finished: { label: "Encerrada", variant: "red" },
 };
 
-const TIMER_STATUS_BADGE: Record<string, { label: string; color: "green" | "yellow" | "gray" }> = {
+const TIMER_STATUS_BADGE: Record<TimerStatus, { label: string; color: "green" | "yellow" | "gray" | "blue" | "red" }> = {
+  created: { label: "Aguardando", color: "gray" },
+  ready: { label: "Pronto", color: "blue" },
   running: { label: "Ao vivo", color: "green" },
-  stopped: { label: "Parado", color: "yellow" },
+  paused: { label: "Pausado", color: "yellow" },
   finished: { label: "Finalizado", color: "gray" },
-  idle: { label: "Aguardando", color: "gray" },
+  cancelled: { label: "Cancelado", color: "red" },
 };
 
 function formatRemaining(seconds: number | null): string {
