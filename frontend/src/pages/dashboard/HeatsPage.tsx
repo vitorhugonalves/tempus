@@ -21,8 +21,10 @@ const HEAT_STATUS_BADGE: Record<string, { label: string; variant: "gray" | "gree
 
 export default function HeatsPage() {
   const { competitionId } = useParams<{ competitionId: string }>();
-  useOutletContext<OutletCtx>();
+  const { competition } = useOutletContext<OutletCtx>();
   const id = Number(competitionId);
+  // Em Hyrox cada equipe corre uma única vez: só pode estar em uma bateria.
+  const isTeamExclusiveToOneHeat = competition.event_type === "hyrox";
 
   const [heats, setHeats] = useState<Heat[]>([]);
   const [allTeams, setAllTeams] = useState<Team[]>([]);
@@ -164,9 +166,12 @@ export default function HeatsPage() {
           {heats.map((heat) => {
             const statusInfo = HEAT_STATUS_BADGE[heat.status] ?? { label: heat.status, variant: "gray" as const };
             const isExpanded = expandedHeatId === heat.id;
-            const availableTeams = allTeams.filter(
-              (t) => !heat.teams.some((ht) => ht.team_id === t.id)
+            const unavailableTeamIds = new Set(
+              (isTeamExclusiveToOneHeat ? heats : [heat]).flatMap((h) =>
+                h.teams.map((ht) => ht.team_id)
+              )
             );
+            const availableTeams = allTeams.filter((t) => !unavailableTeamIds.has(t.id));
             return (
               <div key={heat.id} className="rounded-lg border border-gray-200 bg-white p-5">
                 <div className="flex items-center justify-between">
@@ -263,7 +268,9 @@ export default function HeatsPage() {
                     </div>
                     {availableTeams.length === 0 && (
                       <p className="text-xs text-gray-400">
-                        Todas as equipes já estão nesta bateria.
+                        {isTeamExclusiveToOneHeat
+                          ? "Todas as equipes já estão em alguma bateria."
+                          : "Todas as equipes já estão nesta bateria."}
                       </p>
                     )}
                   </div>

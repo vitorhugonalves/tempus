@@ -17,6 +17,7 @@ from app.repositories.competition import CompetitionRepository
 from app.repositories.heat import HeatRepository
 from app.repositories.team import TeamRepository
 from app.repositories.user import UserRepository
+from app.services.heat import HeatService
 
 logger = logging.getLogger(__name__)
 
@@ -451,6 +452,22 @@ class BulkService:
                             row=row_num,
                             identifier=heat_name,
                             reason=f"Equipe '{team_name_str}' não encontrada na competição {competition_id}",
+                        )
+                    )
+                    row_has_error = True
+                    break
+                other_heat = await HeatService.find_exclusive_heat_conflict(
+                    db, competition, team.id
+                )
+                if other_heat is not None:
+                    errors.append(
+                        BulkError(
+                            row=row_num,
+                            identifier=heat_name,
+                            reason=(
+                                f"Equipe '{team.name}' já está na bateria "
+                                f"'{other_heat.name}'"
+                            ),
                         )
                     )
                     row_has_error = True

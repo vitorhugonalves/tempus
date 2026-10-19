@@ -8,6 +8,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.redis import publish_timer_event, set_timer_state
+from app.models.competition import Competition, EventType
 from app.models.heat import Heat, HeatStatus
 from app.models.timer import Timer, TimerEvent, TimerEventType, TimerStatus
 from app.models.user import User
@@ -91,6 +92,28 @@ class HeatService:
         return await HeatRepository.create(db, heat)
 
     @staticmethod
+    async def find_exclusive_heat_conflict(
+        db: AsyncSession, competition: Competition, team_id: int
+    ) -> Heat | None:
+        """Retorna a bateria que impede a equipe de entrar em outra, se houver.
+
+        Em Hyrox cada equipe corre uma única vez, então ela só pode estar em uma
+        bateria da competição. Em CrossFit a mesma equipe participa de uma bateria
+        por WOD, então a regra não se aplica.
+
+        Args:
+            db: Sessão assíncrona.
+            competition: Competição da bateria de destino.
+            team_id: ID da equipe a ser vinculada.
+
+        Returns:
+            Heat em que a equipe já está (Hyrox), ou None se o vínculo é permitido.
+        """
+        if competition.event_type != EventType.hyrox:
+            return None
+        return await HeatRepository.get_heat_of_team(db, competition.id, team_id)
+
+    @staticmethod
     async def add_team(db: AsyncSession, heat_id: int, team_id: int) -> Heat:
         """Vincula equipe a uma bateria com validação de capacidade.
 
@@ -107,7 +130,7 @@ class HeatService:
 
         Raises:
             HTTPException 404: Bateria ou equipe não encontrada.
-            HTTPException 409: Equipe já está na bateria.
+            HTTPException 409: Equipe já está nesta bateria (ou em outra, se Hyrox).
             HTTPException 422: Capacidade da bateria excedida.
         """
         from app.repositories.team import TeamRepository
@@ -130,6 +153,16 @@ class HeatService:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Equipe já está vinculada a esta bateria",
+            )
+
+        competition = await CompetitionRepository.get_by_id(db, heat.competition_id)
+        other_heat = await HeatService.find_exclusive_heat_conflict(
+            db, competition, team_id
+        )
+        if other_heat:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Equipe '{team.name}' já está na bateria '{other_heat.name}'",
             )
 
         # Validação de capacidade
