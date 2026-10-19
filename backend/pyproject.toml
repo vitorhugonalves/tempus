@@ -10,7 +10,8 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
-    "sqlalchemy>=2.0.0",
+    # [asyncio] traz o greenlet (opcional a partir da 2.1); <2.1 mantém a série testada.
+    "sqlalchemy[asyncio]>=2.0.0,<2.1",
     "alembic>=1.13.0",
     "aiosqlite>=0.20.0",
     "asyncpg>=0.29.0",
