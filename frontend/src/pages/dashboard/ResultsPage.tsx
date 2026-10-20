@@ -191,7 +191,7 @@ export default function ResultsPage() {
 
       {error && <Alert variant="error">{error}</Alert>}
 
-      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-xs">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -247,20 +247,20 @@ export default function ResultsPage() {
                             placeholder="mm:ss"
                             value={editTime}
                             onChange={(e) => setEditTime(e.target.value)}
-                            className="block w-full rounded border border-gray-300 px-2 py-1 text-xs focus:border-primary-500 focus:outline-none"
+                            className="block w-full rounded-sm border border-gray-300 px-2 py-1 text-xs focus:border-primary-500 focus:outline-hidden"
                           />
                           <input
                             type="number"
                             placeholder="Reps"
                             value={editReps}
                             onChange={(e) => setEditReps(e.target.value)}
-                            className="block w-full rounded border border-gray-300 px-2 py-1 text-xs focus:border-primary-500 focus:outline-none"
+                            className="block w-full rounded-sm border border-gray-300 px-2 py-1 text-xs focus:border-primary-500 focus:outline-hidden"
                           />
                           <div className="flex gap-1 flex-wrap">
                             <button
                               onClick={handleSave}
                               disabled={saving}
-                              className="flex-1 rounded bg-primary-600 px-2 py-1 text-xs font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+                              className="flex-1 rounded-sm bg-primary-600 px-2 py-1 text-xs font-medium text-white hover:bg-primary-700 disabled:opacity-50"
                             >
                               {saving ? "…" : "Salvar"}
                             </button>
@@ -268,7 +268,7 @@ export default function ResultsPage() {
                               onClick={handleWalkover}
                               disabled={saving}
                               title="Marcar como W.O. — equipe não participou"
-                              className="rounded bg-orange-100 px-2 py-1 text-xs font-medium text-orange-700 hover:bg-orange-200 disabled:opacity-50"
+                              className="rounded-sm bg-orange-100 px-2 py-1 text-xs font-medium text-orange-700 hover:bg-orange-200 disabled:opacity-50"
                             >
                               W.O.
                             </button>
@@ -276,14 +276,14 @@ export default function ResultsPage() {
                               <button
                                 onClick={handleDelete}
                                 disabled={saving}
-                                className="rounded bg-red-100 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-200 disabled:opacity-50"
+                                className="rounded-sm bg-red-100 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-200 disabled:opacity-50"
                               >
                                 ×
                               </button>
                             )}
                             <button
                               onClick={closeEdit}
-                              className="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200"
+                              className="rounded-sm bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200"
                             >
                               Cancelar
                             </button>
@@ -303,7 +303,7 @@ export default function ResultsPage() {
                     >
                       {result ? (
                         result.walkover ? (
-                          <span className="inline-block rounded bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700">
+                          <span className="inline-block rounded-sm bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700">
                             W.O.
                           </span>
                         ) : (

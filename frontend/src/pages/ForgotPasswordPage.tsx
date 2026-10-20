@@ -72,7 +72,7 @@ export default function ForgotPasswordPage() {
           variant="primary"
           size="lg"
           isLoading={isLoading}
-          className="w-full mt-2"
+          className="w-full"
         >
           Enviar link de recuperação
         </Button>

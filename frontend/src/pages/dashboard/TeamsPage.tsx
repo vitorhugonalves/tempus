@@ -182,7 +182,7 @@ export default function TeamsPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700">Categoria</label>
             <select
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-xs focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
               value={form.category_id ?? ""}
               onChange={(e) =>
                 setForm((p) => ({
@@ -215,7 +215,7 @@ export default function TeamsPage() {
           className="max-w-xs"
         />
         <select
-          className="rounded-md border-gray-300 text-sm shadow-sm"
+          className="rounded-md border-gray-300 text-sm shadow-xs"
           value={filterCat}
           onChange={(e) => setFilterCat(e.target.value)}
         >
@@ -226,7 +226,7 @@ export default function TeamsPage() {
         </select>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xs">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -256,7 +256,7 @@ export default function TeamsPage() {
                       <td className="px-6 py-4 font-medium text-gray-900">
                         {isEditing ? (
                           <input
-                            className="rounded border border-gray-300 px-2 py-1 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 w-40"
+                            className="rounded-sm border border-gray-300 px-2 py-1 text-sm focus:border-primary-500 focus:outline-hidden focus:ring-1 focus:ring-primary-500 w-40"
                             value={editingName}
                             onChange={(e) => setEditingName(e.target.value)}
                             onKeyDown={(e) => {
@@ -272,7 +272,7 @@ export default function TeamsPage() {
                       <td className="px-6 py-4 text-sm text-gray-600">
                         {isEditing ? (
                           <select
-                            className="rounded border border-gray-300 px-2 py-1 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                            className="rounded-sm border border-gray-300 px-2 py-1 text-sm focus:border-primary-500 focus:outline-hidden focus:ring-1 focus:ring-primary-500"
                             value={editingCategoryId ?? ""}
                             onChange={(e) => setEditingCategoryId(e.target.value ? Number(e.target.value) : undefined)}
                           >
@@ -350,7 +350,7 @@ export default function TeamsPage() {
                                 {teamAthletes.map((a) => (
                                   <span
                                     key={a.id}
-                                    className="flex items-center gap-1 rounded-full bg-white px-3 py-1 text-sm shadow-sm border border-gray-200"
+                                    className="flex items-center gap-1 rounded-full bg-white px-3 py-1 text-sm shadow-xs border border-gray-200"
                                   >
                                     {a.name}
                                   </span>

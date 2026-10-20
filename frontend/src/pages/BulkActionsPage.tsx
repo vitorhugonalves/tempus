@@ -102,7 +102,7 @@ export default function BulkActionsPage() {
               Cada linha representa um usuário. Separador: ponto-e-vírgula (<code>;</code>).
               Cabeçalho é opcional.
             </p>
-            <pre className="bg-gray-50 rounded p-3 text-xs text-gray-700 overflow-x-auto">
+            <pre className="bg-gray-50 rounded-sm p-3 text-xs text-gray-700 overflow-x-auto">
 {`nome_completo;email;perfil
 João Silva;joao@example.com;competitor
 Maria Santos;maria@example.com;judge
@@ -121,7 +121,7 @@ Carlos Alves;carlos@example.com;operator`}
               Cada linha representa uma equipe. Separador: ponto-e-vírgula (<code>;</code>).
               Cabeçalho é opcional.
             </p>
-            <pre className="bg-gray-50 rounded p-3 text-xs text-gray-700 overflow-x-auto">
+            <pre className="bg-gray-50 rounded-sm p-3 text-xs text-gray-700 overflow-x-auto">
 {`id_competicao;categoria_equipe;nome_equipe;box_name;email_competidor_01;email_competidor_02
 1;Dupla Mista;Equipe Alpha;CrossFit Centro;joao@example.com;maria@example.com
 1;Dupla Mista;Equipe Beta;;carlos@example.com;ana@example.com`}
@@ -141,7 +141,7 @@ Carlos Alves;carlos@example.com;operator`}
               Cada linha representa uma bateria. Separador: ponto-e-vírgula (<code>;</code>).
               Cabeçalho é opcional.
             </p>
-            <pre className="bg-gray-50 rounded p-3 text-xs text-gray-700 overflow-x-auto">
+            <pre className="bg-gray-50 rounded-sm p-3 text-xs text-gray-700 overflow-x-auto">
 {`id_competicao;nome_bateria;max_participantes;nome_equipe_01;nome_equipe_02
 1;Bateria 1;10;Equipe Alpha;Equipe Beta
 1;Bateria 2;;Equipe Gamma
@@ -169,7 +169,7 @@ Carlos Alves;carlos@example.com;operator`}
               type="file"
               accept=".csv,text/csv"
               onChange={handleFileChange}
-              className="block w-full text-sm text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
+              className="block w-full text-sm text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-sm file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
             />
           </div>
 

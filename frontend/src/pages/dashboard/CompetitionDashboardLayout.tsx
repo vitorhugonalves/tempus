@@ -102,7 +102,7 @@ export default function CompetitionDashboardLayout() {
               )}
             </>
           ) : (
-            <div className="h-4 w-32 animate-pulse rounded bg-slate-700" />
+            <div className="h-4 w-32 animate-pulse rounded-sm bg-slate-700" />
           )}
         </div>
 
@@ -121,7 +121,7 @@ export default function CompetitionDashboardLayout() {
                 }`
               }
             >
-              <Icon className="h-4 w-4 flex-shrink-0" />
+              <Icon className="h-4 w-4 shrink-0" />
               {label}
             </NavLink>
           ))}

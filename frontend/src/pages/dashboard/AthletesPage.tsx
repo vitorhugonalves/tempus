@@ -178,7 +178,7 @@ export default function AthletesPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700">Equipe *</label>
               <select
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-xs focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
                 value={form.team_id ?? ""}
                 onChange={(e) =>
                   setForm((p) => ({
@@ -204,7 +204,7 @@ export default function AthletesPage() {
                 {form.team_id ? "Categoria" : "Categoria *"}
               </label>
               <select
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-xs focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
                 value={form.category_id ?? ""}
                 onChange={(e) =>
                   setForm((p) => ({
@@ -222,7 +222,7 @@ export default function AthletesPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700">Tamanho de Camiseta</label>
               <select
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-xs focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
                 value={form.tshirt_size ?? ""}
                 onChange={(e) =>
                   setForm((p) => ({
@@ -256,7 +256,7 @@ export default function AthletesPage() {
           className="max-w-xs"
         />
         <select
-          className="rounded-md border-gray-300 text-sm shadow-sm"
+          className="rounded-md border-gray-300 text-sm shadow-xs"
           value={filterCat}
           onChange={(e) => setFilterCat(e.target.value)}
         >
@@ -267,7 +267,7 @@ export default function AthletesPage() {
         </select>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xs">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -361,7 +361,7 @@ export default function AthletesPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700">Equipe *</label>
               <select
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-xs sm:text-sm"
                 value={editForm.team_id ?? ""}
                 onChange={(e) =>
                   setEditForm((p) => ({ ...p, team_id: Number(e.target.value) }))
@@ -376,7 +376,7 @@ export default function AthletesPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700">Categoria</label>
               <select
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-xs focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
                 value={editForm.category_id ?? ""}
                 onChange={(e) =>
                   setEditForm((p) => ({
@@ -394,7 +394,7 @@ export default function AthletesPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700">Tamanho de Camiseta</label>
               <select
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-xs focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
                 value={editForm.tshirt_size ?? ""}
                 onChange={(e) =>
                   setEditForm((p) => ({

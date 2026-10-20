@@ -245,7 +245,7 @@ export default function HeatsPage() {
                     )}
                     <div className="flex gap-2 items-center pt-1">
                       <select
-                        className="flex-1 rounded-md border-gray-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                        className="flex-1 rounded-md border-gray-300 text-sm shadow-xs focus:border-primary-500 focus:ring-primary-500"
                         value={selectedTeam[heat.id] ?? ""}
                         onChange={(e) =>
                           setSelectedTeam((p) => ({ ...p, [heat.id]: e.target.value }))

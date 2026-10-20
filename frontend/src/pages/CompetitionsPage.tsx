@@ -155,7 +155,7 @@ function HmsDurationInput({ valueSeconds, onChange, label }: HmsDurationInputPro
   }
 
   const inputClass =
-    "w-16 rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900 text-center focus:outline-none focus:ring-2 focus:ring-primary-500";
+    "w-16 rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900 text-center focus:outline-hidden focus:ring-2 focus:ring-primary-500";
 
   return (
     <div>
@@ -273,14 +273,14 @@ function CategoryRow({
         <>
           <td className="px-4 py-2">
             <input
-              className="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full rounded-sm border border-gray-300 px-2 py-1 text-sm focus:outline-hidden focus:ring-2 focus:ring-primary-500"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
           </td>
           <td className="px-4 py-2">
             <select
-              className="rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="rounded-sm border border-gray-300 px-2 py-1 text-sm focus:outline-hidden focus:ring-2 focus:ring-primary-500"
               value={categoryType}
               onChange={(e) => setCategoryType(e.target.value as "individual" | "team")}
             >
@@ -293,7 +293,7 @@ function CategoryRow({
               <input
                 type="number"
                 min={2}
-                className="w-20 rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-20 rounded-sm border border-gray-300 px-2 py-1 text-sm focus:outline-hidden focus:ring-2 focus:ring-primary-500"
                 value={maxTeamSize}
                 onChange={(e) =>
                   setMaxTeamSize(e.target.value === "" ? "" : Number(e.target.value))
@@ -991,7 +991,7 @@ function ManagementPanel({
                       Tipo
                     </label>
                     <select
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-primary-500"
                       value={newCatType}
                       onChange={(e) =>
                         setNewCatType(e.target.value as "individual" | "team")
@@ -1114,7 +1114,7 @@ function ManagementPanel({
                       Tipo
                     </label>
                     <select
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-primary-500"
                       value={newPenKind}
                       onChange={(e) =>
                         setNewPenKind(e.target.value as "time_increment" | "mandatory_stop")
@@ -1267,7 +1267,7 @@ function ManagementPanel({
                                         {members.map((mem) => (
                                           <li
                                             key={mem.id}
-                                            className="flex items-center justify-between text-sm text-gray-700 bg-white rounded px-3 py-1.5 border border-gray-100"
+                                            className="flex items-center justify-between text-sm text-gray-700 bg-white rounded-sm px-3 py-1.5 border border-gray-100"
                                           >
                                             <span>{mem.user_name}</span>
                                             {canManage && (
@@ -1289,7 +1289,7 @@ function ManagementPanel({
                                     {canManage && (
                                       <div className="flex items-center gap-2 pt-1">
                                         <select
-                                          className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 flex-1 max-w-xs"
+                                          className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-primary-500 flex-1 max-w-xs"
                                           value={addMemberUserId}
                                           onChange={(e) =>
                                             setAddMemberUserId(
@@ -1361,7 +1361,7 @@ function ManagementPanel({
                       Categoria
                     </label>
                     <select
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-primary-500"
                       value={newTeamCategoryId}
                       onChange={(e) =>
                         setNewTeamCategoryId(e.target.value === "" ? "" : Number(e.target.value))
@@ -1510,7 +1510,7 @@ function ManagementPanel({
                                         {(heat.teams ?? []).map((ht: HeatTeamRef) => (
                                           <li
                                             key={ht.team_id}
-                                            className="flex items-center justify-between text-sm text-gray-700 bg-white rounded px-3 py-1.5 border border-gray-100"
+                                            className="flex items-center justify-between text-sm text-gray-700 bg-white rounded-sm px-3 py-1.5 border border-gray-100"
                                           >
                                             <span>{ht.team_name}</span>
                                             {canManage && (
@@ -1536,7 +1536,7 @@ function ManagementPanel({
                                     {canManage && availableTeamsForHeat.length > 0 && (
                                       <div className="flex items-center gap-2 pt-1">
                                         <select
-                                          className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 flex-1 max-w-xs"
+                                          className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-primary-500 flex-1 max-w-xs"
                                           value={addHeatTeamId}
                                           onChange={(e) =>
                                             setAddHeatTeamId(
@@ -1653,7 +1653,7 @@ function ManagementPanel({
                   Categoria (opcional)
                 </label>
                 <select
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-primary-500"
                   value={inviteCategoryId}
                   onChange={(e) => {
                     setInviteCategoryId(e.target.value === "" ? "" : Number(e.target.value));
@@ -1674,7 +1674,7 @@ function ManagementPanel({
               {inviteCategoryId !== "" && (
                 <div>
                   {inviteIsIndividualCategory ? (
-                    <p className="text-xs text-blue-600 bg-blue-50 rounded px-3 py-2 border border-blue-100">
+                    <p className="text-xs text-blue-600 bg-blue-50 rounded-sm px-3 py-2 border border-blue-100">
                       Para categoria individual, uma equipe será criada automaticamente com o e-mail do atleta.
                     </p>
                   ) : (
@@ -1683,7 +1683,7 @@ function ManagementPanel({
                         Equipe (opcional)
                       </label>
                       <select
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-primary-500"
                         value={inviteTeamId}
                         onChange={(e) =>
                           setInviteTeamId(e.target.value === "" ? "" : Number(e.target.value))
@@ -1924,7 +1924,7 @@ export default function CompetitionsPage() {
                 Modalidade
               </label>
               <select
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-primary-500"
                 value={form.modality_id ?? ""}
                 onChange={(e) => {
                   const selectedId = e.target.value === "" ? undefined : Number(e.target.value);
@@ -1956,7 +1956,7 @@ export default function CompetitionsPage() {
               </label>
               <input
                 type="text"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-primary-500"
                 placeholder="dd/mm/aaaa"
                 value={eventDateDisplay || (form.event_date ? isoToPtDate(form.event_date) : "")}
                 onChange={(e) => {
@@ -2183,7 +2183,7 @@ export default function CompetitionsPage() {
                             <div className="bg-blue-50 dark:bg-blue-900/20 border-t border-blue-200 dark:border-blue-800 p-4">
                               <p className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-3">Editar Competição</p>
                               {editError && (
-                                <div className="mb-3 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-sm text-red-700 dark:text-red-400">
+                                <div className="mb-3 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm text-sm text-red-700 dark:text-red-400">
                                   {editError}
                                 </div>
                               )}
@@ -2191,7 +2191,7 @@ export default function CompetitionsPage() {
                                 <div className="sm:col-span-2 lg:col-span-3">
                                   <label className="block text-xs font-medium text-gray-700 mb-1">Nome *</label>
                                   <input
-                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-hidden focus:ring-2 focus:ring-primary-500"
                                     value={editForm.name}
                                     onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                                     required
@@ -2200,7 +2200,7 @@ export default function CompetitionsPage() {
                                 <div>
                                   <label className="block text-xs font-medium text-gray-700 mb-1">Local</label>
                                   <input
-                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-hidden focus:ring-2 focus:ring-primary-500"
                                     value={editForm.location ?? ""}
                                     onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
                                     placeholder="Ex: São Paulo, SP"
@@ -2209,7 +2209,7 @@ export default function CompetitionsPage() {
                                 <div>
                                   <label className="block text-xs font-medium text-gray-700 mb-1">Modalidade</label>
                                   <select
-                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-hidden focus:ring-2 focus:ring-primary-500"
                                     value={editForm.modality_id ?? ""}
                                     onChange={(e) => {
                                       const selectedId = e.target.value === "" ? undefined : Number(e.target.value);
@@ -2234,7 +2234,7 @@ export default function CompetitionsPage() {
                                   <label className="block text-xs font-medium text-gray-700 mb-1">Data do Evento</label>
                                   <input
                                     type="text"
-                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-hidden focus:ring-2 focus:ring-primary-500"
                                     placeholder="dd/mm/aaaa"
                                     value={editDateDisplay || (editForm.event_date ? isoToPtDate(editForm.event_date) : "")}
                                     onChange={(e) => {
@@ -2265,7 +2265,7 @@ export default function CompetitionsPage() {
                                     type="number"
                                     min={1}
                                     max={300}
-                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-hidden focus:ring-2 focus:ring-primary-500"
                                     value={editForm.max_athletes ?? 300}
                                     onChange={(e) => setEditForm({ ...editForm, max_athletes: Number(e.target.value) })}
                                   />

@@ -686,7 +686,7 @@ export default function CompetitionWizardPage() {
               onChange={(e) =>
                 setState((p) => ({ ...p, step2: { ...p.step2, is_public: e.target.checked } }))
               }
-              className="h-4 w-4 rounded border-gray-300 text-primary-600"
+              className="h-4 w-4 rounded-sm border-gray-300 text-primary-600"
             />
             <label htmlFor="is_public" className="text-sm font-medium text-gray-700">
               Tornar esta competição pública (visível na página de ranking e inscrição)
@@ -698,7 +698,7 @@ export default function CompetitionWizardPage() {
             <label className="block text-sm font-medium text-gray-700">Descrição</label>
             <textarea
               rows={4}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-xs focus:border-primary-500 focus:outline-hidden focus:ring-1 focus:ring-primary-500"
               placeholder="Descreva o evento, formato, local e demais informações relevantes..."
               value={state.step2.description}
               onChange={(e) =>
@@ -745,7 +745,7 @@ export default function CompetitionWizardPage() {
                   <img
                     src={`/api/v1/competitions/${createdCompId}/logo`}
                     alt="Logo"
-                    className="h-16 w-auto rounded border border-gray-200 object-contain"
+                    className="h-16 w-auto rounded-sm border border-gray-200 object-contain"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                   />
                 )}
@@ -754,7 +754,7 @@ export default function CompetitionWizardPage() {
                   accept="image/png,image/jpeg,image/gif,image/webp"
                   disabled={!createdCompId || logoUploading}
                   onChange={handleLogoUpload}
-                  className="block w-full text-sm text-gray-500 file:mr-3 file:rounded file:border-0 file:bg-primary-50 file:px-3 file:py-1 file:text-sm file:font-medium file:text-primary-700 disabled:opacity-50"
+                  className="block w-full text-sm text-gray-500 file:mr-3 file:rounded-sm file:border-0 file:bg-primary-50 file:px-3 file:py-1 file:text-sm file:font-medium file:text-primary-700 disabled:opacity-50"
                 />
                 {logoUploading && <p className="text-xs text-gray-400">Enviando...</p>}
               </div>
@@ -764,7 +764,7 @@ export default function CompetitionWizardPage() {
                   <img
                     src={`/api/v1/competitions/${createdCompId}/banner`}
                     alt="Banner"
-                    className="h-16 w-auto rounded border border-gray-200 object-contain"
+                    className="h-16 w-auto rounded-sm border border-gray-200 object-contain"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                   />
                 )}
@@ -773,7 +773,7 @@ export default function CompetitionWizardPage() {
                   accept="image/png,image/jpeg,image/gif,image/webp"
                   disabled={!createdCompId || bannerUploading}
                   onChange={handleBannerUpload}
-                  className="block w-full text-sm text-gray-500 file:mr-3 file:rounded file:border-0 file:bg-primary-50 file:px-3 file:py-1 file:text-sm file:font-medium file:text-primary-700 disabled:opacity-50"
+                  className="block w-full text-sm text-gray-500 file:mr-3 file:rounded-sm file:border-0 file:bg-primary-50 file:px-3 file:py-1 file:text-sm file:font-medium file:text-primary-700 disabled:opacity-50"
                 />
                 {bannerUploading && <p className="text-xs text-amber-600">Enviando...</p>}
               </div>
@@ -835,7 +835,7 @@ export default function CompetitionWizardPage() {
               <div className="space-y-1">
                 <label className="block text-sm font-medium text-gray-700">Tipo *</label>
                 <select
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-xs focus:border-primary-500 focus:outline-hidden"
                   value={wodForm.wod_type}
                   onChange={(e) => setWodForm((f) => ({ ...f, wod_type: e.target.value as WodType }))}
                 >
@@ -862,7 +862,7 @@ export default function CompetitionWizardPage() {
               <label className="block text-sm font-medium text-gray-700">Movimentos</label>
               <textarea
                 rows={3}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-xs focus:border-primary-500 focus:outline-hidden focus:ring-1 focus:ring-primary-500"
                 placeholder="Ex: 21-15-9 Thrusters (43 kg) + Pull-ups"
                 value={wodForm.description ?? ""}
                 onChange={(e) => setWodForm((f) => ({ ...f, description: e.target.value }))}
@@ -889,7 +889,7 @@ export default function CompetitionWizardPage() {
                               : ids.filter((cid) => cid !== cat.id),
                           }));
                         }}
-                        className="h-4 w-4 rounded border-gray-300"
+                        className="h-4 w-4 rounded-sm border-gray-300"
                       />
                       {cat.name}
                     </label>
@@ -998,7 +998,7 @@ export default function CompetitionWizardPage() {
                             <label className="block text-xs font-medium text-gray-600">Nome *</label>
                             <input
                               type="text"
-                              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-none"
+                              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
                               value={editCatForm.name}
                               onChange={(e) => setEditCatForm((f) => ({ ...f, name: e.target.value }))}
                             />
@@ -1006,7 +1006,7 @@ export default function CompetitionWizardPage() {
                           <div>
                             <label className="block text-xs font-medium text-gray-600">Tipo *</label>
                             <select
-                              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-none"
+                              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
                               value={editCatForm.category_type}
                               onChange={(e) =>
                                 setEditCatForm((f) => ({
@@ -1023,7 +1023,7 @@ export default function CompetitionWizardPage() {
                           <div>
                             <label className="block text-xs font-medium text-gray-600">Gênero</label>
                             <select
-                              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-none"
+                              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
                               value={editCatForm.gender}
                               onChange={(e) =>
                                 setEditCatForm((f) => ({ ...f, gender: e.target.value as Gender | "" }))
@@ -1044,7 +1044,7 @@ export default function CompetitionWizardPage() {
                                 type="number"
                                 min={2}
                                 max={50}
-                                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-none"
+                                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
                                 value={editCatForm.max_team_size ?? ""}
                                 onChange={(e) =>
                                   setEditCatForm((f) => ({
@@ -1068,7 +1068,7 @@ export default function CompetitionWizardPage() {
                                 age_max: undefined,
                               }))
                             }
-                            className="h-4 w-4 rounded border-gray-300"
+                            className="h-4 w-4 rounded-sm border-gray-300"
                           />
                           Restringir por idade
                         </label>
@@ -1080,7 +1080,7 @@ export default function CompetitionWizardPage() {
                                 type="number"
                                 min={0}
                                 max={120}
-                                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-none"
+                                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
                                 value={editCatForm.age_min ?? ""}
                                 onChange={(e) =>
                                   setEditCatForm((f) => ({
@@ -1096,7 +1096,7 @@ export default function CompetitionWizardPage() {
                                 type="number"
                                 min={0}
                                 max={120}
-                                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-none"
+                                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
                                 value={editCatForm.age_max ?? ""}
                                 onChange={(e) =>
                                   setEditCatForm((f) => ({
@@ -1185,7 +1185,7 @@ export default function CompetitionWizardPage() {
                     <input
                       type="text"
                       placeholder="Ex: Elite Masculino"
-                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-none"
+                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
                       value={catForm.name}
                       onChange={(e) => setCatForm((f) => ({ ...f, name: e.target.value }))}
                     />
@@ -1193,7 +1193,7 @@ export default function CompetitionWizardPage() {
                   <div>
                     <label className="block text-xs font-medium text-gray-600">Tipo *</label>
                     <select
-                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-none"
+                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
                       value={catForm.category_type}
                       onChange={(e) =>
                         setCatForm((f) => ({
@@ -1210,7 +1210,7 @@ export default function CompetitionWizardPage() {
                   <div>
                     <label className="block text-xs font-medium text-gray-600">Gênero</label>
                     <select
-                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-none"
+                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
                       value={catForm.gender}
                       onChange={(e) =>
                         setCatForm((f) => ({ ...f, gender: e.target.value as Gender | "" }))
@@ -1231,7 +1231,7 @@ export default function CompetitionWizardPage() {
                         type="number"
                         min={2}
                         max={50}
-                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-none"
+                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
                         value={catForm.max_team_size ?? ""}
                         onChange={(e) =>
                           setCatForm((f) => ({
@@ -1255,7 +1255,7 @@ export default function CompetitionWizardPage() {
                         age_max: undefined,
                       }))
                     }
-                    className="h-4 w-4 rounded border-gray-300"
+                    className="h-4 w-4 rounded-sm border-gray-300"
                   />
                   Restringir por idade
                 </label>
@@ -1267,7 +1267,7 @@ export default function CompetitionWizardPage() {
                         type="number"
                         min={0}
                         max={120}
-                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-none"
+                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
                         value={catForm.age_min ?? ""}
                         onChange={(e) =>
                           setCatForm((f) => ({
@@ -1283,7 +1283,7 @@ export default function CompetitionWizardPage() {
                         type="number"
                         min={0}
                         max={120}
-                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-none"
+                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
                         value={catForm.age_max ?? ""}
                         onChange={(e) =>
                           setCatForm((f) => ({

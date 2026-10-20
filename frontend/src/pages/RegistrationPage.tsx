@@ -242,7 +242,7 @@ export default function RegistrationPage() {
                 <p className="text-sm text-gray-400">Nenhuma competição ativa disponível.</p>
               ) : (
                 <select
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-hidden focus:ring-2 focus:ring-primary-500"
                   value={selectedCompetitionId ?? ""}
                   onChange={(e) =>
                     setSelectedCompetitionId(e.target.value ? parseInt(e.target.value) : null)
@@ -269,7 +269,7 @@ export default function RegistrationPage() {
                   <p className="text-sm text-gray-400">Nenhuma categoria disponível.</p>
                 ) : (
                   <select
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-hidden focus:ring-2 focus:ring-primary-500"
                     value={selectedCategoryId ?? ""}
                     onChange={(e) =>
                       setSelectedCategoryId(e.target.value ? parseInt(e.target.value) : null)
@@ -410,7 +410,7 @@ export default function RegistrationPage() {
                   type="checkbox"
                   checked={consentAccepted}
                   onChange={(e) => setConsentAccepted(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  className="mt-0.5 h-4 w-4 rounded-sm border-gray-300 text-primary-600 focus:ring-primary-500"
                 />
                 <label htmlFor="consent-accepted" className="text-sm text-gray-700">
                   Li e concordo com o{" "}

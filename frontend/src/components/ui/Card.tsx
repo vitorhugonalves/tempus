@@ -20,7 +20,7 @@ export function Card({
   return (
     <div
       className={[
-        "bg-white rounded-xl border border-gray-200 shadow-sm",
+        "bg-white rounded-xl border border-gray-200 shadow-xs",
         paddingClasses[padding],
         className,
       ].join(" ")}
@@ -51,7 +51,7 @@ export function CardHeader({
           <p className="text-sm text-gray-500 mt-0.5">{description}</p>
         )}
       </div>
-      {action && <div className="flex-shrink-0">{action}</div>}
+      {action && <div className="shrink-0">{action}</div>}
     </div>
   );
 }

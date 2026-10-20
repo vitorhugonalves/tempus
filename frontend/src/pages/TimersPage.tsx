@@ -294,7 +294,7 @@ function TeamTimerCard({
                 placeholder="Motivo para reiniciar..."
                 value={resetNote}
                 onChange={(e) => setResetNote(e.target.value)}
-                className="flex-1 text-sm border rounded px-2 py-1 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                className="flex-1 text-sm border rounded-sm px-2 py-1 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               />
               <Button size="sm" variant="secondary" onClick={() => handleAction("reset")} disabled={loading || !resetNote.trim()}>
                 ↺ Reiniciar
@@ -312,12 +312,12 @@ function TeamTimerCard({
         )}
 
         {showPenaltyForm && (
-          <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800">
+          <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-sm border border-red-200 dark:border-red-800">
             <p className="text-sm font-medium text-red-700 dark:text-red-400 mb-2">Aplicar Penalidade</p>
             <select
               value={penaltyTypeId}
               onChange={(e) => setPenaltyTypeId(e.target.value ? Number(e.target.value) : "")}
-              className="w-full text-sm border rounded px-2 py-1 mb-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="w-full text-sm border rounded-sm px-2 py-1 mb-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             >
               <option value="">Selecione o tipo...</option>
               {penaltyTypes.map((pt) => (
@@ -331,7 +331,7 @@ function TeamTimerCard({
               placeholder="Justificativa obrigatória..."
               value={justification}
               onChange={(e) => setJustification(e.target.value)}
-              className="w-full text-sm border rounded px-2 py-1 mb-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="w-full text-sm border rounded-sm px-2 py-1 mb-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             />
             <div className="flex gap-2">
               <Button size="sm" variant="danger" onClick={handlePenalty} disabled={!penaltyTypeId || !justification.trim() || loading}>
@@ -516,7 +516,7 @@ function HeatSection({
                   if (e.key === "Enter") handleSaveName();
                   if (e.key === "Escape") { setEditingName(false); setNameValue(heat.name); }
                 }}
-                className="text-lg font-semibold border rounded px-2 py-0.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                className="text-lg font-semibold border rounded-sm px-2 py-0.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               />
               <Button size="sm" variant="primary" onClick={handleSaveName} isLoading={savingName} disabled={!nameValue.trim()}>
                 Salvar
@@ -558,7 +558,7 @@ function HeatSection({
       </div>
 
       {heatError && (
-        <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded border border-red-200 dark:border-red-800">
+        <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-sm border border-red-200 dark:border-red-800">
           {heatError}
         </p>
       )}
@@ -569,7 +569,7 @@ function HeatSection({
           {teamsWithoutTimer.map((ht) => (
             <div
               key={ht.team_id}
-              className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700"
+              className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-sm border border-gray-200 dark:border-gray-700"
             >
               <span className="text-sm text-gray-700 dark:text-gray-300">{ht.team_name}</span>
               <Button
@@ -639,7 +639,7 @@ function CompetitionSelector({ competitions, loading, onSelect }: CompetitionSel
           <select
             value={selectedId}
             onChange={(e) => setSelectedId(e.target.value ? Number(e.target.value) : "")}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white min-w-[240px]"
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white min-w-[240px]"
           >
             <option value="">Selecione uma competição...</option>
             {competitions.map((c) => (

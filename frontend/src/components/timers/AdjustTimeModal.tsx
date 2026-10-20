@@ -97,7 +97,7 @@ export default function AdjustTimeModal({
             value={justification}
             onChange={(e) => setJustification(e.target.value)}
             placeholder="Ex.: timer finalizado por engano; tempo conferido no cronômetro manual"
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-primary-500"
           />
           <p className={`mt-1 text-xs ${justificationIsValid || !justification ? "text-gray-500" : "text-red-600"}`}>
             Obrigatória, mínimo de {MIN_JUSTIFICATION_CHARS} caracteres ({justificationLength}/{MAX_JUSTIFICATION_CHARS}).

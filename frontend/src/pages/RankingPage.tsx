@@ -97,7 +97,7 @@ function RankingSelector() {
                 <select
                   value={selectedId}
                   onChange={(e) => setSelectedId(e.target.value ? Number(e.target.value) : "")}
-                  className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 >
                   <option value="">Selecione uma competição...</option>
                   {competitions.map((c) => (
@@ -289,14 +289,14 @@ export default function RankingPage() {
               <Badge variant={variant}>{label}</Badge>
               <a
                 href={isCrossfit ? rankingApi.exportCrossfiCsvUrl(id, selectedCategory) : rankingApi.exportCsvUrl(id, selectedCategory)}
-                className="inline-flex items-center gap-1 text-xs text-primary-100 hover:text-white border border-primary-400 px-3 py-1.5 rounded transition-colors"
+                className="inline-flex items-center gap-1 text-xs text-primary-100 hover:text-white border border-primary-400 px-3 py-1.5 rounded-sm transition-colors"
               >
                 <ArrowDownTrayIcon className="h-3.5 w-3.5" />
                 CSV
               </a>
               <a
                 href={isCrossfit ? rankingApi.exportCrossfiPdfUrl(id, selectedCategory) : rankingApi.exportPdfUrl(id, selectedCategory)}
-                className="inline-flex items-center gap-1 text-xs text-primary-100 hover:text-white border border-primary-400 px-3 py-1.5 rounded transition-colors"
+                className="inline-flex items-center gap-1 text-xs text-primary-100 hover:text-white border border-primary-400 px-3 py-1.5 rounded-sm transition-colors"
               >
                 <ArrowDownTrayIcon className="h-3.5 w-3.5" />
                 PDF
@@ -361,7 +361,7 @@ export default function RankingPage() {
                         {entry.wod_entries.map((we) => (
                           <td key={we.wod_id} className="px-4 py-3 text-center text-sm text-gray-300">
                             {we.walkover ? (
-                              <span className="inline-block rounded bg-orange-500/20 px-1.5 py-0.5 text-xs font-bold text-orange-400">W.O.</span>
+                              <span className="inline-block rounded-sm bg-orange-500/20 px-1.5 py-0.5 text-xs font-bold text-orange-400">W.O.</span>
                             ) : we.points === 0 && we.rank === null && we.reps === null && we.time_seconds === null ? (
                               <span className="text-gray-500 text-xs">N/A</span>
                             ) : we.wod_type === "amrap" ? (
@@ -576,7 +576,7 @@ export default function RankingPage() {
                                       href={rankingApi.certificateUrl(id, entry.user_id)}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white border border-gray-300 dark:border-gray-600 px-2 py-1 rounded transition-colors"
+                                      className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white border border-gray-300 dark:border-gray-600 px-2 py-1 rounded-sm transition-colors"
                                     >
                                       📄 Certificado
                                     </a>
@@ -584,7 +584,7 @@ export default function RankingPage() {
                                       href={rankingApi.socialImageUrl(id, entry.user_id)}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white border border-gray-300 dark:border-gray-600 px-2 py-1 rounded transition-colors"
+                                      className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white border border-gray-300 dark:border-gray-600 px-2 py-1 rounded-sm transition-colors"
                                     >
                                       🖼 Social
                                     </a>

@@ -1,3 +1,51 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Fontes explícitas (equivalente ao `content` da v3): sem isso a v4 varre o projeto
+   inteiro respeitando o .gitignore, que não existe dentro da imagem Docker. */
+@import 'tailwindcss' source(none);
+@source '../index.html';
+@source './';
+
+/*
+  O app não tem tema escuro (Card, layout e Badge são só claros). Sem esta linha,
+  as classes dark: ligariam pelo tema do SO e deixariam texto branco em card
+  branco. Assim elas só valem se alguém adicionar a classe "dark".
+*/
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+  --color-primary-900: #1e3a8a;
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+
+  /* v4 trocou o placeholder para currentColor a 50% e o cursor dos botões para
+     default; estas regras mantêm o visual e o comportamento da v3. */
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-gray-400);
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
