@@ -43,3 +43,14 @@ class TeamResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class TeamBulkError(BaseModel):
+    row: int
+    name: str
+    error: str
+
+
+class TeamBulkResult(BaseModel):
+    created: int
+    errors: list[TeamBulkError]

@@ -124,6 +124,29 @@ class HeatRepository:
         return result.scalar_one_or_none()
 
     @staticmethod
+    async def get_heat_of_team(
+        db: AsyncSession, competition_id: int, team_id: int
+    ) -> Heat | None:
+        """Retorna a primeira bateria da competição à qual a equipe está vinculada.
+
+        Args:
+            db: Sessão assíncrona.
+            competition_id: ID da competição.
+            team_id: ID da equipe.
+
+        Returns:
+            Heat ou None se a equipe não estiver em nenhuma bateria.
+        """
+        result = await db.execute(
+            select(Heat)
+            .join(HeatTeam, HeatTeam.heat_id == Heat.id)
+            .where(Heat.competition_id == competition_id, HeatTeam.team_id == team_id)
+            .order_by(Heat.sort_order)
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
     async def add_team(db: AsyncSession, heat_id: int, team_id: int) -> HeatTeam:
         """Vincula equipe a uma bateria.
 

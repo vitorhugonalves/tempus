@@ -240,7 +240,9 @@ async def register_via_invite(
 
 
 @router.post("/auth/signup", response_model=LoginResponse, status_code=status.HTTP_201_CREATED)
+@_limiter.limit("10/minute")  # RNF-06: máx. 10 tentativas por minuto por IP
 async def signup(
+    request: Request,
     payload: SignupRequest,
     response: Response,
     db: AsyncSession = Depends(get_db),

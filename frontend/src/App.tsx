@@ -19,6 +19,9 @@ import DashboardOverviewPage from "./pages/dashboard/DashboardOverviewPage";
 import TeamsPage from "./pages/dashboard/TeamsPage";
 import AthletesPage from "./pages/dashboard/AthletesPage";
 import HeatsPage from "./pages/dashboard/HeatsPage";
+import ResultsPage from "./pages/dashboard/ResultsPage";
+import CheckinPage from "./pages/dashboard/CheckinPage";
+import RegistrationSettingsPage from "./pages/dashboard/RegistrationSettingsPage";
 import UsersPage from "./pages/UsersPage";
 import TimersPage from "./pages/TimersPage";
 import LivePage from "./pages/LivePage";
@@ -88,6 +91,10 @@ export default function App() {
           <Route path="/ranking/:competitionId" element={<RankingPage />} />
           <Route path="/competitions/:competitionId/ranking" element={<RankingPage />} />
 
+          {/* Inscrição pública — funciona para visitante anônimo ou competidor logado */}
+          <Route path="/inscricao" element={<RegistrationPage />} />
+          <Route path="/competitions/:competitionId/inscricao" element={<RegistrationPage />} />
+
           {/* Dashboard do campeonato — layout próprio com sidebar escura */}
           <Route element={<ProtectedRoute allowedRoles={["judge", "operator", "admin"]} />}>
             <Route
@@ -97,7 +104,10 @@ export default function App() {
               <Route index element={<DashboardOverviewPage />} />
               <Route path="equipes" element={<TeamsPage />} />
               <Route path="atletas" element={<AthletesPage />} />
+              <Route path="checkin" element={<CheckinPage />} />
+              <Route path="registration-settings" element={<RegistrationSettingsPage />} />
               <Route path="baterias" element={<HeatsPage />} />
+              <Route path="resultados" element={<ResultsPage />} />
             </Route>
           </Route>
 
@@ -106,8 +116,6 @@ export default function App() {
             <Route element={<MainLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/ranking" element={<RankingPage />} />
-              <Route path="/inscricao" element={<RegistrationPage />} />
-              <Route path="/competitions/:competitionId/inscricao" element={<RegistrationPage />} />
               <Route path="/profile" element={<ProfilePage />} />
 
               {/* Timers legado — judge, operator, admin */}

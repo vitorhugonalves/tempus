@@ -1,5 +1,5 @@
 import apiClient from "./client";
-import type { Team, TeamMember } from "../types";
+import type { Team, TeamMember, TeamBulkResult } from "../types";
 
 export interface TeamCreate {
   name: string;
@@ -51,4 +51,16 @@ export const teamsApi = {
     apiClient.delete(
       `/api/v1/competitions/${competitionId}/teams/${teamId}/members/${userId}`
     ),
+
+  importCsv: (competitionId: number, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return apiClient
+      .post<TeamBulkResult>(
+        `/api/v1/competitions/${competitionId}/teams/import`,
+        form,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      )
+      .then((r) => r.data);
+  },
 };

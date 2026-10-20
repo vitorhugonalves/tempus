@@ -1,11 +1,33 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { competitionsApi, type CompetitionCreate } from "../api/competitions";
+import { competitionsApi, type CompetitionCreate, type WodCreate } from "../api/competitions";
+import { categoriesApi } from "../api/categories";
 import { cepApi } from "../api/cep";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Alert from "../components/ui/Alert";
-import type { EventType, ScoringModel, TiebreakCriterion } from "../types";
+import type { Category, CategoryType, EventType, Gender, ScoringModel, TiebreakCriterion, Wod, WodType } from "../types";
+
+// ── Helpers de data ───────────────────────────────────────────────────────────
+
+function ptDateToIso(ptDate: string): string {
+  const match = ptDate.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return ptDate;
+  return `${match[3]}-${match[2]}-${match[1]}`;
+}
+
+function isoToPtDate(iso: string): string {
+  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return iso;
+  return `${match[3]}/${match[2]}/${match[1]}`;
+}
+
+function applyDateMask(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  if (digits.length > 4) return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+  if (digits.length > 2) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return digits;
+}
 
 // ── Tipos do estado local ─────────────────────────────────────────────────────
 
@@ -23,14 +45,42 @@ interface WizardStep1 {
   event_type: EventType | "";
 }
 
+interface WizardStep2 {
+  is_public: boolean;
+  description: string;
+  instagram_url: string;
+  whatsapp_url: string;
+}
+
+interface WizardStep3 {
+  wods: Wod[];
+}
+
 interface WizardStep4 {
   scoring_model: ScoringModel | "";
   tiebreak_criterion: TiebreakCriterion | "";
 }
 
+interface CatForm {
+  name: string;
+  category_type: CategoryType;
+  gender: Gender | "";
+  age_restriction_enabled: boolean;
+  age_min: number | undefined;
+  age_max: number | undefined;
+  max_team_size: number | undefined;
+}
+
+interface WizardStep5 {
+  categories: Category[];
+}
+
 interface WizardState {
   step1: WizardStep1;
+  step2: WizardStep2;
+  step3: WizardStep3;
   step4: WizardStep4;
+  step5: WizardStep5;
 }
 
 const INITIAL_STATE: WizardState = {
@@ -47,7 +97,15 @@ const INITIAL_STATE: WizardState = {
     complemento: "",
     event_type: "",
   },
+  step2: {
+    is_public: false,
+    description: "",
+    instagram_url: "",
+    whatsapp_url: "",
+  },
+  step3: { wods: [] },
   step4: { scoring_model: "", tiebreak_criterion: "" },
+  step5: { categories: [] },
 };
 
 // ── Componente principal ──────────────────────────────────────────────────────
@@ -59,14 +117,46 @@ export default function CompetitionWizardPage() {
 
   const [currentStep, setCurrentStep] = useState(1);
   const [state, setState] = useState<WizardState>(INITIAL_STATE);
+  const [startDateDisplay, setStartDateDisplay] = useState("");
+  const [endDateDisplay, setEndDateDisplay] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [cepLoading, setCepLoading] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [bannerUploading, setBannerUploading] = useState(false);
+  const [createdCompId, setCreatedCompId] = useState<number | null>(id ? Number(id) : null);
+  const [wodAdding, setWodAdding] = useState(false);
+  const [wodForm, setWodForm] = useState<WodCreate>({
+    name: "",
+    wod_type: "amrap",
+    duration_minutes: undefined,
+    description: "",
+    order: 0,
+    category_ids: [],
+  });
+
+  const INITIAL_CAT_FORM: CatForm = {
+    name: "",
+    category_type: "individual",
+    gender: "",
+    age_restriction_enabled: false,
+    age_min: undefined,
+    age_max: undefined,
+    max_team_size: undefined,
+  };
+
+  const [catAdding, setCatAdding] = useState(false);
+  const [catSaving, setCatSaving] = useState(false);
+  const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
+  const [catForm, setCatForm] = useState<CatForm>(INITIAL_CAT_FORM);
+  const [editCatForm, setEditCatForm] = useState<CatForm>(INITIAL_CAT_FORM);
 
   useEffect(() => {
     if (!id) return;
-    competitionsApi.get(Number(id)).then((r: any) => {
+    competitionsApi.get(Number(id)).then(async (r: any) => {
       const c = r.data ?? r;
+      setStartDateDisplay(c.start_date ? isoToPtDate(c.start_date) : "");
+      setEndDateDisplay(c.end_date ? isoToPtDate(c.end_date) : "");
       setState((prev) => ({
         ...prev,
         step1: {
@@ -85,6 +175,26 @@ export default function CompetitionWizardPage() {
         step4: {
           scoring_model: c.scoring_model ?? "",
           tiebreak_criterion: c.tiebreak_criterion ?? "",
+        },
+      }));
+      try {
+        if (c.event_type === "crossfit") {
+          const wodsResp = await competitionsApi.listWods(Number(id));
+          const wods = (wodsResp.data ?? wodsResp) as Wod[];
+          setState((prev) => ({ ...prev, step3: { wods } }));
+        }
+        const catsResp = await categoriesApi.list(Number(id), true);
+        setState((prev) => ({ ...prev, step5: { categories: catsResp } }));
+      } catch {
+        setError("Erro ao carregar dados. Tente recarregar a página.");
+      }
+      setState((prev) => ({
+        ...prev,
+        step2: {
+          is_public: c.is_public ?? false,
+          description: c.description ?? "",
+          instagram_url: c.instagram_url ?? "",
+          whatsapp_url: c.whatsapp_url ?? "",
         },
       }));
     });
@@ -121,6 +231,11 @@ export default function CompetitionWizardPage() {
   function validateStep1(): string | null {
     if (!state.step1.name.trim()) return "Nome do campeonato é obrigatório";
     if (!state.step1.event_type) return "Selecione o tipo de evento (Hyrox ou CrossFit)";
+    const isoPattern = /^\d{4}-\d{2}-\d{2}$/;
+    if (state.step1.start_date && !isoPattern.test(state.step1.start_date))
+      return "Data de início inválida — preencha a data completa (DD/MM/AAAA)";
+    if (state.step1.end_date && !isoPattern.test(state.step1.end_date))
+      return "Data de término inválida — preencha a data completa (DD/MM/AAAA)";
     return null;
   }
 
@@ -129,21 +244,59 @@ export default function CompetitionWizardPage() {
     return null;
   }
 
-  function handleNext() {
+  async function handleNext() {
     setError(null);
     if (currentStep === 1) {
       const err = validateStep1();
       if (err) { setError(err); return; }
+      // Criar competição transparentemente ao avançar do step 1 no modo de criação
+      if (!isEdit && !createdCompId) {
+        setSubmitting(true);
+        try {
+          const locationParts = [
+            state.step1.logradouro,
+            state.step1.numero,
+            state.step1.bairro,
+            state.step1.cidade,
+            state.step1.uf,
+          ].filter(Boolean);
+          const createPayload: CompetitionCreate = {
+            name: state.step1.name,
+            location: locationParts.join(", ") || undefined,
+            start_date: state.step1.start_date || undefined,
+            end_date: state.step1.end_date || undefined,
+            event_type: (state.step1.event_type as EventType) || undefined,
+          };
+          const result: any = await competitionsApi.create(createPayload);
+          const comp = result.data ?? result;
+          setCreatedCompId(comp.id);
+        } catch (e: any) {
+          setError(e?.response?.data?.detail ?? "Erro ao criar campeonato");
+          return;
+        } finally {
+          setSubmitting(false);
+        }
+      }
     }
-    if (currentStep === 4) {
+    if (currentStep === 5) {
       const err = validateStep4();
       if (err) { setError(err); return; }
     }
-    setCurrentStep((s) => Math.min(s + 1, 5));
+    // Pular Etapa 4 (WODs) para eventos Hyrox
+    if (currentStep === 3 && state.step1.event_type === "hyrox") {
+      setCurrentStep(5);
+      return;
+    }
+    setCurrentStep((s) => Math.min(s + 1, 6));
   }
 
   function handleBack() {
     setError(null);
+    // Pular Etapa 4 (WODs) ao voltar para Hyrox
+    if (currentStep === 5 && state.step1.event_type === "hyrox") {
+      setCurrentStep(3);
+      return;
+    }
     setCurrentStep((s) => Math.max(s - 1, 1));
   }
 
@@ -168,17 +321,24 @@ export default function CompetitionWizardPage() {
       event_type: (state.step1.event_type as EventType) || undefined,
       scoring_model: (state.step4.scoring_model as ScoringModel) || undefined,
       tiebreak_criterion: (state.step4.tiebreak_criterion as TiebreakCriterion) || undefined,
+      is_public: state.step2.is_public,
+      description: state.step2.description || undefined,
+      instagram_url: state.step2.instagram_url || undefined,
+      whatsapp_url: state.step2.whatsapp_url || undefined,
     };
 
     try {
-      let result: any;
-      if (isEdit && id) {
-        result = await competitionsApi.update(Number(id), payload);
+      // Em modo de criação a competição já existe (criada na transição step 1→2)
+      const targetId = createdCompId ?? (id ? Number(id) : null);
+      if (targetId) {
+        await competitionsApi.update(targetId, payload);
+        navigate(`/competitions/${targetId}/dashboard`);
       } else {
-        result = await competitionsApi.create(payload);
+        const result: any = await competitionsApi.create(payload);
+        const comp = result.data ?? result;
+        setCreatedCompId(comp.id);
+        navigate(`/competitions/${comp.id}/dashboard`);
       }
-      const comp = result.data ?? result;
-      navigate(`/competitions/${comp.id}/dashboard`);
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? "Erro ao salvar campeonato");
     } finally {
@@ -186,9 +346,159 @@ export default function CompetitionWizardPage() {
     }
   }
 
+  // ── Upload de imagens ──────────────────────────────────────────────────────
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !createdCompId) return;
+    setLogoUploading(true);
+    try {
+      await competitionsApi.uploadLogo(createdCompId, file);
+    } catch {
+      setError("Erro ao fazer upload do logotipo.");
+    } finally {
+      setLogoUploading(false);
+    }
+  }
+
+  async function handleBannerUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !createdCompId) return;
+    setBannerUploading(true);
+    try {
+      await competitionsApi.uploadBanner(createdCompId, file);
+    } catch {
+      setError("Erro ao fazer upload do banner.");
+    } finally {
+      setBannerUploading(false);
+    }
+  }
+
+  // ── Handlers de WOD ───────────────────────────────────────────────────────
+
+  async function handleAddWod() {
+    if (!wodForm.name.trim() || !createdCompId) return;
+    setWodAdding(true);
+    try {
+      const resp = await competitionsApi.createWod(createdCompId, {
+        ...wodForm,
+        order: state.step3.wods.length,
+      });
+      const newWod = (resp.data ?? resp) as Wod;
+      setState((p) => ({ ...p, step3: { wods: [...p.step3.wods, newWod] } }));
+      setWodForm({ name: "", wod_type: "amrap", duration_minutes: undefined, description: "", order: 0, category_ids: [] });
+    } catch {
+      setError("Erro ao adicionar WOD.");
+    } finally {
+      setWodAdding(false);
+    }
+  }
+
+  async function handleDeleteWod(wodId: number) {
+    if (!createdCompId) return;
+    try {
+      await competitionsApi.deleteWod(createdCompId, wodId);
+      setState((p) => ({
+        ...p,
+        step3: { wods: p.step3.wods.filter((w) => w.id !== wodId) },
+      }));
+    } catch {
+      setError("Erro ao remover WOD.");
+    }
+  }
+
+  // ── Handlers de Categoria ──────────────────────────────────────────────────
+
+  async function handleAddCategory() {
+    if (!catForm.name.trim() || !createdCompId) return;
+    setCatAdding(true);
+    try {
+      const payload: Record<string, unknown> = {
+        name: catForm.name.trim(),
+        category_type: catForm.category_type,
+      };
+      if (catForm.gender) payload.gender = catForm.gender;
+      if (catForm.age_restriction_enabled) {
+        payload.age_restriction_enabled = true;
+        if (catForm.age_min !== undefined) payload.age_min = catForm.age_min;
+        if (catForm.age_max !== undefined) payload.age_max = catForm.age_max;
+      }
+      if (catForm.category_type === "team" && catForm.max_team_size !== undefined) {
+        payload.max_team_size = catForm.max_team_size;
+      }
+      const created = await categoriesApi.create(createdCompId, payload as any);
+      setState((p) => ({ ...p, step5: { categories: [...p.step5.categories, created] } }));
+      setCatForm(INITIAL_CAT_FORM);
+    } catch {
+      setError("Erro ao adicionar categoria.");
+    } finally {
+      setCatAdding(false);
+    }
+  }
+
+  function handleStartEditCategory(cat: Category) {
+    setEditingCategoryId(cat.id);
+    setEditCatForm({
+      name: cat.name,
+      category_type: cat.category_type,
+      gender: cat.gender ?? "",
+      age_restriction_enabled: cat.age_restriction_enabled,
+      age_min: cat.age_min ?? undefined,
+      age_max: cat.age_max ?? undefined,
+      max_team_size: cat.max_team_size ?? undefined,
+    });
+  }
+
+  function handleCancelEditCategory() {
+    setEditingCategoryId(null);
+    setEditCatForm(INITIAL_CAT_FORM);
+  }
+
+  async function handleSaveCategory() {
+    if (!editCatForm.name.trim() || !createdCompId || editingCategoryId === null) return;
+    setCatSaving(true);
+    try {
+      const payload: Record<string, unknown> = {
+        name: editCatForm.name.trim(),
+        category_type: editCatForm.category_type,
+        gender: editCatForm.gender || null,
+        age_restriction_enabled: editCatForm.age_restriction_enabled,
+        age_min: editCatForm.age_restriction_enabled ? (editCatForm.age_min ?? null) : null,
+        age_max: editCatForm.age_restriction_enabled ? (editCatForm.age_max ?? null) : null,
+        max_team_size: editCatForm.category_type === "team" ? (editCatForm.max_team_size ?? null) : null,
+      };
+      const updated = await categoriesApi.update(createdCompId, editingCategoryId, payload as any);
+      setState((p) => ({
+        ...p,
+        step5: {
+          categories: p.step5.categories.map((c) => (c.id === editingCategoryId ? updated : c)),
+        },
+      }));
+      setEditingCategoryId(null);
+      setEditCatForm(INITIAL_CAT_FORM);
+    } catch {
+      setError("Erro ao salvar categoria.");
+    } finally {
+      setCatSaving(false);
+    }
+  }
+
+  async function handleDeactivateCategory(catId: number) {
+    if (!createdCompId) return;
+    try {
+      await categoriesApi.deactivate(createdCompId, catId);
+      setState((p) => ({
+        ...p,
+        step5: { categories: p.step5.categories.filter((c) => c.id !== catId) },
+      }));
+    } catch {
+      setError("Erro ao desativar categoria.");
+    }
+  }
+
   // ── Render por etapa ───────────────────────────────────────────────────────
 
-  const STEPS = ["Informações", "Divulgação", "WODs", "Pontuação", "Finalização"];
+  const STEPS = ["Informações", "Categorias", "Divulgação", "WODs", "Pontuação", "Finalização"];
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 py-8">
@@ -238,19 +548,31 @@ export default function CompetitionWizardPage() {
             <div className="grid grid-cols-2 gap-4">
               <Input
                 label="Data de início"
-                type="date"
-                value={state.step1.start_date}
-                onChange={(e) =>
-                  setState((p) => ({ ...p, step1: { ...p.step1, start_date: e.target.value } }))
-                }
+                placeholder="dd/mm/aaaa"
+                value={startDateDisplay}
+                onChange={(e) => {
+                  const masked = applyDateMask(e.target.value);
+                  setStartDateDisplay(masked);
+                  const iso = ptDateToIso(masked);
+                  setState((p) => ({
+                    ...p,
+                    step1: { ...p.step1, start_date: iso !== masked ? iso : masked },
+                  }));
+                }}
               />
               <Input
                 label="Data de término"
-                type="date"
-                value={state.step1.end_date}
-                onChange={(e) =>
-                  setState((p) => ({ ...p, step1: { ...p.step1, end_date: e.target.value } }))
-                }
+                placeholder="dd/mm/aaaa"
+                value={endDateDisplay}
+                onChange={(e) => {
+                  const masked = applyDateMask(e.target.value);
+                  setEndDateDisplay(masked);
+                  const iso = ptDateToIso(masked);
+                  setState((p) => ({
+                    ...p,
+                    step1: { ...p.step1, end_date: iso !== masked ? iso : masked },
+                  }));
+                }}
               />
             </div>
           </div>
@@ -347,25 +669,252 @@ export default function CompetitionWizardPage() {
             </div>
           </div>
 
-          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-            Categorias podem ser adicionadas após a criação no dashboard do campeonato.
+        </div>
+      )}
+
+      {/* Etapa 3: Divulgação */}
+      {currentStep === 3 && (
+        <div className="space-y-6 rounded-lg border border-gray-200 bg-white p-6">
+          <h2 className="text-lg font-semibold text-gray-900">Divulgação</h2>
+
+          {/* Visibilidade */}
+          <div className="flex items-center gap-3">
+            <input
+              id="is_public"
+              type="checkbox"
+              checked={state.step2.is_public}
+              onChange={(e) =>
+                setState((p) => ({ ...p, step2: { ...p.step2, is_public: e.target.checked } }))
+              }
+              className="h-4 w-4 rounded-sm border-gray-300 text-primary-600"
+            />
+            <label htmlFor="is_public" className="text-sm font-medium text-gray-700">
+              Tornar esta competição pública (visível na página de ranking e inscrição)
+            </label>
+          </div>
+
+          {/* Descrição */}
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700">Descrição</label>
+            <textarea
+              rows={4}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-xs focus:border-primary-500 focus:outline-hidden focus:ring-1 focus:ring-primary-500"
+              placeholder="Descreva o evento, formato, local e demais informações relevantes..."
+              value={state.step2.description}
+              onChange={(e) =>
+                setState((p) => ({ ...p, step2: { ...p.step2, description: e.target.value } }))
+              }
+            />
+          </div>
+
+          {/* Redes sociais */}
+          <div className="space-y-4 border-t pt-4">
+            <h3 className="font-medium text-gray-700">Redes sociais</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Instagram"
+                placeholder="https://instagram.com/..."
+                value={state.step2.instagram_url}
+                onChange={(e) =>
+                  setState((p) => ({ ...p, step2: { ...p.step2, instagram_url: e.target.value } }))
+                }
+              />
+              <Input
+                label="WhatsApp"
+                placeholder="https://wa.me/55..."
+                value={state.step2.whatsapp_url}
+                onChange={(e) =>
+                  setState((p) => ({ ...p, step2: { ...p.step2, whatsapp_url: e.target.value } }))
+                }
+              />
+            </div>
+          </div>
+
+          {/* Upload de imagens */}
+          <div className="space-y-4 border-t pt-4">
+            <h3 className="font-medium text-gray-700">Imagens</h3>
+            {!createdCompId && (
+              <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+                Upload disponível após criar a competição.
+              </p>
+            )}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">Logotipo</label>
+                {createdCompId && (
+                  <img
+                    src={`/api/v1/competitions/${createdCompId}/logo`}
+                    alt="Logo"
+                    className="h-16 w-auto rounded-sm border border-gray-200 object-contain"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
+                )}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/gif,image/webp"
+                  disabled={!createdCompId || logoUploading}
+                  onChange={handleLogoUpload}
+                  className="block w-full text-sm text-gray-500 file:mr-3 file:rounded-sm file:border-0 file:bg-primary-50 file:px-3 file:py-1 file:text-sm file:font-medium file:text-primary-700 disabled:opacity-50"
+                />
+                {logoUploading && <p className="text-xs text-gray-400">Enviando...</p>}
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">Banner</label>
+                {createdCompId && (
+                  <img
+                    src={`/api/v1/competitions/${createdCompId}/banner`}
+                    alt="Banner"
+                    className="h-16 w-auto rounded-sm border border-gray-200 object-contain"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
+                )}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/gif,image/webp"
+                  disabled={!createdCompId || bannerUploading}
+                  onChange={handleBannerUpload}
+                  className="block w-full text-sm text-gray-500 file:mr-3 file:rounded-sm file:border-0 file:bg-primary-50 file:px-3 file:py-1 file:text-sm file:font-medium file:text-primary-700 disabled:opacity-50"
+                />
+                {bannerUploading && <p className="text-xs text-amber-600">Enviando...</p>}
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Etapas 2 e 3 — placeholder para fases futuras */}
-      {(currentStep === 2 || currentStep === 3) && (
-        <div className="rounded-lg border border-dashed border-gray-300 bg-white p-12 text-center">
-          <p className="text-gray-500">
-            {currentStep === 2
-              ? "Etapa 2 (Divulgação) — disponível na Fase 2 do redesenho."
-              : "Etapa 3 (WODs) — disponível na Fase 3 do redesenho (somente CrossFit)."}
-          </p>
+      {/* Etapa 4: WODs (apenas CrossFit) */}
+      {currentStep === 4 && (
+        <div className="space-y-6 rounded-lg border border-gray-200 bg-white p-6">
+          <h2 className="text-lg font-semibold text-gray-900">WODs</h2>
+
+          {/* Lista de WODs existentes */}
+          {state.step3.wods.length === 0 && (
+            <p className="text-sm text-gray-500">Nenhum WOD cadastrado ainda.</p>
+          )}
+          {state.step3.wods.map((wod) => (
+            <div key={wod.id} className="flex items-start justify-between rounded-md border border-gray-200 p-4">
+              <div className="space-y-1">
+                <p className="font-medium text-gray-900">{wod.name}</p>
+                <p className="text-xs text-gray-500">
+                  {wod.wod_type.replace("_", " ").toUpperCase()}
+                  {wod.duration_minutes ? ` · ${wod.duration_minutes} min` : ""}
+                </p>
+                {wod.description && (
+                  <p className="text-sm text-gray-600">{wod.description}</p>
+                )}
+                {wod.category_ids && wod.category_ids.length > 0 && (
+                  <p className="text-xs text-blue-600">
+                    {state.step5.categories
+                      .filter((c) => wod.category_ids.includes(c.id))
+                      .map((c) => c.name)
+                      .join(", ")}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => handleDeleteWod(wod.id)}
+                className="ml-4 text-red-500 hover:text-red-700"
+                title="Remover WOD"
+              >
+                &#128465;
+              </button>
+            </div>
+          ))}
+
+          {/* Formulário de novo WOD */}
+          <div className="space-y-4 rounded-md border border-dashed border-gray-300 p-4">
+            <h3 className="text-sm font-medium text-gray-700">Adicionar WOD</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Nome *"
+                placeholder="Ex: Fran"
+                value={wodForm.name}
+                onChange={(e) => setWodForm((f) => ({ ...f, name: e.target.value }))}
+              />
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">Tipo *</label>
+                <select
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-xs focus:border-primary-500 focus:outline-hidden"
+                  value={wodForm.wod_type}
+                  onChange={(e) => setWodForm((f) => ({ ...f, wod_type: e.target.value as WodType }))}
+                >
+                  <option value="amrap">AMRAP</option>
+                  <option value="for_time">For Time</option>
+                  <option value="emom">EMOM</option>
+                  <option value="max_load">Max Load</option>
+                </select>
+              </div>
+            </div>
+            <Input
+              label="Duração (minutos)"
+              type="number"
+              placeholder="Ex: 20"
+              value={wodForm.duration_minutes ?? ""}
+              onChange={(e) =>
+                setWodForm((f) => ({
+                  ...f,
+                  duration_minutes: e.target.value ? Number(e.target.value) : undefined,
+                }))
+              }
+            />
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-gray-700">Movimentos</label>
+              <textarea
+                rows={3}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-xs focus:border-primary-500 focus:outline-hidden focus:ring-1 focus:ring-primary-500"
+                placeholder="Ex: 21-15-9 Thrusters (43 kg) + Pull-ups"
+                value={wodForm.description ?? ""}
+                onChange={(e) => setWodForm((f) => ({ ...f, description: e.target.value }))}
+              />
+            </div>
+            {state.step5.categories.length > 0 && (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Categorias participantes
+                </label>
+                <p className="text-xs text-gray-500">Deixe em branco para aplicar a todas as categorias</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {state.step5.categories.map((cat) => (
+                    <label key={cat.id} className="flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={(wodForm.category_ids ?? []).includes(cat.id)}
+                        onChange={(e) => {
+                          const ids = wodForm.category_ids ?? [];
+                          setWodForm((f) => ({
+                            ...f,
+                            category_ids: e.target.checked
+                              ? [...ids, cat.id]
+                              : ids.filter((cid) => cid !== cat.id),
+                          }));
+                        }}
+                        className="h-4 w-4 rounded-sm border-gray-300"
+                      />
+                      {cat.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+            <Button
+              onClick={handleAddWod}
+              disabled={!wodForm.name.trim() || wodAdding || !createdCompId}
+              variant="secondary"
+            >
+              {wodAdding ? "Adicionando..." : "+ Adicionar WOD"}
+            </Button>
+            {!createdCompId && (
+              <p className="text-xs text-amber-600">
+                WODs disponíveis após a criação da competição.
+              </p>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Etapa 4: Pontuação */}
-      {currentStep === 4 && (
+      {/* Etapa 5: Pontuação */}
+      {currentStep === 5 && (
         <div className="space-y-6 rounded-lg border border-gray-200 bg-white p-6">
           <h2 className="text-lg font-semibold text-gray-900">Modelo de Pontuação</h2>
 
@@ -424,8 +973,343 @@ export default function CompetitionWizardPage() {
         </div>
       )}
 
-      {/* Etapa 5: Resumo e criação */}
-      {currentStep === 5 && (
+      {/* Etapa 2: Categorias */}
+      {currentStep === 2 && (
+        <div className="space-y-6 rounded-lg border border-gray-200 bg-white p-6">
+          <h2 className="text-lg font-semibold text-gray-900">Categorias</h2>
+
+          {!createdCompId ? (
+            <p className="rounded-md bg-blue-50 px-4 py-3 text-sm text-blue-700">
+              Competição sendo configurada. Avance para criar a competição primeiro.
+            </p>
+          ) : (
+            <div className="space-y-6">
+              {/* Lista de categorias */}
+              {state.step5.categories.length === 0 ? (
+                <p className="text-sm text-gray-500">Nenhuma categoria cadastrada ainda.</p>
+              ) : (
+                <ul className="divide-y divide-gray-100">
+                  {state.step5.categories.map((cat) =>
+                    editingCategoryId === cat.id ? (
+                      /* Linha em modo edição inline */
+                      <li key={cat.id} className="space-y-3 py-4">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600">Nome *</label>
+                            <input
+                              type="text"
+                              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
+                              value={editCatForm.name}
+                              onChange={(e) => setEditCatForm((f) => ({ ...f, name: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600">Tipo *</label>
+                            <select
+                              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
+                              value={editCatForm.category_type}
+                              onChange={(e) =>
+                                setEditCatForm((f) => ({
+                                  ...f,
+                                  category_type: e.target.value as CategoryType,
+                                  max_team_size: undefined,
+                                }))
+                              }
+                            >
+                              <option value="individual">Individual</option>
+                              <option value="team">Equipe</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600">Gênero</label>
+                            <select
+                              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
+                              value={editCatForm.gender}
+                              onChange={(e) =>
+                                setEditCatForm((f) => ({ ...f, gender: e.target.value as Gender | "" }))
+                              }
+                            >
+                              <option value="">Sem restrição</option>
+                              <option value="male">Masculino</option>
+                              <option value="female">Feminino</option>
+                              <option value="mixed">Misto</option>
+                            </select>
+                          </div>
+                          {editCatForm.category_type === "team" && (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600">
+                                Tamanho máx. equipe
+                              </label>
+                              <input
+                                type="number"
+                                min={2}
+                                max={50}
+                                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
+                                value={editCatForm.max_team_size ?? ""}
+                                onChange={(e) =>
+                                  setEditCatForm((f) => ({
+                                    ...f,
+                                    max_team_size: e.target.value ? Number(e.target.value) : undefined,
+                                  }))
+                                }
+                              />
+                            </div>
+                          )}
+                        </div>
+                        <label className="flex items-center gap-2 text-sm text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={editCatForm.age_restriction_enabled}
+                            onChange={(e) =>
+                              setEditCatForm((f) => ({
+                                ...f,
+                                age_restriction_enabled: e.target.checked,
+                                age_min: undefined,
+                                age_max: undefined,
+                              }))
+                            }
+                            className="h-4 w-4 rounded-sm border-gray-300"
+                          />
+                          Restringir por idade
+                        </label>
+                        {editCatForm.age_restriction_enabled && (
+                          <div className="grid grid-cols-2 gap-3 pl-6">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600">Idade mínima</label>
+                              <input
+                                type="number"
+                                min={0}
+                                max={120}
+                                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
+                                value={editCatForm.age_min ?? ""}
+                                onChange={(e) =>
+                                  setEditCatForm((f) => ({
+                                    ...f,
+                                    age_min: e.target.value ? Number(e.target.value) : undefined,
+                                  }))
+                                }
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600">Idade máxima</label>
+                              <input
+                                type="number"
+                                min={0}
+                                max={120}
+                                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
+                                value={editCatForm.age_max ?? ""}
+                                onChange={(e) =>
+                                  setEditCatForm((f) => ({
+                                    ...f,
+                                    age_max: e.target.value ? Number(e.target.value) : undefined,
+                                  }))
+                                }
+                              />
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleSaveCategory}
+                            disabled={catSaving}
+                            className="rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+                          >
+                            {catSaving ? "Salvando..." : "Salvar"}
+                          </button>
+                          <button
+                            onClick={handleCancelEditCategory}
+                            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </li>
+                    ) : (
+                      /* Linha em modo exibição */
+                      <li key={cat.id} className="flex items-center justify-between py-3">
+                        <div className="space-y-0.5">
+                          <p className="text-sm font-medium text-gray-900">{cat.name}</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                              {cat.category_type === "individual" ? "Individual" : "Equipe"}
+                            </span>
+                            {cat.gender && (
+                              <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
+                                {cat.gender === "male"
+                                  ? "Masculino"
+                                  : cat.gender === "female"
+                                  ? "Feminino"
+                                  : "Misto"}
+                              </span>
+                            )}
+                            {cat.age_restriction_enabled && (
+                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                                {cat.age_min ?? "?"} – {cat.age_max ?? "?"} anos
+                              </span>
+                            )}
+                            {cat.category_type === "team" && cat.max_team_size && (
+                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                                Máx. {cat.max_team_size} membros
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleStartEditCategory(cat)}
+                            className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                            title="Editar"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => handleDeactivateCategory(cat.id)}
+                            className="rounded-md p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"
+                            title="Desativar"
+                          >
+                            &#128465;
+                          </button>
+                        </div>
+                      </li>
+                    )
+                  )}
+                </ul>
+              )}
+
+              {/* Formulário de criação */}
+              <div className="space-y-4 border-t pt-4">
+                <h3 className="text-sm font-medium text-gray-700">Adicionar categoria</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600">Nome *</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Elite Masculino"
+                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
+                      value={catForm.name}
+                      onChange={(e) => setCatForm((f) => ({ ...f, name: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600">Tipo *</label>
+                    <select
+                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
+                      value={catForm.category_type}
+                      onChange={(e) =>
+                        setCatForm((f) => ({
+                          ...f,
+                          category_type: e.target.value as CategoryType,
+                          max_team_size: undefined,
+                        }))
+                      }
+                    >
+                      <option value="individual">Individual</option>
+                      <option value="team">Equipe</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600">Gênero</label>
+                    <select
+                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
+                      value={catForm.gender}
+                      onChange={(e) =>
+                        setCatForm((f) => ({ ...f, gender: e.target.value as Gender | "" }))
+                      }
+                    >
+                      <option value="">Sem restrição</option>
+                      <option value="male">Masculino</option>
+                      <option value="female">Feminino</option>
+                      <option value="mixed">Misto</option>
+                    </select>
+                  </div>
+                  {catForm.category_type === "team" && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600">
+                        Tamanho máx. equipe
+                      </label>
+                      <input
+                        type="number"
+                        min={2}
+                        max={50}
+                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
+                        value={catForm.max_team_size ?? ""}
+                        onChange={(e) =>
+                          setCatForm((f) => ({
+                            ...f,
+                            max_team_size: e.target.value ? Number(e.target.value) : undefined,
+                          }))
+                        }
+                      />
+                    </div>
+                  )}
+                </div>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={catForm.age_restriction_enabled}
+                    onChange={(e) =>
+                      setCatForm((f) => ({
+                        ...f,
+                        age_restriction_enabled: e.target.checked,
+                        age_min: undefined,
+                        age_max: undefined,
+                      }))
+                    }
+                    className="h-4 w-4 rounded-sm border-gray-300"
+                  />
+                  Restringir por idade
+                </label>
+                {catForm.age_restriction_enabled && (
+                  <div className="grid grid-cols-2 gap-3 pl-6">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600">Idade mínima</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={120}
+                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
+                        value={catForm.age_min ?? ""}
+                        onChange={(e) =>
+                          setCatForm((f) => ({
+                            ...f,
+                            age_min: e.target.value ? Number(e.target.value) : undefined,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600">Idade máxima</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={120}
+                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-hidden"
+                        value={catForm.age_max ?? ""}
+                        onChange={(e) =>
+                          setCatForm((f) => ({
+                            ...f,
+                            age_max: e.target.value ? Number(e.target.value) : undefined,
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
+                <button
+                  onClick={handleAddCategory}
+                  disabled={catAdding || !catForm.name.trim()}
+                  className="rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {catAdding ? "Adicionando..." : "+ Adicionar Categoria"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Etapa 6: Resumo e criação */}
+      {currentStep === 6 && (
         <div className="space-y-6 rounded-lg border border-gray-200 bg-white p-6">
           <h2 className="text-lg font-semibold text-gray-900">Resumo</h2>
 
@@ -443,8 +1327,8 @@ export default function CompetitionWizardPage() {
             <div className="rounded-md bg-gray-50 p-4">
               <p className="text-xs font-medium uppercase text-gray-500">Data</p>
               <p className="mt-1 font-medium text-gray-900">
-                {state.step1.start_date || "—"}
-                {state.step1.end_date ? ` → ${state.step1.end_date}` : ""}
+                {startDateDisplay || "—"}
+                {endDateDisplay ? ` → ${endDateDisplay}` : ""}
               </p>
             </div>
             <div className="rounded-md bg-gray-50 p-4">
@@ -455,6 +1339,33 @@ export default function CompetitionWizardPage() {
                   : state.step4.scoring_model === "most_points"
                   ? "Mais Pontos"
                   : "—"}
+              </p>
+            </div>
+            {/* Card: Visibilidade */}
+            <div className="rounded-md bg-gray-50 p-4">
+              <p className="text-xs font-medium uppercase text-gray-500">Visibilidade</p>
+              <p className="mt-1 font-medium text-gray-900">
+                {state.step2.is_public ? "Pública" : "Privada"}
+              </p>
+            </div>
+            {/* Card: WODs (só CrossFit) */}
+            {state.step1.event_type === "crossfit" && (
+              <div className="rounded-md bg-gray-50 p-4">
+                <p className="text-xs font-medium uppercase text-gray-500">WODs</p>
+                <p className="mt-1 font-medium text-gray-900">
+                  {state.step3.wods.length > 0
+                    ? `${state.step3.wods.length} WOD(s) cadastrado(s)`
+                    : "Nenhum WOD"}
+                </p>
+              </div>
+            )}
+            {/* Card: Categorias */}
+            <div className="rounded-md bg-gray-50 p-4">
+              <p className="text-xs font-medium uppercase text-gray-500">Categorias</p>
+              <p className="mt-1 font-medium text-gray-900">
+                {state.step5.categories.length > 0
+                  ? `${state.step5.categories.length} categoria(s) ativa(s)`
+                  : "Nenhuma categoria"}
               </p>
             </div>
           </div>
@@ -470,9 +1381,13 @@ export default function CompetitionWizardPage() {
         <Button variant="secondary" onClick={handleBack} disabled={currentStep === 1}>
           Voltar
         </Button>
-        {currentStep < 5 && (
-          <Button onClick={handleNext}>
-            {currentStep === 4 ? "Revisar" : "Avançar"}
+        {currentStep < 6 && (
+          <Button onClick={handleNext} disabled={submitting}>
+            {submitting && currentStep === 1
+              ? "Criando..."
+              : currentStep === 5
+              ? "Revisar"
+              : "Avançar"}
           </Button>
         )}
       </div>

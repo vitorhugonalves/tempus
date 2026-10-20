@@ -74,7 +74,7 @@ export default function LoginPage() {
           variant="primary"
           size="lg"
           isLoading={isLoading}
-          className="w-full mt-2"
+          className="w-full"
         >
           Entrar
         </Button>

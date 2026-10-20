@@ -1,19 +1,28 @@
 """competition_core_fields
 
 Revision ID: 20260615_competition_core_fields
-Revises: 20260328_add_sort_order_to_heats
+Revises: 20260328_sort_order_heats
 Create Date: 2026-06-15
 """
 import sqlalchemy as sa
 from alembic import op
 
 revision = "20260615_competition_core_fields"
-down_revision = "20260328_add_sort_order_to_heats"
+down_revision = "20260328_sort_order_heats"
 branch_labels = None
 depends_on = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        op.execute("CREATE TYPE eventtype AS ENUM ('hyrox', 'crossfit')")
+        op.execute("CREATE TYPE scoringmodel AS ENUM ('lowest_time', 'most_points')")
+        op.execute(
+            "CREATE TYPE tiebreakcriterion AS ENUM "
+            "('last_checkpoint', 'registration_date', 'alphabetical')"
+        )
+
     with op.batch_alter_table("competitions") as batch_op:
         # Renomeia event_date → start_date
         batch_op.alter_column(
@@ -82,3 +91,9 @@ def downgrade() -> None:
         batch_op.alter_column(
             "start_date", new_column_name="event_date", existing_type=sa.Date(), nullable=True
         )
+
+    bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        op.execute("DROP TYPE IF EXISTS tiebreakcriterion")
+        op.execute("DROP TYPE IF EXISTS scoringmodel")
+        op.execute("DROP TYPE IF EXISTS eventtype")

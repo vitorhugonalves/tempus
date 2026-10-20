@@ -1,7 +1,12 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.core.constants import (
+    MAX_ADJUST_JUSTIFICATION_CHARS,
+    MAX_ADJUSTED_TIME_MS,
+    MIN_ADJUST_JUSTIFICATION_CHARS,
+)
 from app.models.timer import TimerEventType, TimerStatus
 
 
@@ -22,6 +27,24 @@ class TimerCreate(BaseModel):
 
 class TimerActionRequest(BaseModel):
     note: str | None = Field(None, max_length=500)
+
+
+class TimerAdjustRequest(BaseModel):
+    """Ajuste manual do tempo final de um timer finalizado."""
+
+    final_time_ms: int = Field(..., gt=0, le=MAX_ADJUSTED_TIME_MS)
+    justification: str = Field(..., max_length=MAX_ADJUST_JUSTIFICATION_CHARS)
+
+    @field_validator("justification")
+    @classmethod
+    def require_meaningful_justification(cls, value: str) -> str:
+        stripped = value.strip()
+        if len(stripped) < MIN_ADJUST_JUSTIFICATION_CHARS:
+            raise ValueError(
+                "Justificativa deve ter ao menos "
+                f"{MIN_ADJUST_JUSTIFICATION_CHARS} caracteres"
+            )
+        return stripped
 
 
 class PenaltyTypeCreate(BaseModel):
@@ -183,6 +206,18 @@ class RankingEntry(BaseModel):
     infractions_count: int
     remaining_seconds: int | None
     status: TimerStatus
+
+
+class CrossfitRankingEntry(BaseModel):
+    position: int
+    team_id: int | None
+    user_id: int | None
+    athlete_name: str
+    team_name: str | None
+    category_name: str | None
+    wods_completed: int
+    total_points: int
+    status: str  # "finished" | "running" | "pending"
 
 
 # ---------------------------------------------------------------------------

@@ -12,6 +12,7 @@ from app.schemas.timer import (
     PenaltyTypeCreate,
     PenaltyTypeResponse,
     TimerActionRequest,
+    TimerAdjustRequest,
     TimerCreate,
     TimerEventResponse,
     TimerResponse,
@@ -199,6 +200,27 @@ async def restart_timer(
     """Reinicia o timer zerando o tempo (RF-29). Motivo obrigatório."""
     timer = await TimerService.reset(db, timer_id, payload.note, current_user, redis)
     logger.info("Timer reiniciado: id=%s motivo=%s", timer_id, payload.note)
+    return TimerResponse.from_orm(timer)
+
+
+@router.post("/timers/{timer_id}/adjust", response_model=TimerResponse)
+async def adjust_timer(
+    timer_id: int,
+    payload: TimerAdjustRequest,
+    current_user: User = Depends(require_roles("admin")),
+    db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+) -> TimerResponse:
+    """Corrige o tempo final de um timer finalizado (só admin, com justificativa)."""
+    timer = await TimerService.adjust(
+        db, timer_id, payload.final_time_ms, payload.justification, current_user, redis
+    )
+    logger.info(
+        "Timer ajustado: id=%s novo_ms=%s por user=%s",
+        timer_id,
+        payload.final_time_ms,
+        current_user.id,
+    )
     return TimerResponse.from_orm(timer)
 
 

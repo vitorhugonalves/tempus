@@ -3,10 +3,11 @@ import { useParams } from "react-router-dom";
 import { PlusIcon, ArrowUpTrayIcon } from "@heroicons/react/24/outline";
 import { athletesApi } from "../../api/athletes";
 import { categoriesApi } from "../../api/categories";
+import { teamsApi } from "../../api/teams";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
 import Alert from "../../components/ui/Alert";
-import type { Athlete, AthleteCreate, Category, TshirtSize } from "../../types";
+import type { Athlete, AthleteCreate, Category, Team, TshirtSize } from "../../types";
 
 const TSHIRT_SIZES: TshirtSize[] = ["P", "M", "G", "GG", "XG"];
 
@@ -16,6 +17,7 @@ export default function AthletesPage() {
 
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<string | null>(null);
@@ -25,13 +27,16 @@ export default function AthletesPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<AthleteCreate>({ name: "" });
+  const [editingAthlete, setEditingAthlete] = useState<Athlete | null>(null);
+  const [editForm, setEditForm] = useState<AthleteCreate>({ name: "" });
 
   useEffect(() => {
     Promise.all([
       athletesApi.list(id).then((r: any) => r.data ?? r),
       categoriesApi.list(id),
+      teamsApi.list(id),
     ])
-      .then(([a, c]) => { setAthletes(a); setCategories(c); })
+      .then(([a, c, t]) => { setAthletes(a); setCategories(c); setTeams(t); })
       .catch(() => setError("Erro ao carregar dados"))
       .finally(() => setLoading(false));
   }, [id]);
@@ -48,10 +53,26 @@ export default function AthletesPage() {
     try {
       const res: any = await athletesApi.create(id, form);
       setAthletes((p) => [...p, res.data ?? res]);
+      const updatedTeams = await teamsApi.list(id);
+      setTeams(updatedTeams);
       setForm({ name: "" });
       setShowForm(false);
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? "Erro ao criar atleta");
+    }
+  }
+
+  async function handleEditSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingAthlete) return;
+    setError(null);
+    try {
+      const res: any = await athletesApi.update(id, editingAthlete.id, editForm);
+      const updated = res.data ?? res;
+      setAthletes((p) => p.map((a) => (a.id === updated.id ? updated : a)));
+      setEditingAthlete(null);
+    } catch (err: any) {
+      setError(err?.response?.data?.detail ?? "Erro ao editar atleta");
     }
   }
 
@@ -78,6 +99,8 @@ export default function AthletesPage() {
       );
       const updated: any = await athletesApi.list(id);
       setAthletes(updated.data ?? updated);
+      const updatedTeams = await teamsApi.list(id);
+      setTeams(updatedTeams);
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? "Erro na importação");
     }
@@ -94,18 +117,24 @@ export default function AthletesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Atletas</h1>
-        <div className="flex gap-2">
-          <label className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-            <ArrowUpTrayIcon className="h-4 w-4" />
-            Importar CSV
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".csv"
-              className="sr-only"
-              onChange={handleImport}
-            />
-          </label>
+        <div className="flex items-start gap-2">
+          <div className="flex flex-col items-end gap-1">
+            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+              <ArrowUpTrayIcon className="h-4 w-4" />
+              Importar CSV
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".csv"
+                className="sr-only"
+                onChange={handleImport}
+              />
+            </label>
+            <p className="text-xs text-gray-400">
+              Formato: <code className="font-mono">nome;categoria;equipe</code> — separador{" "}
+              <code className="font-mono">;</code>. Equipe criada automaticamente se não existir.
+            </p>
+          </div>
           <Button onClick={() => setShowForm((s) => !s)} className="flex items-center gap-2">
             <PlusIcon className="h-4 w-4" /> Novo Atleta
           </Button>
@@ -147,9 +176,35 @@ export default function AthletesPage() {
               onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value || undefined }))}
             />
             <div>
-              <label className="block text-sm font-medium text-gray-700">Categoria</label>
+              <label className="block text-sm font-medium text-gray-700">Equipe *</label>
               <select
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-xs focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                value={form.team_id ?? ""}
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    team_id: e.target.value ? Number(e.target.value) : undefined,
+                  }))
+                }
+              >
+                <option value="">Nova equipe (usa a categoria abaixo)</option>
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+              {!form.team_id && (
+                <p className="mt-1 text-xs text-gray-400">
+                  Sem selecionar uma equipe existente, é criada uma equipe solo com o
+                  nome do atleta — exige categoria escolhida ao lado.
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                {form.team_id ? "Categoria" : "Categoria *"}
+              </label>
+              <select
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-xs focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
                 value={form.category_id ?? ""}
                 onChange={(e) =>
                   setForm((p) => ({
@@ -167,7 +222,7 @@ export default function AthletesPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700">Tamanho de Camiseta</label>
               <select
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-xs focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
                 value={form.tshirt_size ?? ""}
                 onChange={(e) =>
                   setForm((p) => ({
@@ -201,7 +256,7 @@ export default function AthletesPage() {
           className="max-w-xs"
         />
         <select
-          className="rounded-md border-gray-300 text-sm shadow-sm"
+          className="rounded-md border-gray-300 text-sm shadow-xs"
           value={filterCat}
           onChange={(e) => setFilterCat(e.target.value)}
         >
@@ -212,7 +267,7 @@ export default function AthletesPage() {
         </select>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xs">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -220,13 +275,14 @@ export default function AthletesPage() {
               <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Email</th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Documento</th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Categoria</th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Equipe</th>
               <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 bg-white">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-500">
                   Nenhum atleta encontrado
                 </td>
               </tr>
@@ -239,7 +295,25 @@ export default function AthletesPage() {
                     <td className="px-4 py-3 text-sm text-gray-600">{athlete.email ?? "—"}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{athlete.document ?? "—"}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{cat?.name ?? "—"}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{athlete.team_name ?? "—"}</td>
                     <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => {
+                          setEditingAthlete(athlete);
+                          setEditForm({
+                            name: athlete.name,
+                            email: athlete.email ?? undefined,
+                            document: athlete.document ?? undefined,
+                            phone: athlete.phone ?? undefined,
+                            category_id: athlete.category_id ?? undefined,
+                            team_id: athlete.team_id ?? undefined,
+                            tshirt_size: athlete.tshirt_size ?? undefined,
+                          });
+                        }}
+                        className="mr-3 text-sm font-medium text-primary-600 hover:text-primary-800"
+                      >
+                        Editar
+                      </button>
                       <button
                         onClick={() => handleDelete(athlete.id)}
                         className="text-sm font-medium text-red-600 hover:text-red-800"
@@ -254,6 +328,96 @@ export default function AthletesPage() {
           </tbody>
         </table>
       </div>
+
+      {editingAthlete && (
+        <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/30">
+          <form
+            onSubmit={handleEditSave}
+            className="w-full max-w-lg space-y-4 rounded-lg bg-white p-6 shadow-xl"
+          >
+            <h3 className="font-medium">Editar Atleta</h3>
+            <Input
+              label="Nome *"
+              value={editForm.name}
+              onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))}
+              required
+            />
+            <Input
+              label="Email"
+              type="email"
+              value={editForm.email ?? ""}
+              onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value || undefined }))}
+            />
+            <Input
+              label="Documento (CPF)"
+              value={editForm.document ?? ""}
+              onChange={(e) => setEditForm((p) => ({ ...p, document: e.target.value || undefined }))}
+            />
+            <Input
+              label="Telefone"
+              value={editForm.phone ?? ""}
+              onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value || undefined }))}
+            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Equipe *</label>
+              <select
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-xs sm:text-sm"
+                value={editForm.team_id ?? ""}
+                onChange={(e) =>
+                  setEditForm((p) => ({ ...p, team_id: Number(e.target.value) }))
+                }
+                required
+              >
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Categoria</label>
+              <select
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-xs focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                value={editForm.category_id ?? ""}
+                onChange={(e) =>
+                  setEditForm((p) => ({
+                    ...p,
+                    category_id: e.target.value ? Number(e.target.value) : undefined,
+                  }))
+                }
+              >
+                <option value="">Sem categoria</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Tamanho de Camiseta</label>
+              <select
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-xs focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                value={editForm.tshirt_size ?? ""}
+                onChange={(e) =>
+                  setEditForm((p) => ({
+                    ...p,
+                    tshirt_size: (e.target.value as TshirtSize) || undefined,
+                  }))
+                }
+              >
+                <option value="">—</option>
+                {TSHIRT_SIZES.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <Button type="submit">Salvar</Button>
+              <Button variant="secondary" type="button" onClick={() => setEditingAthlete(null)}>
+                Cancelar
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

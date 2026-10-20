@@ -124,7 +124,7 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
               ].join(" ")
             }
           >
-            <Icon className="h-5 w-5 flex-shrink-0" />
+            <Icon className="h-5 w-5 shrink-0" />
             {label}
           </NavLink>
         ))}
@@ -133,7 +133,7 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
       {/* User footer */}
       <div className="border-t border-gray-800 px-4 py-4">
         <div className="flex items-center gap-3 mb-3">
-          <div className="h-8 w-8 rounded-full bg-primary-500 flex items-center justify-center text-sm font-semibold flex-shrink-0">
+          <div className="h-8 w-8 rounded-full bg-primary-500 flex items-center justify-center text-sm font-semibold shrink-0">
             {user?.full_name.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">
@@ -190,7 +190,7 @@ export default function MainLayout() {
       </div>
 
       {/* Desktop sidebar */}
-      <div className="hidden lg:flex lg:flex-shrink-0 lg:w-64">
+      <div className="hidden lg:flex lg:shrink-0 lg:w-64">
         <Sidebar />
       </div>
 

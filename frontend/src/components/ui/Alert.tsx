@@ -44,7 +44,7 @@ export default function Alert({ variant = "info", title, children }: AlertProps)
 
   return (
     <div className={["flex gap-3 rounded-lg border p-4", containerClass].join(" ")}>
-      <Icon className={["h-5 w-5 flex-shrink-0 mt-0.5", iconClass].join(" ")} />
+      <Icon className={["h-5 w-5 shrink-0 mt-0.5", iconClass].join(" ")} />
       <div className="text-sm">
         {title && <p className="font-medium mb-1">{title}</p>}
         <p>{children}</p>

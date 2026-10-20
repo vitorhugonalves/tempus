@@ -425,7 +425,7 @@ export default function UsersPage() {
               <select
                 value={createForm.role}
                 onChange={(e) => setCreateForm({ ...createForm, role: e.target.value })}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-primary-500"
               >
                 <option value="competitor">Competidor</option>
                 <option value="judge">Juiz</option>
@@ -469,7 +469,7 @@ export default function UsersPage() {
                   <th className="px-4 py-3 w-10">
                     <input
                       type="checkbox"
-                      className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      className="h-4 w-4 rounded-sm border-gray-300 text-primary-600 focus:ring-primary-500"
                       checked={users.length > 0 && selectedIds.size === users.length}
                       onChange={toggleSelectAll}
                       title="Selecionar todos"
@@ -500,7 +500,7 @@ export default function UsersPage() {
                         <td className="px-4 py-4">
                           <input
                             type="checkbox"
-                            className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                            className="h-4 w-4 rounded-sm border-gray-300 text-primary-600 focus:ring-primary-500"
                             checked={selectedIds.has(u.id)}
                             onChange={() => toggleSelect(u.id)}
                           />
@@ -648,7 +648,7 @@ export default function UsersPage() {
                                   onChange={(e) =>
                                     setEditForm({ ...editForm, role: e.target.value })
                                   }
-                                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-primary-500"
                                 >
                                   <option value="competitor">Competidor</option>
                                   <option value="judge">Juiz</option>
@@ -667,14 +667,14 @@ export default function UsersPage() {
                                       setEditForm({ ...editForm, is_active: !editForm.is_active })
                                     }
                                     className={[
-                                      "relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent",
-                                      "transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2",
+                                      "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent",
+                                      "transition-colors duration-200 ease-in-out focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2",
                                       editForm.is_active ? "bg-primary-600" : "bg-gray-200",
                                     ].join(" ")}
                                   >
                                     <span
                                       className={[
-                                        "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0",
+                                        "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0",
                                         "transition duration-200 ease-in-out",
                                         editForm.is_active ? "translate-x-5" : "translate-x-0",
                                       ].join(" ")}

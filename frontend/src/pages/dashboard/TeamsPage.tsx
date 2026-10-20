@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useOutletContext, useParams } from "react-router-dom";
-import { PlusIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, ArrowUpTrayIcon, PencilIcon, ChevronDownIcon, ChevronUpIcon } from "@heroicons/react/24/outline";
 import { teamsApi, type TeamCreate } from "../../api/teams";
+import { athletesApi } from "../../api/athletes";
 import { categoriesApi } from "../../api/categories";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
 import Alert from "../../components/ui/Alert";
-import type { Category, Competition, Team } from "../../types";
+import type { Athlete, Category, Competition, Team, TeamBulkResult } from "../../types";
 
 interface OutletCtx {
   competition: Competition;
@@ -16,11 +17,14 @@ export default function TeamsPage() {
   const { competitionId } = useParams<{ competitionId: string }>();
   useOutletContext<OutletCtx>();
   const id = Number(competitionId);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const [teams, setTeams] = useState<Team[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [allAthletes, setAllAthletes] = useState<Athlete[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [importResult, setImportResult] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [filterCat, setFilterCat] = useState<string>("");
   const [search, setSearch] = useState("");
@@ -30,12 +34,21 @@ export default function TeamsPage() {
     category_id: undefined,
   });
 
+  // Edit state
+  const [editingTeamId, setEditingTeamId] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [editingCategoryId, setEditingCategoryId] = useState<number | undefined>(undefined);
+
+  // Athletes panel state
+  const [expandedTeamId, setExpandedTeamId] = useState<number | null>(null);
+
   useEffect(() => {
     Promise.all([
       teamsApi.list(id),
       categoriesApi.list(id),
+      athletesApi.list(id).then((r: any) => r.data ?? r),
     ])
-      .then(([t, c]) => { setTeams(t); setCategories(c); })
+      .then(([t, c, a]) => { setTeams(t); setCategories(c); setAllAthletes(a); })
       .catch(() => setError("Erro ao carregar dados"))
       .finally(() => setLoading(false));
   }, [id]);
@@ -68,9 +81,54 @@ export default function TeamsPage() {
     try {
       await teamsApi.delete(id, teamId);
       setTeams((p) => p.filter((t) => t.id !== teamId));
-    } catch {
-      setError("Erro ao remover equipe");
+    } catch (err: any) {
+      setError(err?.response?.data?.detail ?? "Erro ao remover equipe");
     }
+  }
+
+  function startEdit(team: Team) {
+    setEditingTeamId(team.id);
+    setEditingName(team.name);
+    setEditingCategoryId(team.category_id);
+  }
+
+  async function handleSaveEdit(teamId: number) {
+    if (!editingName.trim()) return;
+    setError(null);
+    try {
+      const updated = await teamsApi.update(id, teamId, {
+        name: editingName.trim(),
+        category_id: editingCategoryId,
+      });
+      setTeams((p) => p.map((t) => t.id === teamId ? updated : t));
+      setEditingTeamId(null);
+    } catch (err: any) {
+      setError(err?.response?.data?.detail ?? "Erro ao salvar equipe");
+    }
+  }
+
+  function toggleExpanded(teamId: number) {
+    setExpandedTeamId((prev) => prev === teamId ? null : teamId);
+  }
+
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setImportResult(null);
+    try {
+      const data: TeamBulkResult = await teamsApi.importCsv(id, file);
+      setImportResult(
+        `${data.created} equipe(s) importada(s) com sucesso.${
+          data.errors.length ? ` ${data.errors.length} erro(s).` : ""
+        }`
+      );
+      const updated = await teamsApi.list(id);
+      setTeams(updated);
+    } catch (err: any) {
+      setError(err?.response?.data?.detail ?? "Erro na importação");
+    }
+    if (fileRef.current) fileRef.current.value = "";
   }
 
   if (loading) return (
@@ -83,12 +141,31 @@ export default function TeamsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Equipes</h1>
-        <Button onClick={() => setShowForm((s) => !s)} className="flex items-center gap-2">
-          <PlusIcon className="h-4 w-4" /> Nova Equipe
-        </Button>
+        <div className="flex items-start gap-3">
+          <div className="flex flex-col items-end gap-1">
+            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+              <ArrowUpTrayIcon className="h-4 w-4" />
+              Importar CSV
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".csv"
+                className="sr-only"
+                onChange={handleImport}
+              />
+            </label>
+            <p className="text-xs text-gray-400">
+              Formato: <code className="font-mono">nome_equipe;categoria</code>
+            </p>
+          </div>
+          <Button onClick={() => setShowForm((s) => !s)} className="flex items-center gap-2">
+            <PlusIcon className="h-4 w-4" /> Nova Equipe
+          </Button>
+        </div>
       </div>
 
       {error && <Alert variant="error">{error}</Alert>}
+      {importResult && <Alert variant="success">{importResult}</Alert>}
 
       {showForm && (
         <form
@@ -105,7 +182,7 @@ export default function TeamsPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700">Categoria</label>
             <select
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-xs focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
               value={form.category_id ?? ""}
               onChange={(e) =>
                 setForm((p) => ({
@@ -138,7 +215,7 @@ export default function TeamsPage() {
           className="max-w-xs"
         />
         <select
-          className="rounded-md border-gray-300 text-sm shadow-sm"
+          className="rounded-md border-gray-300 text-sm shadow-xs"
           value={filterCat}
           onChange={(e) => setFilterCat(e.target.value)}
         >
@@ -149,13 +226,13 @@ export default function TeamsPage() {
         </select>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xs">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Nome</th>
               <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Categoria</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Membros</th>
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Atletas</th>
               <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">Ações</th>
             </tr>
           </thead>
@@ -169,20 +246,126 @@ export default function TeamsPage() {
             ) : (
               filtered.map((team) => {
                 const cat = categories.find((c) => c.id === team.category_id);
+                const teamAthletes = allAthletes.filter((a) => a.team_id === team.id);
+                const isExpanded = expandedTeamId === team.id;
+                const isEditing = editingTeamId === team.id;
+
                 return (
-                  <tr key={team.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 font-medium text-gray-900">{team.name}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{cat?.name ?? "—"}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{team.member_count}</td>
-                    <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => handleDelete(team.id)}
-                        className="text-sm font-medium text-red-600 hover:text-red-800"
-                      >
-                        Remover
-                      </button>
-                    </td>
-                  </tr>
+                  <>
+                    <tr key={team.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 font-medium text-gray-900">
+                        {isEditing ? (
+                          <input
+                            className="rounded-sm border border-gray-300 px-2 py-1 text-sm focus:border-primary-500 focus:outline-hidden focus:ring-1 focus:ring-primary-500 w-40"
+                            value={editingName}
+                            onChange={(e) => setEditingName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleSaveEdit(team.id);
+                              if (e.key === "Escape") setEditingTeamId(null);
+                            }}
+                            autoFocus
+                          />
+                        ) : (
+                          team.name
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {isEditing ? (
+                          <select
+                            className="rounded-sm border border-gray-300 px-2 py-1 text-sm focus:border-primary-500 focus:outline-hidden focus:ring-1 focus:ring-primary-500"
+                            value={editingCategoryId ?? ""}
+                            onChange={(e) => setEditingCategoryId(e.target.value ? Number(e.target.value) : undefined)}
+                          >
+                            <option value="">Sem categoria</option>
+                            {categories.map((c) => (
+                              <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          cat?.name ?? "—"
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{teamAthletes.length}</td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-3">
+                          {isEditing ? (
+                            <>
+                              <button
+                                onClick={() => handleSaveEdit(team.id)}
+                                className="text-sm font-medium text-primary-600 hover:text-primary-800"
+                              >
+                                Salvar
+                              </button>
+                              <button
+                                onClick={() => setEditingTeamId(null)}
+                                className="text-sm font-medium text-gray-500 hover:text-gray-700"
+                              >
+                                Cancelar
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => toggleExpanded(team.id)}
+                                className="text-sm font-medium text-gray-600 hover:text-gray-800 flex items-center gap-1"
+                              >
+                                {isExpanded ? (
+                                  <ChevronUpIcon className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDownIcon className="h-4 w-4" />
+                                )}
+                                Atletas
+                              </button>
+                              <button
+                                onClick={() => startEdit(team)}
+                                className="text-sm font-medium text-primary-600 hover:text-primary-800 flex items-center gap-1"
+                              >
+                                <PencilIcon className="h-4 w-4" />
+                                Editar
+                              </button>
+                              <button
+                                onClick={() => handleDelete(team.id)}
+                                className="text-sm font-medium text-red-600 hover:text-red-800"
+                              >
+                                Remover
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+
+                    {isExpanded && (
+                      <tr key={`${team.id}-athletes`}>
+                        <td colSpan={4} className="bg-gray-50 px-6 py-4">
+                          <div className="space-y-3">
+                            <p className="text-xs font-semibold uppercase text-gray-500">
+                              Atletas — {team.name}
+                            </p>
+
+                            {teamAthletes.length === 0 ? (
+                              <p className="text-sm text-gray-400">Nenhum atleta nesta equipe.</p>
+                            ) : (
+                              <div className="flex flex-wrap gap-2">
+                                {teamAthletes.map((a) => (
+                                  <span
+                                    key={a.id}
+                                    className="flex items-center gap-1 rounded-full bg-white px-3 py-1 text-sm shadow-xs border border-gray-200"
+                                  >
+                                    {a.name}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            <p className="text-xs text-gray-400">
+                              Para mover um atleta para outra equipe, edite-o na página de Atletas.
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 );
               })
             )}

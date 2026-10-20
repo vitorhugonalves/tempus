@@ -1,5 +1,5 @@
 import apiClient from "./client";
-import type { Penalty, PenaltyType, RankingEntry, Timer, TimerEvent } from "../types";
+import type { CrossfitRankingEntry, Penalty, PenaltyType, RankingEntry, Timer, TimerEvent } from "../types";
 
 export const timersApi = {
   list: (competitionId: number) =>
@@ -29,6 +29,15 @@ export const timersApi = {
   restart: (timerId: number, note: string) =>
     apiClient.post<Timer>(`/api/v1/timers/${timerId}/restart`, { note }).then((r) => r.data),
 
+  /** Corrige o tempo final de um timer finalizado (somente admin). */
+  adjust: (timerId: number, finalTimeMs: number, justification: string) =>
+    apiClient
+      .post<Timer>(`/api/v1/timers/${timerId}/adjust`, {
+        final_time_ms: finalTimeMs,
+        justification,
+      })
+      .then((r) => r.data),
+
   reset: (timerId: number, note?: string) =>
     apiClient.post<Timer>(`/api/v1/timers/${timerId}/restart`, { note }).then((r) => r.data),
 
@@ -56,11 +65,24 @@ export const rankingApi = {
     return apiClient.get<RankingEntry[]>(`/api/v1/competitions/${competitionId}/ranking`, { params }).then((r) => r.data);
   },
 
-  exportCsvUrl: (competitionId: number) =>
-    `/api/v1/competitions/${competitionId}/export/csv`,
+  exportCsvUrl: (competitionId: number, categoryId?: number) =>
+    `/api/v1/competitions/${competitionId}/export/csv${categoryId ? `?category_id=${categoryId}` : ""}`,
 
-  exportPdfUrl: (competitionId: number) =>
-    `/api/v1/competitions/${competitionId}/export/pdf`,
+  exportPdfUrl: (competitionId: number, categoryId?: number) =>
+    `/api/v1/competitions/${competitionId}/export/pdf${categoryId ? `?category_id=${categoryId}` : ""}`,
+
+  getCrossfit: (competitionId: number, categoryId?: number) => {
+    const params = categoryId ? { category_id: categoryId } : {};
+    return apiClient
+      .get<CrossfitRankingEntry[]>(`/api/v1/competitions/${competitionId}/crossfit-ranking`, { params })
+      .then((r) => r.data);
+  },
+
+  exportCrossfiCsvUrl: (competitionId: number, categoryId?: number) =>
+    `/api/v1/competitions/${competitionId}/export/crossfit-csv${categoryId ? `?category_id=${categoryId}` : ""}`,
+
+  exportCrossfiPdfUrl: (competitionId: number, categoryId?: number) =>
+    `/api/v1/competitions/${competitionId}/export/crossfit-pdf${categoryId ? `?category_id=${categoryId}` : ""}`,
 
   certificateUrl: (competitionId: number, userId: number) =>
     `/api/v1/competitions/${competitionId}/certificate/${userId}`,

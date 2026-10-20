@@ -143,8 +143,10 @@ async def competition_websocket(
             tg.start_soon(_disconnect_watcher, tg.cancel_scope)
             tg.start_soon(_periodic_ping, tg.cancel_scope)
     except Exception:
-        # Scope cancelado ou exceção inesperada — tratado no finally
-        pass
+        # Encerramento fica no finally; o log evita engolir erro inesperado
+        logger.debug(
+            "WebSocket encerrado por exceção (canal=%s)", channel, exc_info=True
+        )
     finally:
         with suppress(Exception):
             await pubsub.unsubscribe(channel)

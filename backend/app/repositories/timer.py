@@ -194,3 +194,21 @@ class OfficialResultRepository:
             select(OfficialResult).where(OfficialResult.timer_id == timer_id)
         )
         return result.scalar_one_or_none()
+
+    @staticmethod
+    async def update_final_time(
+        db: AsyncSession, result: OfficialResult, final_time_ms: int
+    ) -> OfficialResult:
+        """Atualiza o tempo final de um resultado oficial.
+
+        Args:
+            db: Sessão assíncrona.
+            result: Resultado oficial já persistido.
+            final_time_ms: Novo tempo final em milissegundos.
+
+        Returns:
+            OfficialResult atualizado.
+        """
+        result.final_time_ms = final_time_ms
+        await db.flush()
+        return result

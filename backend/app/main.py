@@ -7,7 +7,22 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from app.api.v1 import admin, athletes, auth, bulk, cep, competitions, judges, modalities, reports, timers, users, websocket
+from app.api.v1 import (
+    admin,
+    athletes,
+    auth,
+    bulk,
+    cep,
+    checkin,
+    competitions,
+    consent_term,
+    judges,
+    modalities,
+    reports,
+    timers,
+    users,
+    websocket,
+)
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.core.logging_config import setup_logging
@@ -56,10 +71,12 @@ app.include_router(admin.router, prefix="/api/v1", tags=["admin"])
 app.include_router(bulk.router, prefix="/api/v1", tags=["admin"])
 app.include_router(athletes.router, prefix="/api/v1", tags=["athletes"])
 app.include_router(cep.router, prefix="/api/v1", tags=["cep"])
+app.include_router(checkin.router, prefix="/api/v1", tags=["checkin"])
 app.include_router(auth.router, prefix="/api/v1", tags=["auth"])
 app.include_router(users.router, prefix="/api/v1", tags=["users"])
 app.include_router(modalities.router, prefix="/api/v1", tags=["modalities"])
 app.include_router(competitions.router, prefix="/api/v1", tags=["competitions"])
+app.include_router(consent_term.router, prefix="/api/v1", tags=["consent-term"])
 app.include_router(timers.router, prefix="/api/v1", tags=["timers"])
 app.include_router(judges.router, prefix="/api/v1", tags=["judges"])
 app.include_router(reports.router, prefix="/api/v1", tags=["reports"])

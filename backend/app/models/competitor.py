@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -30,6 +30,11 @@ class CompetitorRegistration(Base):
     # Dados do atleta no momento da inscrição (RF-11)
     document: Mapped[str | None] = mapped_column(String(30), nullable=True)
     bib_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Rastreio do aceite do termo de consentimento (LGPD/waiver), quando existente
+    consent_term_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    consent_accepted_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 

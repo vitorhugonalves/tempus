@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -102,7 +102,9 @@ class TeamRepository:
         return member
 
     @staticmethod
-    async def get_member(db: AsyncSession, team_id: int, user_id: int) -> TeamMember | None:
+    async def get_member(
+        db: AsyncSession, team_id: int, user_id: int
+    ) -> TeamMember | None:
         """Retorna membro de equipe pelo par (team_id, user_id).
 
         Args:
@@ -145,12 +147,12 @@ class TeamRepository:
     async def get_by_name_in_competition(
         db: AsyncSession, competition_id: int, name: str
     ) -> Team | None:
-        """Retorna equipe pelo nome dentro de uma competição.
+        """Retorna equipe pelo nome dentro de uma competição (case-insensitive).
 
         Args:
             db: Sessão assíncrona.
             competition_id: ID da competição.
-            name: Nome exato da equipe.
+            name: Nome da equipe (busca case-insensitive).
 
         Returns:
             Team ou None.
@@ -158,7 +160,7 @@ class TeamRepository:
         result = await db.execute(
             select(Team).where(
                 Team.competition_id == competition_id,
-                Team.name == name,
+                func.lower(Team.name) == name.lower(),
             )
         )
         return result.scalar_one_or_none()

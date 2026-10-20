@@ -96,7 +96,7 @@ export default function RegisterPage() {
           variant="primary"
           size="lg"
           isLoading={isLoading}
-          className="w-full mt-2"
+          className="w-full"
         >
           Criar conta
         </Button>

@@ -1,5 +1,8 @@
 """Serviço de equipes."""
 
+import csv
+import io
+
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.category import Category
 from app.models.competitor import CompetitorRegistration
 from app.models.team import Team, TeamMember
+from app.repositories.athlete import AthleteRepository
 from app.repositories.competition import CompetitionRepository
 from app.repositories.team import TeamRepository
 from app.repositories.user import UserRepository
@@ -100,8 +104,27 @@ class TeamService:
         Args:
             db: Sessão assíncrona.
             team_id: ID da equipe.
+
+        Raises:
+            HTTPException 409: Equipe possui atletas vinculados (`Athlete.team_id`
+                é NOT NULL — não é possível deixá-los órfãos ao excluir a equipe).
         """
         team = await TeamService.get_or_404(db, team_id)
+
+        # RN: athletes.team_id é obrigatório (NOT NULL) — excluir uma equipe com
+        # atletas vinculados violaria a constraint no DELETE. Bloqueia antes de
+        # tentar remover, com uma mensagem acionável para o usuário.
+        athletes = await AthleteRepository.list_by_competition(
+            db, team.competition_id, team_id=team_id
+        )
+        if athletes:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Equipe possui {len(athletes)} atleta(s). Mova-os para outra "
+                    "equipe antes de remover."
+                ),
+            )
 
         # Cancela inscrições de todos os membros nesta competição
         member_ids = [m.user_id for m in team.members]
@@ -193,3 +216,79 @@ class TeamService:
                 detail="Membro não encontrado nesta equipe",
             )
         await TeamRepository.remove_member(db, member)
+
+    @staticmethod
+    async def import_csv(
+        db: AsyncSession,
+        competition_id: int,
+        content: bytes,
+        categories: list[Category],
+    ) -> "TeamBulkResult":
+        """Importa equipes de um arquivo CSV.
+
+        Colunas (separador ponto-e-vírgula):
+            nome_equipe;categoria
+
+        Equipes com nome já existente na competição são puladas silenciosamente.
+        Linhas com categoria inválida geram erro e não são criadas.
+
+        Args:
+            db: Sessão assíncrona.
+            competition_id: ID da competição.
+            content: Conteúdo do CSV em bytes.
+            categories: Categorias da competição para resolução de nomes.
+
+        Returns:
+            TeamBulkResult com contagem de criadas e erros por linha.
+        """
+        from app.schemas.team import TeamBulkError, TeamBulkResult
+
+        category_by_name = {c.name.lower(): c for c in categories}
+        existing = await TeamRepository.get_by_competition(db, competition_id)
+        existing_names = {t.name.lower() for t in existing}
+
+        created_count = 0
+        errors: list[TeamBulkError] = []
+
+        try:
+            text = content.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            text = content.decode("latin-1")
+
+        reader = csv.DictReader(io.StringIO(text), delimiter=";")
+        for row_num, row in enumerate(reader, start=1):
+            name = (row.get("nome_equipe") or "").strip()
+            if not name:
+                errors.append(
+                    TeamBulkError(row=row_num, name="", error="Campo 'nome_equipe' obrigatório")
+                )
+                continue
+
+            if name.lower() in existing_names:
+                continue
+
+            cat_name = (row.get("categoria") or "").strip().lower()
+            category = category_by_name.get(cat_name)
+            if not category:
+                errors.append(
+                    TeamBulkError(
+                        row=row_num,
+                        name=name,
+                        error=f"Categoria '{cat_name}' não encontrada na competição",
+                    )
+                )
+                continue
+
+            team = Team(
+                competition_id=competition_id,
+                name=name,
+                category_id=category.id,
+            )
+            db.add(team)
+            existing_names.add(name.lower())
+            created_count += 1
+
+        if created_count:
+            await db.flush()
+
+        return TeamBulkResult(created=created_count, errors=errors)

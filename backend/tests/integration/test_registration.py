@@ -6,7 +6,6 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
 
@@ -301,6 +300,31 @@ async def test_inscricao_equipe_acima_do_limite_retorna_409(
     assert "máximo" in resp.json()["detail"].lower()
 
 
+async def test_inscricao_com_mais_de_20_membros_adicionais_retorna_422(
+    client: AsyncClient,
+    active_competition: dict,
+    team_category: dict,
+    competitor_token: str,
+):
+    """`additional_members` acima do cap de 20 é rejeitado pela validação do
+    Pydantic (422), antes mesmo de chegar à checagem de `max_team_size` — um
+    único request não pode criar contas/enviar e-mails em quantidade ilimitada.
+    """
+    resp = await client.post(
+        f"/api/v1/competitions/{active_competition['id']}/register",
+        json={
+            "category_id": team_category["id"],
+            "team_name": "Equipe Enorme",
+            "additional_members": [
+                {"full_name": f"Membro {i}", "email": f"membro{i}@example.com"}
+                for i in range(21)
+            ],
+        },
+        cookies={"session_id": competitor_token},
+    )
+    assert resp.status_code == 422
+
+
 # ── Limite via endpoint de equipes (max_team_size) ────────────────────────────
 
 
@@ -417,3 +441,123 @@ async def test_get_my_registration_sem_autenticacao_retorna_401(client: AsyncCli
     """GET /my-registration sem sessão deve retornar 401. Auth check ocorre antes do 404."""
     resp = await client.get("/api/v1/competitions/999/my-registration")
     assert resp.status_code == 401
+
+
+# ── Termo de consentimento na inscrição ───────────────────────────────────────
+
+
+@pytest.fixture
+async def competition_with_term(
+    client: AsyncClient, active_competition: dict, admin_token: str
+) -> dict:
+    """Competição ativa com um termo de consentimento cadastrado."""
+    resp = await client.post(
+        f"/api/v1/competitions/{active_competition['id']}/consent-term",
+        files={"file": ("termo.pdf", b"%PDF-1.4\nmock\n%%EOF", "application/pdf")},
+        cookies={"session_id": admin_token},
+    )
+    assert resp.status_code == 200
+    return active_competition
+
+
+async def test_inscricao_com_termo_sem_aceite_retorna_422(
+    client: AsyncClient,
+    competition_with_term: dict,
+    individual_category: dict,
+    competitor_token: str,
+):
+    """Inscrição em competição com termo, sem `consent_accepted`, retorna 422."""
+    resp = await client.post(
+        f"/api/v1/competitions/{competition_with_term['id']}/register",
+        json={"category_id": individual_category["id"]},
+        cookies={"session_id": competitor_token},
+    )
+    assert resp.status_code == 422
+
+
+async def test_inscricao_com_termo_aceite_false_retorna_422(
+    client: AsyncClient,
+    competition_with_term: dict,
+    individual_category: dict,
+    competitor_token: str,
+):
+    """Inscrição em competição com termo, com `consent_accepted=false`, retorna 422."""
+    resp = await client.post(
+        f"/api/v1/competitions/{competition_with_term['id']}/register",
+        json={"category_id": individual_category["id"], "consent_accepted": False},
+        cookies={"session_id": competitor_token},
+    )
+    assert resp.status_code == 422
+
+
+async def test_inscricao_com_termo_aceito_retorna_201_e_registra_aceite(
+    client: AsyncClient,
+    db: AsyncSession,
+    competition_with_term: dict,
+    individual_category: dict,
+    competitor_token: str,
+):
+    """Inscrição com `consent_accepted=true` registra hash e data do aceite."""
+    from sqlalchemy import select
+
+    from app.models.competitor import CompetitorRegistration
+
+    resp = await client.post(
+        f"/api/v1/competitions/{competition_with_term['id']}/register",
+        json={"category_id": individual_category["id"], "consent_accepted": True},
+        cookies={"session_id": competitor_token},
+    )
+    assert resp.status_code == 201
+    registration_id = resp.json()["registration_id"]
+
+    result = await db.execute(
+        select(CompetitorRegistration).where(
+            CompetitorRegistration.id == registration_id
+        )
+    )
+    registration = result.scalar_one()
+    assert registration.consent_term_hash is not None
+    assert registration.consent_accepted_at is not None
+
+
+async def test_reinscricao_ja_registrado_sem_aceite_retorna_409_nao_422(
+    client: AsyncClient,
+    competition_with_term: dict,
+    individual_category: dict,
+    competitor_token: str,
+):
+    """Quem já está inscrito recebe 409 (duplicidade), mesmo sem aceitar o termo.
+
+    O check de "já inscrito" roda antes do check de consentimento — reenviar o
+    formulário sem `consent_accepted` não deve mascarar o 409 mais informativo
+    atrás de um 422 de consentimento.
+    """
+    first = await client.post(
+        f"/api/v1/competitions/{competition_with_term['id']}/register",
+        json={"category_id": individual_category["id"], "consent_accepted": True},
+        cookies={"session_id": competitor_token},
+    )
+    assert first.status_code == 201
+
+    second = await client.post(
+        f"/api/v1/competitions/{competition_with_term['id']}/register",
+        json={"category_id": individual_category["id"]},
+        cookies={"session_id": competitor_token},
+    )
+    assert second.status_code == 409
+    assert "já está inscrito" in second.json()["detail"].lower()
+
+
+async def test_inscricao_sem_termo_ignora_consent_accepted(
+    client: AsyncClient,
+    active_competition: dict,
+    individual_category: dict,
+    competitor_token: str,
+):
+    """Competição sem termo cadastrado: `consent_accepted` é irrelevante, segue 201."""
+    resp = await client.post(
+        f"/api/v1/competitions/{active_competition['id']}/register",
+        json={"category_id": individual_category["id"]},
+        cookies={"session_id": competitor_token},
+    )
+    assert resp.status_code == 201

@@ -26,6 +26,11 @@ export interface Competition {
   scoring_model: ScoringModel | null;
   tiebreak_criterion: TiebreakCriterion | null;
   status: CompetitionStatus;
+  description?: string | null;
+  instagram_url?: string | null;
+  whatsapp_url?: string | null;
+  has_logo?: boolean;
+  has_banner?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -61,6 +66,7 @@ export interface Athlete {
   competition_id: number;
   category_id: number | null;
   team_id: number | null;
+  team_name: string | null;
   name: string;
   email: string | null;
   document: string | null;
@@ -83,6 +89,15 @@ export interface AthleteCreate {
 export interface AthleteBulkResult {
   created: number;
   errors: Array<{ row: number; name: string; error: string }>;
+}
+
+export interface CheckinCandidate {
+  kind: "athlete" | "registration";
+  source_id: number;
+  name: string;
+  email: string | null;
+  team_name: string | null;
+  has_athlete_record: boolean;
 }
 
 export interface CepResult {
@@ -136,6 +151,17 @@ export interface Team {
   updated_at: string;
 }
 
+export interface TeamBulkError {
+  row: number;
+  name: string;
+  error: string;
+}
+
+export interface TeamBulkResult {
+  created: number;
+  errors: TeamBulkError[];
+}
+
 export type TimerStatus =
   | "created"
   | "ready"
@@ -176,6 +202,8 @@ export interface TimerEvent {
   id: number;
   timer_id: number;
   event_type: TimerEventType;
+  event_at: string;
+  accumulated_ms: number;
   triggered_by_id: number | null;
   note: string | null;
   created_at: string;
@@ -220,6 +248,33 @@ export interface RankingEntry {
   status: TimerStatus;
 }
 
+export interface CrossfitRankingEntry {
+  position: number;
+  team_id: number | null;
+  user_id: number | null;
+  athlete_name: string;
+  team_name: string | null;
+  category_name: string | null;
+  wods_completed: number;
+  total_points: number;
+  status: string;
+}
+
+export type WodType = "amrap" | "for_time" | "emom" | "max_load";
+
+export interface Wod {
+  id: number;
+  competition_id: number;
+  name: string;
+  wod_type: WodType;
+  duration_minutes: number | null;
+  description: string | null;
+  order: number;
+  category_ids: number[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface LoginRequest {
   email: string;
   password: string;
@@ -230,4 +285,47 @@ export interface LoginResponse {
   full_name: string;
   email: string;
   role: UserRole;
+}
+
+export interface WodResult {
+  id: number;
+  competition_id: number;
+  wod_id: number;
+  team_id: number;
+  time_seconds: number | null;
+  reps: number | null;
+  notes: string | null;
+  walkover: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WodResultsData {
+  wods: Wod[];
+  teams: { id: number; name: string; category_id: number }[];
+  results: WodResult[];
+}
+
+export interface LeaderboardWodEntry {
+  wod_id: number;
+  wod_name: string;
+  wod_type: string;
+  time_seconds: number | null;
+  reps: number | null;
+  points: number;
+  rank: number | null;
+  walkover: boolean;
+}
+
+export interface WodLeaderboardEntry {
+  position: number;
+  team_id: number;
+  team_name: string;
+  total_points: number;
+  wod_entries: LeaderboardWodEntry[];
+}
+
+export interface WodLeaderboard {
+  scoring_model: string | null;
+  entries: WodLeaderboardEntry[];
 }

@@ -2,6 +2,7 @@
 
 import logging
 import secrets
+from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
@@ -16,6 +17,7 @@ from app.models.team import Team, TeamMember
 from app.models.user import User, UserRole
 from app.repositories.team import TeamRepository
 from app.repositories.user import UserRepository
+from app.services.consent_term import ConsentTermService
 from app.services.email import send_registration_welcome
 
 logger = logging.getLogger(__name__)
@@ -39,7 +41,14 @@ class CompetitorRegisterRequest(BaseModel):
     box_name: str | None = Field(None, max_length=200)
     # Campos para categoria do tipo equipe
     team_name: str | None = Field(None, min_length=1, max_length=200)
-    additional_members: list[MemberInput] = []
+    # max_length=20: um único request autenticado não pode criar um número
+    # ilimitado de contas nem disparar um número ilimitado de e-mails de
+    # boas-vindas com senha temporária (o cap de category.max_team_size é
+    # pulado quando essa coluna é NULL, então este é o limite de última linha).
+    additional_members: list[MemberInput] = Field(default_factory=list, max_length=20)
+    # Aceite do termo de consentimento (LGPD/waiver), obrigatório apenas quando
+    # a competição possui um termo cadastrado (RF de consentimento na inscrição)
+    consent_accepted: bool = False
 
 
 class CompetitorRegisterResponse(BaseModel):
@@ -130,6 +139,19 @@ class RegistrationService:
                 detail="Você já está inscrito nesta competição",
             )
 
+        # 3.1 Verifica aceite do termo de consentimento, quando a competição possui um
+        # (feature invisível quando nenhum termo foi cadastrado pelo admin/operador).
+        # Roda depois do check de "já inscrito" para que um reenvio de quem já está
+        # inscrito receba o 409 mais informativo, não um 422 de consentimento confuso.
+        consent_term = await ConsentTermService.get(db, competition_id)
+        if consent_term and data.consent_accepted is not True:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    "É necessário aceitar o termo de consentimento para se inscrever"
+                ),
+            )
+
         # 4. Validação específica para categoria equipe
         if category.category_type == CategoryType.team:
             if not data.team_name:
@@ -154,6 +176,9 @@ class RegistrationService:
             category_id=data.category_id,
             document=data.document,
         )
+        if consent_term:
+            registration.consent_term_hash = consent_term.file_hash
+            registration.consent_accepted_at = datetime.now(UTC)
         db.add(registration)
         await db.flush()
         await db.refresh(registration)
@@ -273,6 +298,8 @@ class RegistrationService:
 
 def _smtp_configured() -> bool:
     """Verifica se o SMTP está configurado para envio de e-mails."""
-    from app.core.config import settings  # noqa: PLC0415 (import lazy to avoid circular)
+    from app.core.config import (
+        settings,  # noqa: PLC0415 (import lazy to avoid circular)
+    )
 
     return bool(settings.SMTP_HOST and settings.SMTP_USER)

@@ -1,5 +1,6 @@
 """Serviço de timers, penalidades e ranking (RF-26 a RF-39)."""
 
+import json
 import time
 from datetime import datetime, timezone
 
@@ -7,6 +8,7 @@ from fastapi import HTTPException, status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.constants import AUDIT_ACTION_TIMER_ADJUSTED, AUDIT_RESOURCE_TIMER
 from app.core.redis import (
     delete_timer_state,
     get_timer_state,
@@ -17,6 +19,7 @@ from app.core.redis import (
 from app.models.competition import CompetitionStatus
 from app.models.timer import (
     VALID_TRANSITIONS,
+    AuditLog,
     OfficialResult,
     Penalty,
     PenaltyType,
@@ -26,6 +29,7 @@ from app.models.timer import (
     TimerStatus,
 )
 from app.models.user import User
+from app.repositories.audit_log import AuditLogRepository
 from app.repositories.competition import CompetitionRepository
 from app.repositories.timer import OfficialResultRepository, PenaltyTypeRepository, TimerRepository
 from app.schemas.timer import (
@@ -464,6 +468,88 @@ class TimerService:
             return saved
 
     @staticmethod
+    async def adjust(
+        db: AsyncSession,
+        timer_id: int,
+        final_time_ms: int,
+        justification: str,
+        current_user: User,
+        redis: Redis,
+    ) -> Timer:
+        """Corrige manualmente o tempo final de um timer finalizado.
+
+        Não apaga nem edita o histórico: grava um evento `adjusted` (o tempo
+        exibido vem do evento de estado mais recente), atualiza o resultado
+        oficial e registra antes/depois em `audit_logs`.
+
+        Args:
+            db: Sessão assíncrona.
+            timer_id: ID do timer.
+            final_time_ms: Novo tempo final em milissegundos.
+            justification: Motivo do ajuste (já validado no schema).
+            current_user: Admin que faz o ajuste.
+            redis: Conexão Redis.
+
+        Returns:
+            Timer com o tempo ajustado.
+
+        Raises:
+            HTTPException 404: Timer não encontrado.
+            HTTPException 409: Timer não está finalizado.
+        """
+        async with timer_lock(redis, timer_id):
+            timer = await TimerRepository.get_by_id(db, timer_id)
+            if not timer:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Timer não encontrado"
+                )
+            if timer.status != TimerStatus.finished:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Só é possível ajustar o tempo de um timer finalizado",
+                )
+
+            previous_ms = _compute_accumulated_ms(timer)
+            now = _utcnow()
+            await TimerRepository.add_event(
+                db,
+                TimerEvent(
+                    timer_id=timer.id,
+                    event_type=TimerEventType.adjusted,
+                    event_at=now,
+                    accumulated_ms=final_time_ms,
+                    triggered_by_id=current_user.id,
+                    note=justification,
+                    payload_json=json.dumps(
+                        {"previous_ms": previous_ms, "new_ms": final_time_ms}
+                    ),
+                ),
+            )
+            await _set_official_result_time(
+                db, timer_id, final_time_ms, current_user, now
+            )
+            await AuditLogRepository.create(
+                db,
+                AuditLog(
+                    actor_user_id=current_user.id,
+                    action=AUDIT_ACTION_TIMER_ADJUSTED,
+                    resource_type=AUDIT_RESOURCE_TIMER,
+                    resource_id=timer_id,
+                    before_json=json.dumps({"final_time_ms": previous_ms}),
+                    after_json=json.dumps(
+                        {"final_time_ms": final_time_ms, "justification": justification}
+                    ),
+                ),
+            )
+            saved = await TimerRepository.save(db, timer)
+            await publish_timer_event(redis, timer.competition_id, {
+                "event_type": "adjusted",
+                "timer_id": timer_id,
+                "accumulated_ms": final_time_ms,
+            })
+            return saved
+
+    @staticmethod
     async def reset(
         db: AsyncSession, timer_id: int, note: str | None, current_user: User, redis: Redis
     ) -> Timer:
@@ -553,6 +639,33 @@ class TimerService:
         if not timer:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Timer não encontrado")
         return timer
+
+
+async def _set_official_result_time(
+    db: AsyncSession,
+    timer_id: int,
+    final_time_ms: int,
+    current_user: User,
+    now: datetime,
+) -> None:
+    """Grava o tempo ajustado no resultado oficial do timer.
+
+    Timers finalizados antes do timer v2 podem não ter resultado oficial; nesse
+    caso ele é criado agora, em nome de quem fez o ajuste.
+    """
+    result = await OfficialResultRepository.get_by_timer(db, timer_id)
+    if result is None:
+        await OfficialResultRepository.create(
+            db,
+            OfficialResult(
+                timer_id=timer_id,
+                final_time_ms=final_time_ms,
+                finished_by_user_id=current_user.id,
+                finished_at=now,
+            ),
+        )
+        return
+    await OfficialResultRepository.update_final_time(db, result, final_time_ms)
 
 
 def _compute_accumulated_ms_from_stopped_state(timer: Timer) -> int:
@@ -775,5 +888,154 @@ class RankingService:
             if entry.status == TimerStatus.finished:
                 entry.position = pos
                 pos += 1
+
+        return entries
+
+    @staticmethod
+    async def get_crossfit_ranking(
+        db: AsyncSession,
+        competition_id: int,
+        category_id: int | None = None,
+    ) -> list["CrossfitRankingEntry"]:
+        """Ranking agregado para CrossFit — pontos por colocação por WOD (bateria).
+
+        Cada bateria é pontuada individualmente: o 1º colocado recebe N pontos
+        (N = total de finalizadores na bateria), o 2º recebe N-1, etc.
+        O total de pontos é somado entre todas as baterias.
+
+        Args:
+            db: Sessão assíncrona.
+            competition_id: ID da competição.
+            category_id: Filtrar por categoria (opcional).
+
+        Returns:
+            Lista de CrossfitRankingEntry ordenada por total_points DESC.
+        """
+        from collections import defaultdict
+
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+
+        from app.schemas.timer import CrossfitRankingEntry
+
+        # Carrega todos os timers da competição com seus heats
+        query = (
+            select(Timer)
+            .options(
+                selectinload(Timer.user),
+                selectinload(Timer.team),
+                selectinload(Timer.category),
+                selectinload(Timer.events),
+                selectinload(Timer.penalties),
+            )
+            .where(Timer.competition_id == competition_id)
+        )
+        if category_id:
+            query = query.where(Timer.category_id == category_id)
+
+        result = await db.execute(query)
+        timers = list(result.scalars().all())
+
+        # Agrupa timers por heat para calcular pontos por bateria
+        # heat_id None → timers sem bateria (agrupados como um único "WOD" virtual)
+        heats: dict[int | None, list[Timer]] = defaultdict(list)
+        for timer in timers:
+            heats[timer.heat_id].append(timer)
+
+        # Pontos acumulados e métricas por chave única de atleta/equipe
+        # chave: (team_id, user_id)
+        points_map: dict[tuple, int] = defaultdict(int)
+        wods_map: dict[tuple, int] = defaultdict(int)
+        status_map: dict[tuple, str] = {}
+        meta_map: dict[tuple, dict] = {}
+
+        for heat_timers in heats.values():
+            # Filtra apenas os finalizadores desta bateria para calcular posição
+            finished = sorted(
+                [t for t in heat_timers if t.status == TimerStatus.finished],
+                key=lambda t: _compute_accumulated_ms(t)
+                + sum(p.seconds_added for p in t.penalties) * 1000,
+            )
+            n_finishers = len(finished)
+
+            for rank_idx, timer in enumerate(finished):
+                key = (timer.team_id, timer.user_id)
+                pts = n_finishers - rank_idx  # 1º = N pts, 2º = N-1, ...
+                points_map[key] += pts
+                wods_map[key] += 1
+
+            # Registra meta e status para todos os timers (não só finished)
+            for timer in heat_timers:
+                key = (timer.team_id, timer.user_id)
+
+                if timer.user:
+                    athlete_name = timer.user.full_name
+                elif timer.team:
+                    athlete_name = timer.team.name
+                else:
+                    athlete_name = f"Timer #{timer.id}"
+
+                if key not in meta_map:
+                    meta_map[key] = {
+                        "team_id": timer.team_id,
+                        "user_id": timer.user_id,
+                        "athlete_name": athlete_name,
+                        "team_name": timer.team.name if timer.team else None,
+                        "category_name": timer.category.name if timer.category else None,
+                    }
+
+                # Status mais "urgente" vence: running > paused > created > finished
+                _priority = {
+                    "running": 0, "paused": 1, "created": 2, "ready": 2, "finished": 3, "cancelled": 4,
+                }
+                new_s = timer.status.value
+                cur_s = status_map.get(key, "finished")
+                if _priority.get(new_s, 9) < _priority.get(cur_s, 9):
+                    status_map[key] = new_s
+
+        # Garante que atletas/equipes sem nenhum timer ainda aparecem
+        for timer in timers:
+            key = (timer.team_id, timer.user_id)
+            if key not in meta_map:
+                if timer.user:
+                    athlete_name = timer.user.full_name
+                elif timer.team:
+                    athlete_name = timer.team.name
+                else:
+                    athlete_name = f"Timer #{timer.id}"
+                meta_map[key] = {
+                    "team_id": timer.team_id,
+                    "user_id": timer.user_id,
+                    "athlete_name": athlete_name,
+                    "team_name": timer.team.name if timer.team else None,
+                    "category_name": timer.category.name if timer.category else None,
+                }
+            if key not in status_map:
+                status_map[key] = timer.status.value
+
+        entries: list[CrossfitRankingEntry] = []
+        for key, meta in meta_map.items():
+            entries.append(
+                CrossfitRankingEntry(
+                    position=0,
+                    team_id=meta["team_id"],
+                    user_id=meta["user_id"],
+                    athlete_name=meta["athlete_name"],
+                    team_name=meta["team_name"],
+                    category_name=meta["category_name"],
+                    wods_completed=wods_map[key],
+                    total_points=points_map[key],
+                    status=status_map.get(key, "pending"),
+                )
+            )
+
+        # Ordena: mais pontos primeiro; desempate por wods_completed DESC
+        entries.sort(key=lambda e: (-e.total_points, -e.wods_completed))
+
+        # Atribui posições
+        pos = 1
+        for entry in entries:
+            entry.position = pos
+            pos += 1
 
         return entries
