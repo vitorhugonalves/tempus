@@ -1,0 +1,19 @@
+# Contexto de build do backend (Dockerfile.backend usa backend/ como contexto e faz `COPY . .`).
+# A configuração chega em runtime pelo `env_file` do docker-compose; o .env não pode
+# ficar gravado na imagem.
+
+.env
+.env.*
+!.env.example
+
+# Banco SQLite local, ambiente virtual e caches da máquina host
+*.db
+*.db-journal
+.venv
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov
+logs

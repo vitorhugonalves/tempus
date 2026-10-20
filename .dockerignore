@@ -1,0 +1,19 @@
+# Contexto de build do frontend (Dockerfile.frontend usa a raiz do repositório).
+# Sem este arquivo, o `COPY frontend/ .` sobrescrevia o node_modules instalado pelo
+# `npm install` da imagem com o node_modules da máquina host (versões antigas).
+
+**/node_modules
+**/dist
+**/coverage
+
+.git
+backend
+docs
+logs
+
+# Segredos e credenciais nunca entram em imagem
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.dev.example
+.temp_cred
