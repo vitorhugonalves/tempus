@@ -5,12 +5,13 @@ import { competitionsApi } from "../api/competitions";
 import { teamsApi } from "../api/teams";
 import { heatsApi } from "../api/heats";
 import { useAuthStore } from "../store/auth";
-import { msToDisplay, secondsToDisplay } from "../utils/time";
+import { msToDisplay, msToPreciseDisplay, secondsToDisplay } from "../utils/time";
 import { useCompetitionSocket, WsStatus } from "../hooks/useCompetitionSocket";
 import type { Timer, PenaltyType, Competition, Heat, TimerEvent } from "../types";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
+import AdjustTimeModal from "../components/timers/AdjustTimeModal";
 
 const STATUS_COLORS: Record<string, "green" | "yellow" | "red" | "gray" | "blue" | "purple"> = {
   created: "gray",
@@ -75,9 +76,11 @@ function WsStatusBadge({ status }: { status: WsStatus }) {
 
 interface TimerHistoryProps {
   timerId: number;
+  /** Muda quando o tempo do timer muda (ex.: ajuste), forçando recarregar o histórico. */
+  accumulatedMs: number;
 }
 
-function TimerHistory({ timerId }: TimerHistoryProps) {
+function TimerHistory({ timerId, accumulatedMs }: TimerHistoryProps) {
   const [events, setEvents] = useState<TimerEvent[] | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -88,7 +91,7 @@ function TimerHistory({ timerId }: TimerHistoryProps) {
       .then((data) => setEvents(data))
       .catch(() => setEvents([]))
       .finally(() => setLoading(false));
-  }, [timerId]);
+  }, [timerId, accumulatedMs]);
 
   if (loading) return <p className="text-xs text-gray-400 mt-1 px-1">Carregando histórico...</p>;
   if (!events || events.length === 0) return <p className="text-xs text-gray-400 mt-1 px-1">Nenhum evento registrado.</p>;
@@ -96,13 +99,21 @@ function TimerHistory({ timerId }: TimerHistoryProps) {
   return (
     <ul className="mt-1 divide-y divide-gray-100 dark:divide-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden text-xs">
       {events.map((ev) => (
-        <li key={ev.id} className="flex items-center justify-between px-3 py-1.5 bg-white dark:bg-gray-800">
-          <span className="font-medium text-gray-700 dark:text-gray-300">
-            {EVENT_LABELS[ev.event_type] ?? ev.event_type}
-          </span>
-          <span className="text-gray-400 dark:text-gray-500 tabular-nums">
-            {new Date(ev.created_at).toLocaleString("pt-BR")}
-          </span>
+        <li key={ev.id} className="px-3 py-1.5 bg-white dark:bg-gray-800">
+          <div className="flex items-center justify-between">
+            <span className="font-medium text-gray-700 dark:text-gray-300">
+              {EVENT_LABELS[ev.event_type] ?? ev.event_type}
+              {ev.event_type === "adjusted" && (
+                <span className="ml-1 font-mono">→ {msToPreciseDisplay(ev.accumulated_ms)}</span>
+              )}
+            </span>
+            <span className="text-gray-400 dark:text-gray-500 tabular-nums">
+              {new Date(ev.created_at).toLocaleString("pt-BR")}
+            </span>
+          </div>
+          {ev.event_type === "adjusted" && ev.note && (
+            <p className="mt-0.5 text-gray-500 italic">{ev.note}</p>
+          )}
         </li>
       ))}
     </ul>
@@ -118,8 +129,10 @@ interface TeamTimerCardProps {
   penaltyTypes: PenaltyType[];
   durationSeconds: number | null;
   canControl: boolean;
+  canAdjust: boolean;
   onAction: (action: "start" | "pause" | "resume" | "finish" | "reset", timerId: number, note?: string) => Promise<void>;
   onPenalty: (timerId: number, penaltyTypeId: number, justification: string) => Promise<void>;
+  onAdjust: (timerId: number, finalTimeMs: number, justification: string) => Promise<void>;
 }
 
 function TeamTimerCard({
@@ -129,8 +142,10 @@ function TeamTimerCard({
   penaltyTypes,
   durationSeconds,
   canControl,
+  canAdjust,
   onAction,
   onPenalty,
+  onAdjust,
 }: TeamTimerCardProps) {
   // Live ms via requestAnimationFrame — updates display only when seconds change
   const [displayMs, setDisplayMs] = useState(() =>
@@ -174,6 +189,7 @@ function TeamTimerCard({
   const [justification, setJustification] = useState("");
   const [showPenaltyForm, setShowPenaltyForm] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showAdjust, setShowAdjust] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleAction = async (action: "start" | "pause" | "resume" | "finish" | "reset") => {
@@ -287,6 +303,14 @@ function TeamTimerCard({
           </>
         )}
 
+        {canAdjust && timer.status === "finished" && (
+          <div className="flex justify-center">
+            <Button size="sm" variant="secondary" onClick={() => setShowAdjust(true)}>
+              ✎ Ajustar tempo
+            </Button>
+          </div>
+        )}
+
         {showPenaltyForm && (
           <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800">
             <p className="text-sm font-medium text-red-700 dark:text-red-400 mb-2">Aplicar Penalidade</p>
@@ -330,8 +354,18 @@ function TeamTimerCard({
           >
             {showHistory ? "Ocultar histórico" : "Ver histórico"}
           </button>
-          {showHistory && <TimerHistory timerId={timer.id} />}
+          {showHistory && <TimerHistory timerId={timer.id} accumulatedMs={timer.accumulated_ms} />}
         </div>
+      )}
+
+      {canAdjust && (
+        <AdjustTimeModal
+          isOpen={showAdjust}
+          teamName={teamName}
+          currentTimeMs={timer.accumulated_ms}
+          onClose={() => setShowAdjust(false)}
+          onConfirm={(finalTimeMs, justification) => onAdjust(timer.id, finalTimeMs, justification)}
+        />
       )}
     </div>
   );
@@ -353,6 +387,8 @@ interface HeatSectionProps {
   onStartTeam: (heatId: number, teamId: number) => Promise<void>;
   onTimerAction: (action: "start" | "pause" | "resume" | "finish" | "reset", timerId: number, note?: string) => Promise<void>;
   onPenalty: (timerId: number, penaltyTypeId: number, justification: string) => Promise<void>;
+  onAdjust: (timerId: number, finalTimeMs: number, justification: string) => Promise<void>;
+  canAdjust: boolean;
   onRenameHeat: (heatId: number, name: string) => Promise<void>;
   onMoveHeat: (heatId: number, direction: "up" | "down") => Promise<void>;
 }
@@ -367,10 +403,12 @@ function HeatSection({
   teamNameById,
   durationSeconds,
   canControl,
+  canAdjust,
   onStartHeat,
   onStartTeam,
   onTimerAction,
   onPenalty,
+  onAdjust,
   onRenameHeat,
   onMoveHeat,
 }: HeatSectionProps) {
@@ -567,8 +605,10 @@ function HeatSection({
                 penaltyTypes={penaltyTypes}
                 durationSeconds={durationSeconds}
                 canControl={canControl}
+                canAdjust={canAdjust}
                 onAction={onTimerAction}
                 onPenalty={onPenalty}
+                onAdjust={onAdjust}
               />
             );
           })}
@@ -647,6 +687,8 @@ export default function TimersPage() {
   const [error, setError] = useState<string | null>(null);
 
   const canControl = user?.role === "judge" || user?.role === "operator" || user?.role === "admin";
+  // Corrigir resultado já finalizado é exclusivo de admin (o backend também exige)
+  const canAdjust = user?.role === "admin";
 
   // Load all competitions for selector when no competition selected
   useEffect(() => {
@@ -758,6 +800,12 @@ export default function TimersPage() {
     refreshFromRest(timers.map((t) => (t.id === updated.id ? updated : t)));
   };
 
+  const handleAdjust = async (timerId: number, finalTimeMs: number, justification: string) => {
+    const updated = await timersApi.adjust(timerId, finalTimeMs, justification);
+    // O WS também envia o evento; atualizar via REST garante o card mesmo com o WS desconectado
+    refreshFromRest(timers.map((t) => (t.id === updated.id ? updated : t)));
+  };
+
   // Timers not associated to any heat
   const orphanTimers = timers.filter((t) => t.heat_id === null);
 
@@ -834,6 +882,8 @@ export default function TimersPage() {
             onStartTeam={handleStartTeam}
             onTimerAction={handleTimerAction}
             onPenalty={handlePenalty}
+            onAdjust={handleAdjust}
+            canAdjust={canAdjust}
             onRenameHeat={handleRenameHeat}
             onMoveHeat={handleMoveHeat}
           />
@@ -857,8 +907,10 @@ export default function TimersPage() {
                   penaltyTypes={penaltyTypes}
                   durationSeconds={null}
                   canControl={canControl}
+                  canAdjust={canAdjust}
                   onAction={handleTimerAction}
                   onPenalty={handlePenalty}
+                  onAdjust={handleAdjust}
                 />
               );
             })}

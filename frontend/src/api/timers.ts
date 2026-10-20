@@ -29,6 +29,15 @@ export const timersApi = {
   restart: (timerId: number, note: string) =>
     apiClient.post<Timer>(`/api/v1/timers/${timerId}/restart`, { note }).then((r) => r.data),
 
+  /** Corrige o tempo final de um timer finalizado (somente admin). */
+  adjust: (timerId: number, finalTimeMs: number, justification: string) =>
+    apiClient
+      .post<Timer>(`/api/v1/timers/${timerId}/adjust`, {
+        final_time_ms: finalTimeMs,
+        justification,
+      })
+      .then((r) => r.data),
+
   reset: (timerId: number, note?: string) =>
     apiClient.post<Timer>(`/api/v1/timers/${timerId}/restart`, { note }).then((r) => r.data),
 

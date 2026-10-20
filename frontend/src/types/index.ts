@@ -202,6 +202,8 @@ export interface TimerEvent {
   id: number;
   timer_id: number;
   event_type: TimerEventType;
+  event_at: string;
+  accumulated_ms: number;
   triggered_by_id: number | null;
   note: string | null;
   created_at: string;
