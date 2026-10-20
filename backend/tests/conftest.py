@@ -127,6 +127,24 @@ async def admin_user(db: AsyncSession):
 
 
 @pytest_asyncio.fixture
+async def operator_user(db: AsyncSession):
+    """Cria um usuário operator para uso nos testes."""
+    from app.core.security import hash_password
+    from app.models.user import User, UserRole
+
+    user = User(
+        full_name="Operator Teste",
+        email="operator@example.com",
+        hashed_password=hash_password("senha-operator-123"),
+        role=UserRole.operator,
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+@pytest_asyncio.fixture
 async def judge_user(db: AsyncSession):
     """Cria um usuário judge para uso nos testes."""
     from app.core.security import hash_password
@@ -179,6 +197,17 @@ async def judge_token(client: AsyncClient, judge_user) -> str:
     response = await client.post(
         "/api/v1/auth/login",
         json={"email": "judge@example.com", "password": "senha-judge-123"},
+    )
+    assert response.status_code == 200
+    return response.cookies["session_id"]
+
+
+@pytest_asyncio.fixture
+async def operator_token(client: AsyncClient, operator_user) -> str:
+    """Autentica o operator e retorna o token de sessão."""
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "operator@example.com", "password": "senha-operator-123"},
     )
     assert response.status_code == 200
     return response.cookies["session_id"]

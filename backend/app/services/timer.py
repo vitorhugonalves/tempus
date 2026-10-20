@@ -1,5 +1,6 @@
 """Serviço de timers, penalidades e ranking (RF-26 a RF-39)."""
 
+import json
 import time
 from datetime import datetime, timezone
 
@@ -7,6 +8,7 @@ from fastapi import HTTPException, status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.constants import AUDIT_ACTION_TIMER_ADJUSTED, AUDIT_RESOURCE_TIMER
 from app.core.redis import (
     delete_timer_state,
     get_timer_state,
@@ -17,6 +19,7 @@ from app.core.redis import (
 from app.models.competition import CompetitionStatus
 from app.models.timer import (
     VALID_TRANSITIONS,
+    AuditLog,
     OfficialResult,
     Penalty,
     PenaltyType,
@@ -26,6 +29,7 @@ from app.models.timer import (
     TimerStatus,
 )
 from app.models.user import User
+from app.repositories.audit_log import AuditLogRepository
 from app.repositories.competition import CompetitionRepository
 from app.repositories.timer import OfficialResultRepository, PenaltyTypeRepository, TimerRepository
 from app.schemas.timer import (
@@ -464,6 +468,88 @@ class TimerService:
             return saved
 
     @staticmethod
+    async def adjust(
+        db: AsyncSession,
+        timer_id: int,
+        final_time_ms: int,
+        justification: str,
+        current_user: User,
+        redis: Redis,
+    ) -> Timer:
+        """Corrige manualmente o tempo final de um timer finalizado.
+
+        Não apaga nem edita o histórico: grava um evento `adjusted` (o tempo
+        exibido vem do evento de estado mais recente), atualiza o resultado
+        oficial e registra antes/depois em `audit_logs`.
+
+        Args:
+            db: Sessão assíncrona.
+            timer_id: ID do timer.
+            final_time_ms: Novo tempo final em milissegundos.
+            justification: Motivo do ajuste (já validado no schema).
+            current_user: Admin que faz o ajuste.
+            redis: Conexão Redis.
+
+        Returns:
+            Timer com o tempo ajustado.
+
+        Raises:
+            HTTPException 404: Timer não encontrado.
+            HTTPException 409: Timer não está finalizado.
+        """
+        async with timer_lock(redis, timer_id):
+            timer = await TimerRepository.get_by_id(db, timer_id)
+            if not timer:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Timer não encontrado"
+                )
+            if timer.status != TimerStatus.finished:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Só é possível ajustar o tempo de um timer finalizado",
+                )
+
+            previous_ms = _compute_accumulated_ms(timer)
+            now = _utcnow()
+            await TimerRepository.add_event(
+                db,
+                TimerEvent(
+                    timer_id=timer.id,
+                    event_type=TimerEventType.adjusted,
+                    event_at=now,
+                    accumulated_ms=final_time_ms,
+                    triggered_by_id=current_user.id,
+                    note=justification,
+                    payload_json=json.dumps(
+                        {"previous_ms": previous_ms, "new_ms": final_time_ms}
+                    ),
+                ),
+            )
+            await _set_official_result_time(
+                db, timer_id, final_time_ms, current_user, now
+            )
+            await AuditLogRepository.create(
+                db,
+                AuditLog(
+                    actor_user_id=current_user.id,
+                    action=AUDIT_ACTION_TIMER_ADJUSTED,
+                    resource_type=AUDIT_RESOURCE_TIMER,
+                    resource_id=timer_id,
+                    before_json=json.dumps({"final_time_ms": previous_ms}),
+                    after_json=json.dumps(
+                        {"final_time_ms": final_time_ms, "justification": justification}
+                    ),
+                ),
+            )
+            saved = await TimerRepository.save(db, timer)
+            await publish_timer_event(redis, timer.competition_id, {
+                "event_type": "adjusted",
+                "timer_id": timer_id,
+                "accumulated_ms": final_time_ms,
+            })
+            return saved
+
+    @staticmethod
     async def reset(
         db: AsyncSession, timer_id: int, note: str | None, current_user: User, redis: Redis
     ) -> Timer:
@@ -553,6 +639,33 @@ class TimerService:
         if not timer:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Timer não encontrado")
         return timer
+
+
+async def _set_official_result_time(
+    db: AsyncSession,
+    timer_id: int,
+    final_time_ms: int,
+    current_user: User,
+    now: datetime,
+) -> None:
+    """Grava o tempo ajustado no resultado oficial do timer.
+
+    Timers finalizados antes do timer v2 podem não ter resultado oficial; nesse
+    caso ele é criado agora, em nome de quem fez o ajuste.
+    """
+    result = await OfficialResultRepository.get_by_timer(db, timer_id)
+    if result is None:
+        await OfficialResultRepository.create(
+            db,
+            OfficialResult(
+                timer_id=timer_id,
+                final_time_ms=final_time_ms,
+                finished_by_user_id=current_user.id,
+                finished_at=now,
+            ),
+        )
+        return
+    await OfficialResultRepository.update_final_time(db, result, final_time_ms)
 
 
 def _compute_accumulated_ms_from_stopped_state(timer: Timer) -> int:
