@@ -97,3 +97,12 @@ corretos antes da emissão: isso é coberto pela coluna de justificativa e por
   exportação de PDF responde 500.
 - Exportar PDF de competição inexistente passou a responder 404 (antes gerava PDF
   vazio com título "Competição #id").
+- `issued_by_user_id` **não tem FK** (só snapshot inteiro): o id entra na assinatura, e
+  um `ON DELETE SET NULL` faria todo PDF de um usuário excluído aparecer como adulterado.
+- As rotas de exportação usam `Depends(get_db, scope="function")`: o commit da emissão
+  acontece antes do envio do PDF (com o escopo padrão, uma falha de commit entregaria um
+  PDF cujo código não existe). Exige `fastapi>=0.154`.
+- Cada exportação grava um PDF novo; a tabela só cresce (sem política de retenção).
+- As garantias da rota pública dependem da infraestrutura: o nginx precisa de
+  `client_max_body_size` compatível com o limite de 10 MB, e o rate limit por IP só
+  funciona se o uvicorn confiar no `X-Forwarded-For` do proxy (`--forwarded-allow-ips`).
