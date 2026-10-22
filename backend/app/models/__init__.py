@@ -3,6 +3,7 @@ from app.models.competitor import CompetitorRegistration
 from app.models.competition import Competition, CompetitionStatus
 from app.models.heat import Heat, HeatStatus, HeatTeam
 from app.models.modality import Modality
+from app.models.report_issuance import ReportIssuance
 from app.models.session import Session
 from app.models.team import Team, TeamMember
 from app.models.timer import Penalty, PenaltyType, Timer, TimerEvent, TimerStatus
@@ -25,6 +26,7 @@ __all__ = [
     "Penalty",
     "PenaltyType",
     "PasswordResetToken",
+    "ReportIssuance",
     "Session",
     "Team",
     "TeamMember",
