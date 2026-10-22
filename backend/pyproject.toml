@@ -26,6 +26,12 @@ dependencies = [
     "Pillow>=12.3.0",
     "slowapi>=0.1.9",
     "redis[hiredis]>=5.0.0",
+    # Assinatura Ed25519 dos PDFs de relatório (ADR-012).
+    "cryptography>=50.0.2,<51",
+    # QR code em SVG puro para o rodapé dos PDFs (sem dependência nativa).
+    "segno>=1.6.6,<2",
+    # Base de fusos para zoneinfo na imagem slim (horário de Brasília no PDF).
+    "tzdata>=2026.5",
     # Pisos de segurança de dependências transitivas (pip-audit, 2026-10-20).
     # Não são usadas direto pelo app; só impedem o resolver de escolher versão vulnerável.
     "starlette>=1.3.1",

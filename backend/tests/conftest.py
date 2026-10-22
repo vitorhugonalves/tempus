@@ -1,13 +1,16 @@
+import base64
 import json
 from contextlib import asynccontextmanager
 
 import fakeredis.aioredis
 import pytest
 import pytest_asyncio
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
+from app.core.config import settings
 from app.core.redis import get_redis
 from app.db.base import Base
 from app.db.session import get_db
@@ -15,6 +18,11 @@ from app.main import app
 
 # Desabilita rate limiting em testes (RNF-06 é validado separadamente)
 app.state.limiter.enabled = False
+
+# Chave de assinatura de relatórios efêmera — gerada por execução, nunca versionada.
+settings.REPORT_SIGNING_PRIVATE_KEY = base64.b64encode(
+    Ed25519PrivateKey.generate().private_bytes_raw()
+).decode()
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 

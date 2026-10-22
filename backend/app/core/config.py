@@ -24,6 +24,11 @@ class Settings(BaseSettings):
 
     FRONTEND_URL: str = "http://localhost:5173"
 
+    # Chave privada Ed25519 (32 bytes em base64) que assina os PDFs de relatório.
+    # Gere com `python scripts/generate_report_signing_key.py`. Vazia = exportação
+    # de PDF falha com erro explícito (nunca emite PDF sem assinatura).
+    REPORT_SIGNING_PRIVATE_KEY: str = ""
+
     ADMIN_EMAIL: str
     ADMIN_FULL_NAME: str = "Administrador"
 

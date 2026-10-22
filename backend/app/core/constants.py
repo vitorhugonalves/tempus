@@ -15,3 +15,16 @@ MAX_ADJUST_JUSTIFICATION_CHARS = 500
 
 AUDIT_ACTION_TIMER_ADJUSTED = "timer.adjusted"
 AUDIT_RESOURCE_TIMER = "timer"
+
+# PDFs de relatório assinados (ADR-012).
+REPORT_TYPE_RANKING = "ranking"
+REPORT_TYPE_WOD_LEADERBOARD = "wod_leaderboard"
+# Fuso exibido no "Gerado em" — o banco guarda UTC naive.
+REPORT_TIMEZONE = "America/Sao_Paulo"
+# 16 bytes → 22 caracteres url-safe: inviável de adivinhar por força bruta.
+REPORT_VERIFICATION_CODE_BYTES = 16
+REPORT_VERIFY_MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+# Rotas públicas de verificação: barra enumeração de códigos.
+REPORT_VERIFY_RATE_LIMIT = "30/minute"
+# Rota do frontend apontada pelo QR code do PDF.
+REPORT_VERIFY_PATH = "/verificar"
