@@ -3,19 +3,22 @@ import io
 import logging
 from collections.abc import Awaitable
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import Response, StreamingResponse
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi.responses import PlainTextResponse, Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_roles
+from app.core.constants import REPORT_VERIFY_MAX_UPLOAD_BYTES, REPORT_VERIFY_RATE_LIMIT
+from app.core.limiter import limiter as _limiter
 from app.db.session import get_db
 from app.models.report_issuance import ReportIssuance
 from app.models.user import User
+from app.schemas.report import ReportVerificationResponse
 from app.schemas.timer import CrossfitRankingEntry, RankingEntry
 from app.services.report import ReportService
 from app.services.report_rendering import PdfRendererUnavailableError
 from app.services.report_rendering import seconds_to_hms as _seconds_to_hms
-from app.services.report_signing import ReportSigningKeyError
+from app.services.report_signing import ReportSigningKeyError, ReportSigningService
 from app.services.timer import RankingService
 
 logger = logging.getLogger(__name__)
@@ -105,7 +108,7 @@ async def export_ranking_pdf(
     current_user: User = Depends(require_roles("operator", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    """Exporta ranking em PDF assinado, com justificativa de ajustes (RF-40, ADR-012)."""
+    """Exporta ranking em PDF assinado, com justificativa (RF-40, ADR-012)."""
     issuance = await _issue_or_http_error(
         ReportService.issue_ranking_pdf(db, competition_id, category_id, current_user)
     )
@@ -189,6 +192,62 @@ async def export_crossfit_ranking_pdf(
         )
     )
     return _signed_pdf_response(issuance, f"leaderboard_wods_{competition_id}.pdf")
+
+
+# ── Verificação pública de PDFs assinados (ADR-012) ─────────────────────────
+
+
+@router.get("/reports/public-key", response_class=PlainTextResponse)
+@_limiter.limit(REPORT_VERIFY_RATE_LIMIT)
+async def get_report_public_key(request: Request) -> str:
+    """Chave pública Ed25519 (PEM) para verificação independente das emissões."""
+    try:
+        return ReportSigningService.public_key_pem()
+    except ReportSigningKeyError as exc:
+        logger.error("Chave pública indisponível: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Assinatura de relatórios não configurada no servidor",
+        ) from exc
+
+
+@router.get("/reports/verify/{code}", response_model=ReportVerificationResponse)
+@_limiter.limit(REPORT_VERIFY_RATE_LIMIT)
+async def verify_report_by_code(
+    request: Request, code: str, db: AsyncSession = Depends(get_db)
+) -> ReportVerificationResponse:
+    """Verifica um PDF emitido pelo código impresso nele (público)."""
+    return await ReportService.verify_by_code(db, code)
+
+
+@router.get("/reports/verify/{code}/pdf")
+@_limiter.limit(REPORT_VERIFY_RATE_LIMIT)
+async def download_original_report(
+    request: Request, code: str, db: AsyncSession = Depends(get_db)
+) -> Response:
+    """Baixa o PDF original de uma emissão íntegra (público)."""
+    pdf_bytes = await ReportService.original_pdf(db, code)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=original_{code}.pdf"},
+    )
+
+
+@router.post("/reports/verify", response_model=ReportVerificationResponse)
+@_limiter.limit(REPORT_VERIFY_RATE_LIMIT)
+async def verify_report_by_file(
+    request: Request,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+) -> ReportVerificationResponse:
+    """Verifica se um arquivo é idêntico a um PDF emitido (público).
+
+    Lê no máximo MAX + 1 bytes: o arquivo nunca é parseado nem armazenado.
+    """
+    data = await file.read(REPORT_VERIFY_MAX_UPLOAD_BYTES + 1)
+    ReportService.validate_upload(data)
+    return await ReportService.verify_by_file(db, data)
 
 
 # ── Certificados individuais (RF-41, RF-42, RF-43) ───────────────────────────

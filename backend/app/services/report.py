@@ -9,15 +9,18 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import (
+    PDF_MAGIC_BYTES,
     REPORT_TYPE_RANKING,
     REPORT_TYPE_WOD_LEADERBOARD,
     REPORT_VERIFICATION_CODE_BYTES,
+    REPORT_VERIFY_MAX_UPLOAD_BYTES,
 )
 from app.models.report_issuance import ReportIssuance
 from app.models.user import User
 from app.repositories.category import CategoryRepository
 from app.repositories.competition import CompetitionRepository
 from app.repositories.report_issuance import ReportIssuanceRepository
+from app.schemas.report import ReportVerificationResponse, ReportVerificationStatus
 from app.services import report_rendering
 from app.services.report_signing import IssuancePayload, ReportSigningService
 from app.services.timer import RankingService
@@ -204,3 +207,144 @@ class ReportService:
             table_html=report_rendering.wod_leaderboard_table_html(leaderboard),
             font_size_px=11,
         )
+
+    @staticmethod
+    async def _is_authentic(db: AsyncSession, issuance: ReportIssuance) -> bool:
+        signature_ok = ReportSigningService.verify(
+            payload_from_issuance(issuance), issuance.signature
+        )
+        pdf_data = await ReportIssuanceRepository.load_pdf_data(db, issuance)
+        stored_pdf_ok = hashlib.sha256(pdf_data).hexdigest() == issuance.sha256
+        if not (signature_ok and stored_pdf_ok):
+            logger.warning(
+                "Emissão adulterada: code=%s signature_ok=%s stored_pdf_ok=%s",
+                issuance.verification_code,
+                signature_ok,
+                stored_pdf_ok,
+            )
+        return signature_ok and stored_pdf_ok
+
+    @staticmethod
+    async def _verification(
+        db: AsyncSession, issuance: ReportIssuance
+    ) -> ReportVerificationResponse:
+        authentic = await ReportService._is_authentic(db, issuance)
+        return ReportVerificationResponse(
+            status=(
+                ReportVerificationStatus.valid
+                if authentic
+                else ReportVerificationStatus.tampered
+            ),
+            verification_code=issuance.verification_code,
+            report_type=issuance.report_type,
+            competition_name=issuance.competition_name,
+            category_name=issuance.category_name,
+            issued_at=issuance.issued_at.replace(tzinfo=UTC),
+            issued_by_role=issuance.issued_by_role,
+            sha256=issuance.sha256,
+        )
+
+    @staticmethod
+    async def _get_or_404(db: AsyncSession, code: str) -> ReportIssuance:
+        issuance = await ReportIssuanceRepository.get_by_code(db, code)
+        if issuance is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Código de verificação não encontrado",
+            )
+        return issuance
+
+    @staticmethod
+    async def verify_by_code(db: AsyncSession, code: str) -> ReportVerificationResponse:
+        """Verifica uma emissão pelo código impresso no PDF.
+
+        Args:
+            db: Sessão assíncrona.
+            code: Código de verificação.
+
+        Returns:
+            Resultado da verificação.
+
+        Raises:
+            HTTPException 404: código inexistente.
+        """
+        issuance = await ReportService._get_or_404(db, code)
+        return await ReportService._verification(db, issuance)
+
+    @staticmethod
+    def validate_upload(data: bytes) -> None:
+        """Valida o arquivo enviado para verificação (tamanho e assinatura PDF).
+
+        Args:
+            data: Bytes lidos (até MAX + 1).
+
+        Raises:
+            HTTPException 413: arquivo acima do limite.
+            HTTPException 422: conteúdo não é PDF.
+        """
+        if len(data) > REPORT_VERIFY_MAX_UPLOAD_BYTES:
+            max_mb = REPORT_VERIFY_MAX_UPLOAD_BYTES // (1024 * 1024)
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=f"Arquivo excede {max_mb} MB",
+            )
+        if not data.startswith(PDF_MAGIC_BYTES):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="O arquivo enviado não é um PDF",
+            )
+
+    @staticmethod
+    async def verify_by_file(
+        db: AsyncSession, data: bytes
+    ) -> ReportVerificationResponse:
+        """Verifica se um arquivo é, byte a byte, um PDF emitido pelo Tempus.
+
+        Args:
+            db: Sessão assíncrona.
+            data: Bytes do arquivo (já validados por validate_upload).
+
+        Returns:
+            Resultado da verificação da emissão correspondente.
+
+        Raises:
+            HTTPException 404: nenhum PDF emitido tem esse hash.
+        """
+        issuance = await ReportIssuanceRepository.get_by_sha256(
+            db, hashlib.sha256(data).hexdigest()
+        )
+        if issuance is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=(
+                    "Este arquivo não corresponde a nenhum relatório emitido "
+                    "pelo Tempus"
+                ),
+            )
+        return await ReportService._verification(db, issuance)
+
+    @staticmethod
+    async def original_pdf(db: AsyncSession, code: str) -> bytes:
+        """Retorna os bytes do PDF original de uma emissão íntegra.
+
+        Args:
+            db: Sessão assíncrona.
+            code: Código de verificação.
+
+        Returns:
+            Bytes do PDF.
+
+        Raises:
+            HTTPException 404: código inexistente.
+            HTTPException 409: emissão adulterada — o original não é servido.
+        """
+        issuance = await ReportService._get_or_404(db, code)
+        if not await ReportService._is_authentic(db, issuance):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "O registro deste documento foi adulterado; o original não "
+                    "pode ser fornecido"
+                ),
+            )
+        return await ReportIssuanceRepository.load_pdf_data(db, issuance)
