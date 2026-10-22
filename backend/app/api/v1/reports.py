@@ -2,15 +2,21 @@ import csv
 import html
 import io
 import logging
+from collections.abc import Awaitable
 
-from fastapi import APIRouter, Depends
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_roles
 from app.db.session import get_db
+from app.models.report_issuance import ReportIssuance
 from app.models.user import User
 from app.schemas.timer import CrossfitRankingEntry, RankingEntry
+from app.services.report import ReportService
+from app.services.report_rendering import PdfRendererUnavailableError
+from app.services.report_rendering import seconds_to_hms as _seconds_to_hms
+from app.services.report_signing import ReportSigningKeyError
 from app.services.timer import RankingService
 
 logger = logging.getLogger(__name__)
@@ -18,12 +24,33 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _seconds_to_hms(seconds: int) -> str:
-    """Converte segundos para formato HH:MM:SS."""
-    h = seconds // 3600
-    m = (seconds % 3600) // 60
-    s = seconds % 60
-    return f"{h:02d}:{m:02d}:{s:02d}"
+async def _issue_or_http_error(issue: Awaitable[ReportIssuance]) -> ReportIssuance:
+    """Traduz falhas de infraestrutura da emissão em respostas HTTP explícitas."""
+    try:
+        return await issue
+    except PdfRendererUnavailableError as exc:
+        logger.error("PDF não gerado: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Gerador de PDF indisponível no servidor",
+        ) from exc
+    except ReportSigningKeyError as exc:
+        logger.error("PDF não gerado: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Assinatura de relatórios não configurada no servidor",
+        ) from exc
+
+
+def _signed_pdf_response(issuance: ReportIssuance, filename: str) -> Response:
+    return Response(
+        content=issuance.pdf_data,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}",
+            "X-Verification-Code": issuance.verification_code,
+        },
+    )
 
 
 @router.get("/competitions/{competition_id}/ranking", response_model=list[RankingEntry])
@@ -76,81 +103,14 @@ async def export_ranking_csv(
 async def export_ranking_pdf(
     competition_id: int,
     category_id: int | None = None,
-    _current_user: User = Depends(require_roles("operator", "admin")),
+    current_user: User = Depends(require_roles("operator", "admin")),
     db: AsyncSession = Depends(get_db),
-) -> StreamingResponse:
-    """Exporta ranking em PDF (RF-40)."""
-    from app.repositories.competition import CompetitionRepository
-
-    competition = await CompetitionRepository.get_by_id(db, competition_id)
-    comp_name = competition.name if competition else f"Competição #{competition_id}"
-
-    ranking = await RankingService.get_ranking(db, competition_id, category_id)
-
-    # Gera HTML para conversão com WeasyPrint
-    rows_html = ""
-    for entry in ranking:
-        rows_html += (
-            f"<tr>"
-            f"<td>{entry.position or '-'}</td>"
-            f"<td>{html.escape(entry.athlete_name)}</td>"
-            f"<td>{html.escape(entry.category_name or '-')}</td>"
-            f"<td>{_seconds_to_hms(entry.elapsed_seconds)}</td>"
-            f"<td>{entry.total_penalty_seconds}s</td>"
-            f"<td><strong>{_seconds_to_hms(entry.final_seconds)}</strong></td>"
-            f"<td>{html.escape(entry.status.value)}</td>"
-            f"</tr>"
-        )
-
-    doc_html = f"""<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<style>
-  body {{ font-family: Arial, sans-serif; font-size: 12px; }}
-  h1 {{ text-align: center; }}
-  table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-  th {{ background: #1a1a2e; color: white; padding: 8px; }}
-  td {{ padding: 6px 8px; border-bottom: 1px solid #ddd; text-align: center; }}
-  tr:nth-child(even) {{ background: #f5f5f5; }}
-</style>
-</head>
-<body>
-<h1>Ranking — {html.escape(comp_name)}</h1>
-<table>
-<thead>
-  <tr>
-    <th>Pos.</th><th>Atleta/Equipe</th><th>Categoria</th>
-    <th>Cronometrado</th><th>Penalidades</th><th>Tempo Final</th><th>Status</th>
-  </tr>
-</thead>
-<tbody>{rows_html}</tbody>
-</table>
-</body>
-</html>"""
-
-    # url_fetcher bloqueado: impede WeasyPrint de buscar file:// ou IPs internos
-    def _deny_url_fetcher(url: str, **_kw: object) -> dict:
-        return {"string": b"", "mime_type": "text/plain"}
-
-    try:
-        import weasyprint  # type: ignore[import]
-        pdf_bytes = weasyprint.HTML(string=doc_html, url_fetcher=_deny_url_fetcher).write_pdf()
-    except ImportError:
-        # WeasyPrint não instalado: retorna HTML como fallback
-        logger.warning("WeasyPrint não disponível — retornando HTML")
-        return StreamingResponse(
-            iter([doc_html.encode()]),
-            media_type="text/html",
-            headers={"Content-Disposition": f"attachment; filename=ranking_{competition_id}.html"},
-        )
-
-    logger.info("PDF exportado: competition_id=%s", competition_id)
-    return StreamingResponse(
-        iter([pdf_bytes]),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=ranking_{competition_id}.pdf"},
+) -> Response:
+    """Exporta ranking em PDF assinado, com justificativa de ajustes (RF-40, ADR-012)."""
+    issuance = await _issue_or_http_error(
+        ReportService.issue_ranking_pdf(db, competition_id, category_id, current_user)
     )
+    return _signed_pdf_response(issuance, f"ranking_{competition_id}.pdf")
 
 
 # ── CrossFit Ranking ─────────────────────────────────────────────────────────
