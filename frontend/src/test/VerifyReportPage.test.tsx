@@ -36,10 +36,10 @@ function renderAt(path: string) {
   );
 }
 
-function notFound(): AxiosError {
-  return new AxiosError("nf", "ERR", undefined, undefined, {
-    status: 404,
-    statusText: "Not Found",
+function httpError(status: number): AxiosError {
+  return new AxiosError("http", "ERR", undefined, undefined, {
+    status,
+    statusText: "",
     data: {},
     headers: {},
     config: { headers: new AxiosHeaders() },
@@ -69,11 +69,17 @@ describe("VerifyReportPage", () => {
   });
 
   it("informa código não encontrado", async () => {
-    vi.mocked(reportsApi.verifyByCode).mockRejectedValue(notFound());
+    vi.mocked(reportsApi.verifyByCode).mockRejectedValue(httpError(404));
     renderAt("/verificar/XYZ");
     await waitFor(() =>
       expect(screen.getByText(/não corresponde a nenhum relatório/i)).toBeInTheDocument(),
     );
+  });
+
+  it("pede para aguardar quando o limite de consultas é atingido", async () => {
+    vi.mocked(reportsApi.verifyByCode).mockRejectedValue(httpError(429));
+    renderAt("/verificar/ABC");
+    expect(await screen.findByText(/muitas verificações/i)).toBeInTheDocument();
   });
 
   it("sem código mostra campo de código e upload", () => {

@@ -34,6 +34,13 @@ function formatBrasilia(isoUtc: string): string {
 
 function lookupErrorState(error: unknown): LookupState {
   if (isAxiosError(error) && error.response?.status === 404) return { kind: "not_found" };
+  // 429 = limite de consultas da rota pública; não é sinal de documento inválido.
+  if (isAxiosError(error) && error.response?.status === 429) {
+    return {
+      kind: "error",
+      message: "Muitas verificações em pouco tempo. Aguarde um minuto e tente novamente.",
+    };
+  }
   if (isAxiosError(error) && error.response?.status === 413) {
     return { kind: "error", message: "Arquivo grande demais (máximo 10 MB)." };
   }
