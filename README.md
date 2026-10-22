@@ -30,7 +30,7 @@ Tempus é uma plataforma web open-source voltada a organizadores de eventos espo
 | **Timers** | Iniciar, pausar, retomar, finalizar e reiniciar; estado quente em Redis; contador ao vivo via WebSocket |
 | **Penalidades** | Tipos configuráveis por competição (acréscimo de tempo, parada obrigatória) com justificativa obrigatória |
 | **Ranking** | Tempo real, ordenado por tempo final (cronometrado + penalidades), filtrável por categoria, acesso público sem login |
-| **Relatórios** | Exportação de ranking em CSV e PDF, certificado individual em PDF, imagem para redes sociais |
+| **Relatórios** | Exportação de ranking em CSV e PDF assinado digitalmente (data de geração, justificativa de ajustes, QR de verificação pública em `/verificar`), certificado individual em PDF, imagem para redes sociais |
 | **Perfis de acesso** | `admin` · `operator` · `judge` · `competitor` — com permissões granulares por role |
 
 ---
@@ -152,6 +152,7 @@ Todas as variáveis ficam em `backend/.env`. O arquivo `backend/.env.example` co
 | `DATABASE_URL` | URL de conexão com o banco | `postgresql+asyncpg://user:pass@host:5432/db` |
 | `ADMIN_EMAIL` | E-mail do admin criado no seed | `admin@meuevento.com.br` |
 | `ADMIN_FULL_NAME` | Nome do admin criado no seed | `João Silva` |
+| `REPORT_SIGNING_PRIVATE_KEY` | Chave Ed25519 (base64) que assina os PDFs de ranking — sem ela a exportação de PDF falha. Faça backup: trocá-la invalida a verificação dos PDFs já emitidos (ADR-012) | `python scripts/generate_report_signing_key.py` |
 
 ### Opcionais (com padrão)
 
