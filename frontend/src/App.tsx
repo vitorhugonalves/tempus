@@ -27,6 +27,7 @@ import TimersPage from "./pages/TimersPage";
 import LivePage from "./pages/LivePage";
 import RankingPage from "./pages/RankingPage";
 import RegistrationPage from "./pages/RegistrationPage";
+import VerifyReportPage from "./pages/VerifyReportPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import ProfilePage from "./pages/ProfilePage";
 import AdminPage from "./pages/AdminPage";
@@ -90,6 +91,10 @@ export default function App() {
           {/* Ranking público */}
           <Route path="/ranking/:competitionId" element={<RankingPage />} />
           <Route path="/competitions/:competitionId/ranking" element={<RankingPage />} />
+
+          {/* Verificação pública de PDFs assinados (ADR-012) */}
+          <Route path="/verificar" element={<VerifyReportPage />} />
+          <Route path="/verificar/:code" element={<VerifyReportPage />} />
 
           {/* Inscrição pública — funciona para visitante anônimo ou competidor logado */}
           <Route path="/inscricao" element={<RegistrationPage />} />

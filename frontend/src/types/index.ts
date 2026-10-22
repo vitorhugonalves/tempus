@@ -331,3 +331,17 @@ export interface WodLeaderboard {
   scoring_model: string | null;
   entries: WodLeaderboardEntry[];
 }
+
+export type ReportVerificationStatus = "valid" | "tampered";
+export type ReportType = "ranking" | "wod_leaderboard";
+
+export interface ReportVerification {
+  status: ReportVerificationStatus;
+  verification_code: string;
+  report_type: ReportType;
+  competition_name: string;
+  category_name: string | null;
+  issued_at: string;
+  issued_by_role: string | null;
+  sha256: string;
+}
