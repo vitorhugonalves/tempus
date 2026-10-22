@@ -206,6 +206,9 @@ class RankingEntry(BaseModel):
     infractions_count: int
     remaining_seconds: int | None
     status: TimerStatus
+    # Último ajuste manual de tempo (ADR-011): exibido no PDF assinado (ADR-012).
+    adjustment_note: str | None = None
+    adjusted_at: datetime | None = None
 
 
 class CrossfitRankingEntry(BaseModel):

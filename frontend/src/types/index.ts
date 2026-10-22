@@ -246,6 +246,8 @@ export interface RankingEntry {
   infractions_count: number;
   remaining_seconds: number | null;
   status: TimerStatus;
+  adjustment_note: string | null;
+  adjusted_at: string | null;
 }
 
 export interface CrossfitRankingEntry {

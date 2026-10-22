@@ -668,6 +668,12 @@ async def _set_official_result_time(
     await OfficialResultRepository.update_final_time(db, result, final_time_ms)
 
 
+def _last_adjustment_event(timer: Timer) -> TimerEvent | None:
+    """Evento `adjusted` mais recente (maior id) do timer, se houver."""
+    adjustments = [e for e in timer.events if e.event_type == TimerEventType.adjusted]
+    return max(adjustments, key=lambda e: e.id, default=None)
+
+
 def _compute_accumulated_ms_from_stopped_state(timer: Timer) -> int:
     """Retorna accumulated_ms do último evento de estado parado (paused/reset).
 
@@ -847,6 +853,7 @@ class RankingService:
             ):
                 remaining = max(0, duration_seconds - elapsed_seconds)
 
+            last_adjustment = _last_adjustment_event(timer)
             entries.append(
                 RankingEntry(
                     position=0,
@@ -864,6 +871,8 @@ class RankingService:
                     infractions_count=infractions_count,
                     remaining_seconds=remaining,
                     status=timer.status,
+                    adjustment_note=last_adjustment.note if last_adjustment else None,
+                    adjusted_at=last_adjustment.event_at if last_adjustment else None,
                 )
             )
 
