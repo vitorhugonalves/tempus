@@ -102,3 +102,17 @@ async def test_export_pdf_without_signing_key_returns_500(
     assert r.status_code == 500
     assert "assinatura" in r.json()["detail"].lower()
     assert await _issuances(db) == []
+
+
+async def test_export_crossfit_pdf_creates_wod_leaderboard_issuance(
+    client: AsyncClient, admin_token: str, db: AsyncSession
+):
+    comp_id = await _competition_id(client, admin_token)
+    r = await client.get(
+        f"/api/v1/competitions/{comp_id}/export/crossfit-pdf",
+        cookies={"session_id": admin_token},
+    )
+    assert r.status_code == 200
+    [issuance] = await _issuances(db)
+    assert issuance.report_type == "wod_leaderboard"
+    assert issuance.sha256 == hashlib.sha256(r.content).hexdigest()

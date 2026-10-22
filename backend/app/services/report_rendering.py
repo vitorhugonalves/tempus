@@ -154,3 +154,50 @@ def html_to_pdf(document_html: str) -> bytes:
     return weasyprint.HTML(
         string=document_html, url_fetcher=_deny_url_fetcher
     ).write_pdf()
+
+
+def _wod_cell_html(we) -> str:
+    if we.walkover:
+        return "<span style='color:#dc2626;font-weight:bold'>W.O.</span>"
+    if (
+        we.points == 0
+        and we.rank is None
+        and we.reps is None
+        and we.time_seconds is None
+    ):
+        return "N/A"
+    if we.wod_type == "amrap":
+        if we.reps is None:
+            return "—"
+        return f"{we.reps or 0} reps<br><small>({we.points} pts)</small>"
+    if we.wod_type == "for_time":
+        if we.time_seconds is None:
+            return "—"
+        reps_part = f" +{we.reps}r" if we.reps else ""
+        time_text = seconds_to_hms(we.time_seconds)
+        return f"{time_text}{reps_part}<br><small>({we.points} pts)</small>"
+    return "N/D"
+
+
+def wod_leaderboard_table_html(leaderboard) -> str:
+    """Tabela do Leaderboard WODs (CrossFit)."""
+    first_wods = leaderboard.entries[0].wod_entries if leaderboard.entries else []
+    headers = "".join(
+        f"<th>{html.escape(we.wod_name)}<br>"
+        f"<small>({html.escape(we.wod_type)})</small></th>"
+        for we in first_wods
+    )
+    rows = "".join(
+        "<tr>"
+        f"<td>{entry.position}º</td>"
+        f"<td>{html.escape(entry.team_name)}</td>"
+        + "".join(f"<td>{_wod_cell_html(we)}</td>" for we in entry.wod_entries)
+        + f"<td><strong>{entry.total_points} pts</strong></td>"
+        "</tr>"
+        for entry in leaderboard.entries
+    )
+    return (
+        "<table><thead><tr><th>Pos.</th><th>Equipe</th>"
+        f"{headers}<th>Total</th></tr></thead>"
+        f"<tbody>{rows}</tbody></table>"
+    )

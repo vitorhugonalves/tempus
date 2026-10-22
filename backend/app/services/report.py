@@ -8,7 +8,11 @@ from datetime import UTC, datetime
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.constants import REPORT_TYPE_RANKING, REPORT_VERIFICATION_CODE_BYTES
+from app.core.constants import (
+    REPORT_TYPE_RANKING,
+    REPORT_TYPE_WOD_LEADERBOARD,
+    REPORT_VERIFICATION_CODE_BYTES,
+)
 from app.models.report_issuance import ReportIssuance
 from app.models.user import User
 from app.repositories.category import CategoryRepository
@@ -17,6 +21,7 @@ from app.repositories.report_issuance import ReportIssuanceRepository
 from app.services import report_rendering
 from app.services.report_signing import IssuancePayload, ReportSigningService
 from app.services.timer import RankingService
+from app.services.wod_result import WodResultService
 
 logger = logging.getLogger(__name__)
 
@@ -162,5 +167,40 @@ class ReportService:
             issued_by=issued_by,
             title=f"Ranking — {competition_name}",
             table_html=report_rendering.ranking_table_html(entries),
+            font_size_px=11,
+        )
+
+    @staticmethod
+    async def issue_wod_leaderboard_pdf(
+        db: AsyncSession, competition_id: int, category_id: int | None, issued_by: User
+    ) -> ReportIssuance:
+        """Emite o PDF assinado do Leaderboard WODs (CrossFit).
+
+        Args:
+            db: Sessão assíncrona.
+            competition_id: ID da competição.
+            category_id: Filtro de categoria (opcional).
+            issued_by: Usuário que exportou.
+
+        Returns:
+            Emissão persistida.
+
+        Raises:
+            HTTPException 404: competição inexistente.
+        """
+        competition_name = await ReportService._competition_name(db, competition_id)
+        leaderboard = await WodResultService.compute_leaderboard(
+            db, competition_id, category_id
+        )
+        return await ReportService._issue(
+            db,
+            report_type=REPORT_TYPE_WOD_LEADERBOARD,
+            competition_id=competition_id,
+            competition_name=competition_name,
+            category_id=category_id,
+            category_name=await ReportService._category_name(db, category_id),
+            issued_by=issued_by,
+            title=f"Leaderboard WODs — {competition_name}",
+            table_html=report_rendering.wod_leaderboard_table_html(leaderboard),
             font_size_px=11,
         )

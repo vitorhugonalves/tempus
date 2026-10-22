@@ -1,5 +1,4 @@
 import csv
-import html
 import io
 import logging
 from collections.abc import Awaitable
@@ -180,100 +179,16 @@ async def export_crossfit_ranking_csv(
 async def export_crossfit_ranking_pdf(
     competition_id: int,
     category_id: int | None = None,
-    _current_user: User = Depends(require_roles("operator", "admin")),
+    current_user: User = Depends(require_roles("operator", "admin")),
     db: AsyncSession = Depends(get_db),
-) -> StreamingResponse:
-    """Exporta leaderboard de WODs em PDF (espelha o que é exibido em /ranking)."""
-    from app.repositories.competition import CompetitionRepository
-    from app.services.wod_result import WodResultService
-
-    competition = await CompetitionRepository.get_by_id(db, competition_id)
-    comp_name = competition.name if competition else f"Competição #{competition_id}"
-
-    leaderboard = await WodResultService.compute_leaderboard(db, competition_id, category_id)
-
-    wod_headers_html = "".join(
-        f"<th>{html.escape(we.wod_name)}<br><small>({we.wod_type})</small></th>"
-        for we in (leaderboard.entries[0].wod_entries if leaderboard.entries else [])
-    )
-
-    rows_html = ""
-    for entry in leaderboard.entries:
-        wod_cells_html = ""
-        for we in entry.wod_entries:
-            if we.walkover:
-                cell = "<span style='color:#dc2626;font-weight:bold'>W.O.</span>"
-            elif we.points == 0 and we.rank is None and we.reps is None and we.time_seconds is None:
-                cell = "N/A"
-            elif we.wod_type == "amrap":
-                cell = f"{we.reps or 0} reps<br><small>({we.points} pts)</small>" if we.reps is not None else "—"
-            elif we.wod_type == "for_time":
-                if we.time_seconds is not None:
-                    t = _seconds_to_hms(we.time_seconds)
-                    reps_part = f" +{we.reps}r" if we.reps else ""
-                    cell = f"{t}{reps_part}<br><small>({we.points} pts)</small>"
-                else:
-                    cell = "—"
-            else:
-                cell = "N/D"
-            wod_cells_html += f"<td>{cell}</td>"
-
-        rows_html += (
-            f"<tr>"
-            f"<td>{entry.position}º</td>"
-            f"<td>{html.escape(entry.team_name)}</td>"
-            f"{wod_cells_html}"
-            f"<td><strong>{entry.total_points} pts</strong></td>"
-            f"</tr>"
+) -> Response:
+    """Exporta leaderboard de WODs em PDF assinado (espelha /ranking, ADR-012)."""
+    issuance = await _issue_or_http_error(
+        ReportService.issue_wod_leaderboard_pdf(
+            db, competition_id, category_id, current_user
         )
-
-    doc_html = f"""<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<style>
-  body {{ font-family: Arial, sans-serif; font-size: 11px; }}
-  h1 {{ text-align: center; font-size: 16px; }}
-  table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-  th {{ background: #1a1a2e; color: white; padding: 6px 4px; font-size: 10px; }}
-  td {{ padding: 5px 4px; border-bottom: 1px solid #ddd; text-align: center; }}
-  tr:nth-child(even) {{ background: #f5f5f5; }}
-  small {{ color: #666; }}
-</style>
-</head>
-<body>
-<h1>Leaderboard WODs — {html.escape(comp_name)}</h1>
-<table>
-<thead>
-  <tr>
-    <th>Pos.</th><th>Equipe</th>{wod_headers_html}<th>Total</th>
-  </tr>
-</thead>
-<tbody>{rows_html}</tbody>
-</table>
-</body>
-</html>"""
-
-    def _deny_url_fetcher(url: str, **_kw: object) -> dict:
-        return {"string": b"", "mime_type": "text/plain"}
-
-    try:
-        import weasyprint  # type: ignore[import]
-        pdf_bytes = weasyprint.HTML(string=doc_html, url_fetcher=_deny_url_fetcher).write_pdf()
-    except ImportError:
-        logger.warning("WeasyPrint não disponível — retornando HTML")
-        return StreamingResponse(
-            iter([doc_html.encode()]),
-            media_type="text/html",
-            headers={"Content-Disposition": f"attachment; filename=leaderboard_wods_{competition_id}.html"},
-        )
-
-    logger.info("PDF WOD leaderboard exportado: competition_id=%s", competition_id)
-    return StreamingResponse(
-        iter([pdf_bytes]),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=leaderboard_wods_{competition_id}.pdf"},
     )
+    return _signed_pdf_response(issuance, f"leaderboard_wods_{competition_id}.pdf")
 
 
 # ── Certificados individuais (RF-41, RF-42, RF-43) ───────────────────────────

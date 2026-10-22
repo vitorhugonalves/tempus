@@ -1,5 +1,6 @@
 import sys
 from datetime import datetime
+from types import SimpleNamespace
 
 import pytest
 
@@ -11,6 +12,7 @@ from app.services.report_rendering import (
     build_document_html,
     format_local_datetime,
     ranking_table_html,
+    wod_leaderboard_table_html,
 )
 
 
@@ -94,3 +96,22 @@ def test_html_to_pdf_without_weasyprint_raises_explicit_error(monkeypatch):
 
 def test_html_to_pdf_returns_pdf_bytes():
     assert report_rendering.html_to_pdf("<p>x</p>").startswith(b"%PDF")
+
+
+def test_wod_leaderboard_table_renders_walkover_and_escapes_names():
+    wod = SimpleNamespace(
+        wod_name="<b>WOD 1</b>",
+        wod_type="for_time",
+        walkover=True,
+        points=0,
+        rank=None,
+        reps=None,
+        time_seconds=None,
+    )
+    entry = SimpleNamespace(
+        position=1, team_name="Equipe & Cia", total_points=10, wod_entries=[wod]
+    )
+    html = wod_leaderboard_table_html(SimpleNamespace(entries=[entry]))
+    assert "W.O." in html
+    assert "Equipe &amp; Cia" in html
+    assert "&lt;b&gt;WOD 1&lt;/b&gt;" in html
