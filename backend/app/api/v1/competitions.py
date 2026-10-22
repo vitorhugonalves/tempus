@@ -58,6 +58,7 @@ from app.services.registration import (
     CompetitorRegisterResponse,
     RegistrationService,
 )
+from app.services.report import ReportService
 from app.services.team import TeamService
 from app.services.wod import WodService
 from app.services.wod_result import WodResultService
@@ -245,6 +246,14 @@ async def delete_competition(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Não é possível excluir uma competição ativa",
+        )
+    if await ReportService.competition_has_issuances(db, competition_id):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Competição possui relatórios assinados emitidos e não pode ser "
+                "excluída (são a prova dos resultados publicados)"
+            ),
         )
     await db.delete(competition)
     await db.flush()

@@ -116,3 +116,28 @@ async def test_export_crossfit_pdf_creates_wod_leaderboard_issuance(
     [issuance] = await _issuances(db)
     assert issuance.report_type == "wod_leaderboard"
     assert issuance.sha256 == hashlib.sha256(r.content).hexdigest()
+
+
+async def test_delete_competition_with_issued_reports_returns_409(
+    client: AsyncClient, admin_token: str
+):
+    comp_id = await _competition_id(client, admin_token)
+    await client.get(
+        f"/api/v1/competitions/{comp_id}/export/pdf",
+        cookies={"session_id": admin_token},
+    )
+    r = await client.delete(
+        f"/api/v1/competitions/{comp_id}", cookies={"session_id": admin_token}
+    )
+    assert r.status_code == 409
+    assert "relatórios" in r.json()["detail"]
+
+
+async def test_delete_competition_without_reports_still_returns_204(
+    client: AsyncClient, admin_token: str
+):
+    comp_id = await _competition_id(client, admin_token)
+    r = await client.delete(
+        f"/api/v1/competitions/{comp_id}", cookies={"session_id": admin_token}
+    )
+    assert r.status_code == 204

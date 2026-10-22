@@ -348,3 +348,16 @@ class ReportService:
                 ),
             )
         return await ReportIssuanceRepository.load_pdf_data(db, issuance)
+
+    @staticmethod
+    async def competition_has_issuances(db: AsyncSession, competition_id: int) -> bool:
+        """Indica se a competição tem PDFs assinados emitidos (impede exclusão).
+
+        Args:
+            db: Sessão assíncrona.
+            competition_id: ID da competição.
+
+        Returns:
+            True se houver emissões.
+        """
+        return await ReportIssuanceRepository.exists_for_competition(db, competition_id)
