@@ -28,3 +28,8 @@ REPORT_VERIFY_MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
 REPORT_VERIFY_RATE_LIMIT = "30/minute"
 # Rota do frontend apontada pelo QR code do PDF.
 REPORT_VERIFY_PATH = "/verificar"
+
+# Chave do pg_advisory_xact_lock que serializa `alembic upgrade head` entre processos
+# (container subindo + execução manual). Valor arbitrário, mas fixo: todo processo de
+# migration do Tempus precisa usar a mesma chave. Não reutilizar em outro lock.
+MIGRATION_ADVISORY_LOCK_KEY = 7_316_421_001

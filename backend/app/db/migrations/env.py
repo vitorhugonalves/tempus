@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.core.config import settings
 from app.db.base import Base
+from app.db.migration_lock import acquire_migration_lock
 
 # Importar todos os models para que o Alembic os detecte no autogenerate
 import app.models  # noqa: F401
@@ -43,6 +44,8 @@ def do_run_migrations(connection: Connection) -> None:
         render_as_batch=True,  # necessário para SQLite (ADD COLUMN + FK via copy-and-move)
     )
     with context.begin_transaction():
+        # Antes de run_migrations: quem esperar o lock lê a revisão já atualizada.
+        acquire_migration_lock(connection)
         context.run_migrations()
 
 
