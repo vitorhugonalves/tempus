@@ -106,7 +106,9 @@ async def export_ranking_pdf(
     competition_id: int,
     category_id: int | None = None,
     current_user: User = Depends(require_roles("operator", "admin")),
-    db: AsyncSession = Depends(get_db),
+    # scope=function: get_db (e o commit) termina ANTES do envio do PDF —
+    # nunca entrega um PDF cujo código de verificação não ficou gravado.
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> Response:
     """Exporta ranking em PDF assinado, com justificativa (RF-40, ADR-012)."""
     issuance = await _issue_or_http_error(
@@ -183,7 +185,9 @@ async def export_crossfit_ranking_pdf(
     competition_id: int,
     category_id: int | None = None,
     current_user: User = Depends(require_roles("operator", "admin")),
-    db: AsyncSession = Depends(get_db),
+    # scope=function: get_db (e o commit) termina ANTES do envio do PDF —
+    # nunca entrega um PDF cujo código de verificação não ficou gravado.
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> Response:
     """Exporta leaderboard de WODs em PDF assinado (espelha /ranking, ADR-012)."""
     issuance = await _issue_or_http_error(

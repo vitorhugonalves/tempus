@@ -8,7 +8,8 @@ version = "0.1.0"
 description = "Gerenciador de timers online para competições esportivas"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.115.0",
+    # >=0.154: Depends(scope="function") nas rotas de PDF assinado (ADR-012).
+    "fastapi>=0.154.0",
     "uvicorn[standard]>=0.30.0",
     # [asyncio] traz o greenlet (opcional a partir da 2.1); <2.1 mantém a série testada.
     "sqlalchemy[asyncio]>=2.0.0,<2.1",

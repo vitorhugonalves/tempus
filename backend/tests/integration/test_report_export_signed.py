@@ -1,10 +1,12 @@
 import hashlib
 
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.db.session import get_db
+from app.main import app
 from app.models.report_issuance import ReportIssuance
 from app.services import report_rendering
 from app.services.report_rendering import PdfRendererUnavailableError
@@ -141,3 +143,25 @@ async def test_delete_competition_without_reports_still_returns_204(
         f"/api/v1/competitions/{comp_id}", cookies={"session_id": admin_token}
     )
     assert r.status_code == 204
+
+
+async def test_export_pdf_commit_failure_never_delivers_pdf(
+    client: AsyncClient, admin_token: str, db: AsyncSession
+):
+    """Se o commit da emissão falhar, o operador não pode receber um PDF cujo
+    código de verificação não existe no banco."""
+    comp_id = await _competition_id(client, admin_token)
+
+    async def _get_db_failing_commit():
+        yield db
+        raise RuntimeError("commit falhou")
+
+    app.dependency_overrides[get_db] = _get_db_failing_commit
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as raw:
+        r = await raw.get(
+            f"/api/v1/competitions/{comp_id}/export/pdf",
+            cookies={"session_id": admin_token},
+        )
+    assert r.status_code == 500
+    assert not r.content.startswith(b"%PDF")
