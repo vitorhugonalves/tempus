@@ -68,7 +68,7 @@ sequenceDiagram
 | `report_type` | `String(32)` | `ranking` \| `wod_leaderboard` (constantes) |
 | `competition_id` | FK `competitions.id` | `ondelete=RESTRICT` — emissão não some com a competição |
 | `category_id` | int, nullable | sem FK (categoria pode ser removida; o registro é histórico) |
-| `issued_by_user_id` | FK `users.id`, nullable | `ondelete=SET NULL` |
+| `issued_by_user_id` | int, nullable | **sem FK**: o id é assinado; um `SET NULL` invalidaria a assinatura ao excluir o usuário (achado da revisão) |
 | `issued_at` | datetime (UTC) | definido pela aplicação antes de assinar (não `server_default`), pois entra no payload |
 | `sha256` | `String(64)` | hex dos bytes finais do PDF |
 | `signature` | `String(128)` | Ed25519, base64 |

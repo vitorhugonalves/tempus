@@ -33,9 +33,9 @@ class ReportIssuance(Base):
     competition_name: Mapped[str] = mapped_column(String(200), nullable=False)
     category_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     category_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    issued_by_user_id: Mapped[int | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
+    # Sem FK de propósito: o id entra no payload assinado; um ON DELETE SET NULL
+    # mudaria o payload ao excluir o usuário e o PDF passaria a constar adulterado.
+    issued_by_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     issued_by_role: Mapped[str | None] = mapped_column(String(20), nullable=True)
     issued_at: Mapped[datetime] = mapped_column(nullable=False)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)

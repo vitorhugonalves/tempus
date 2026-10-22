@@ -32,12 +32,8 @@ def upgrade() -> None:
         sa.Column("competition_name", sa.String(200), nullable=False),
         sa.Column("category_id", sa.Integer(), nullable=True),
         sa.Column("category_name", sa.String(200), nullable=True),
-        sa.Column(
-            "issued_by_user_id",
-            sa.Integer(),
-            sa.ForeignKey("users.id", ondelete="SET NULL"),
-            nullable=True,
-        ),
+        # Sem FK: o id é assinado; SET NULL invalidaria a assinatura (ADR-012).
+        sa.Column("issued_by_user_id", sa.Integer(), nullable=True),
         sa.Column("issued_by_role", sa.String(20), nullable=True),
         sa.Column("issued_at", sa.DateTime(), nullable=False),
         sa.Column("sha256", sa.String(64), nullable=False),
