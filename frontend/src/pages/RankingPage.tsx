@@ -1,6 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeftIcon, TrophyIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowDownTrayIcon,
+  ArrowLeftIcon,
+  DocumentTextIcon,
+  PhotoIcon,
+  TrophyIcon,
+} from "@heroicons/react/24/outline";
 import { competitionsApi } from "../api/competitions";
 import { adminApi } from "../api/admin";
 import { rankingApi } from "../api/timers";
@@ -571,14 +577,16 @@ export default function RankingPage() {
                             return (
                               <td className="px-4 py-4">
                                 {canDownload && entry.user_id != null ? (
-                                  <div className="flex items-center gap-2">
+                                  // flex-wrap: em telas estreitas os dois botões descem de linha em vez de cortar
+                                  <div className="flex flex-wrap items-center gap-2">
                                     <a
                                       href={rankingApi.certificateUrl(id, entry.user_id)}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white border border-gray-300 dark:border-gray-600 px-2 py-1 rounded-sm transition-colors"
                                     >
-                                      📄 Certificado
+                                      <DocumentTextIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                                      Certificado
                                     </a>
                                     <a
                                       href={rankingApi.socialImageUrl(id, entry.user_id)}
@@ -586,7 +594,8 @@ export default function RankingPage() {
                                       rel="noopener noreferrer"
                                       className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white border border-gray-300 dark:border-gray-600 px-2 py-1 rounded-sm transition-colors"
                                     >
-                                      🖼 Social
+                                      <PhotoIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                                      Social
                                     </a>
                                   </div>
                                 ) : (

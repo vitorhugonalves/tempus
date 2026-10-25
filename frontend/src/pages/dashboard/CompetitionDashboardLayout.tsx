@@ -8,6 +8,8 @@ import {
   ArrowLeftIcon,
   ClipboardDocumentCheckIcon,
   DocumentTextIcon,
+  LinkIcon,
+  StopIcon,
 } from "@heroicons/react/24/outline";
 import { competitionsApi } from "../../api/competitions";
 import Badge from "../../components/ui/Badge";
@@ -86,18 +88,20 @@ export default function CompetitionDashboardLayout() {
                 <button
                   onClick={() => handleAdvanceStatus("active")}
                   disabled={statusSaving}
-                  className="mt-2 w-full rounded-md bg-green-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                  className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-green-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
                 >
-                  {statusSaving ? "Aguarde..." : "▶ Iniciar Competição"}
+                  {!statusSaving && <PlayIcon className="h-3.5 w-3.5" aria-hidden="true" />}
+                  {statusSaving ? "Aguarde..." : "Iniciar Competição"}
                 </button>
               )}
               {canManage && competition.status === "active" && (
                 <button
                   onClick={() => handleAdvanceStatus("finished")}
                   disabled={statusSaving}
-                  className="mt-2 w-full rounded-md bg-red-700 px-2 py-1.5 text-xs font-medium text-white hover:bg-red-800 disabled:opacity-50"
+                  className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-red-700 px-2 py-1.5 text-xs font-medium text-white hover:bg-red-800 disabled:opacity-50"
                 >
-                  {statusSaving ? "Aguarde..." : "■ Encerrar Competição"}
+                  {!statusSaving && <StopIcon className="h-3.5 w-3.5" aria-hidden="true" />}
+                  {statusSaving ? "Aguarde..." : "Encerrar Competição"}
                 </button>
               )}
             </>
@@ -133,9 +137,10 @@ export default function CompetitionDashboardLayout() {
             href={`/competitions/${competitionId}/ranking`}
             target="_blank"
             rel="noopener noreferrer"
-            className="block rounded-md px-3 py-2 text-xs text-slate-400 hover:text-white"
+            className="flex items-center gap-2 rounded-md px-3 py-2 text-xs text-slate-400 hover:text-white"
           >
-            🔗 Leaderboard público
+            <LinkIcon className="h-4 w-4" aria-hidden="true" />
+            Leaderboard público
           </a>
         </div>
       </aside>

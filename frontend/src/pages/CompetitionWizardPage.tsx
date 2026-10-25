@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { competitionsApi, type CompetitionCreate, type WodCreate } from "../api/competitions";
 import { categoriesApi } from "../api/categories";
 import { cepApi } from "../api/cep";
+import { PencilSquareIcon, TrashIcon } from "@heroicons/react/24/outline";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Alert from "../components/ui/Alert";
@@ -816,8 +817,9 @@ export default function CompetitionWizardPage() {
                 onClick={() => handleDeleteWod(wod.id)}
                 className="ml-4 text-red-500 hover:text-red-700"
                 title="Remover WOD"
+                aria-label="Remover WOD"
               >
-                &#128465;
+                <TrashIcon className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
           ))}
@@ -1159,15 +1161,17 @@ export default function CompetitionWizardPage() {
                             onClick={() => handleStartEditCategory(cat)}
                             className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
                             title="Editar"
+                            aria-label="Editar categoria"
                           >
-                            ✏️
+                            <PencilSquareIcon className="h-4 w-4" aria-hidden="true" />
                           </button>
                           <button
                             onClick={() => handleDeactivateCategory(cat.id)}
                             className="rounded-md p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"
                             title="Desativar"
+                            aria-label="Desativar categoria"
                           >
-                            &#128465;
+                            <TrashIcon className="h-4 w-4" aria-hidden="true" />
                           </button>
                         </div>
                       </li>

@@ -9,6 +9,17 @@ import { msToDisplay, msToPreciseDisplay, secondsToDisplay } from "../utils/time
 import { useCompetitionSocket, WsStatus } from "../hooks/useCompetitionSocket";
 import type { Timer, PenaltyType, Competition, Heat, TimerEvent } from "../types";
 import Badge from "../components/ui/Badge";
+import {
+  ArrowPathIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  ExclamationTriangleIcon,
+  PauseIcon,
+  PencilSquareIcon,
+  PlayIcon,
+  StopIcon,
+  TvIcon,
+} from "@heroicons/react/24/outline";
 import Button from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import AdjustTimeModal from "../components/timers/AdjustTimeModal";
@@ -264,26 +275,26 @@ function TeamTimerCard({
           <>
             <div className="flex flex-wrap gap-2 justify-center">
               {(timer.status === "created" || timer.status === "ready") && (
-                <Button size="sm" variant="primary" onClick={() => handleAction("start")} disabled={loading}>
-                  ▶ Iniciar
+                <Button size="sm" variant="primary" onClick={() => handleAction("start")} disabled={loading} icon={PlayIcon}>
+                  Iniciar
                 </Button>
               )}
               {isRunning && (
-                <Button size="sm" variant="secondary" onClick={() => handleAction("pause")} disabled={loading}>
-                  ⏸ Pausar
+                <Button size="sm" variant="secondary" onClick={() => handleAction("pause")} disabled={loading} icon={PauseIcon}>
+                  Pausar
                 </Button>
               )}
               {timer.status === "paused" && (
-                <Button size="sm" variant="primary" onClick={() => handleAction("resume")} disabled={loading}>
-                  ▶ Retomar
+                <Button size="sm" variant="primary" onClick={() => handleAction("resume")} disabled={loading} icon={PlayIcon}>
+                  Retomar
                 </Button>
               )}
-              <Button size="sm" variant="secondary" onClick={() => handleAction("finish")} disabled={loading}>
-                ⏹ Finalizar
+              <Button size="sm" variant="secondary" onClick={() => handleAction("finish")} disabled={loading} icon={StopIcon}>
+                Finalizar
               </Button>
               {penaltyTypes.length > 0 && (
-                <Button size="sm" variant="danger" onClick={() => setShowPenaltyForm((v) => !v)} disabled={loading}>
-                  ⚠ Penalidade
+                <Button size="sm" variant="danger" onClick={() => setShowPenaltyForm((v) => !v)} disabled={loading} icon={ExclamationTriangleIcon}>
+                  Penalidade
                 </Button>
               )}
             </div>
@@ -294,10 +305,10 @@ function TeamTimerCard({
                 placeholder="Motivo para reiniciar..."
                 value={resetNote}
                 onChange={(e) => setResetNote(e.target.value)}
-                className="flex-1 text-sm border rounded-sm px-2 py-1 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                className="min-w-0 flex-1 text-sm border rounded-sm px-2 py-1 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               />
-              <Button size="sm" variant="secondary" onClick={() => handleAction("reset")} disabled={loading || !resetNote.trim()}>
-                ↺ Reiniciar
+              <Button size="sm" variant="secondary" onClick={() => handleAction("reset")} disabled={loading || !resetNote.trim()} icon={ArrowPathIcon}>
+                Reiniciar
               </Button>
             </div>
           </>
@@ -305,8 +316,8 @@ function TeamTimerCard({
 
         {canAdjust && timer.status === "finished" && (
           <div className="flex justify-center">
-            <Button size="sm" variant="secondary" onClick={() => setShowAdjust(true)}>
-              ✎ Ajustar tempo
+            <Button size="sm" variant="secondary" onClick={() => setShowAdjust(true)} icon={PencilSquareIcon}>
+              Ajustar tempo
             </Button>
           </div>
         )}
@@ -491,8 +502,9 @@ function HeatSection({
                 disabled={isFirst || moving}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-25 disabled:cursor-not-allowed leading-none text-xs"
                 title="Mover para cima"
+                aria-label="Mover bateria para cima"
               >
-                ▲
+                <ChevronUpIcon className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
               <button
                 type="button"
@@ -500,8 +512,9 @@ function HeatSection({
                 disabled={isLast || moving}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-25 disabled:cursor-not-allowed leading-none text-xs"
                 title="Mover para baixo"
+                aria-label="Mover bateria para baixo"
               >
-                ▼
+                <ChevronDownIcon className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             </div>
           )}
@@ -534,8 +547,9 @@ function HeatSection({
                   onClick={() => setEditingName(true)}
                   className="text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 text-sm"
                   title="Editar nome da bateria"
+                  aria-label="Editar nome da bateria"
                 >
-                  ✏
+                  <PencilSquareIcon className="h-4 w-4" aria-hidden="true" />
                 </button>
               )}
             </div>
@@ -551,8 +565,9 @@ function HeatSection({
             variant="primary"
             onClick={handleStartHeat}
             isLoading={startingHeat}
+            icon={PlayIcon}
           >
-            ▶ Iniciar Bateria
+            Iniciar Bateria
           </Button>
         )}
       </div>
@@ -577,8 +592,9 @@ function HeatSection({
                 variant="primary"
                 onClick={() => handleStartTeam(ht.team_id)}
                 isLoading={startingTeam === ht.team_id}
+                icon={PlayIcon}
               >
-                ▶ Iniciar
+                Iniciar
               </Button>
             </div>
           ))}
@@ -851,7 +867,9 @@ export default function TimersPage() {
         </div>
         <div className="flex gap-2">
           <Link to={`/competitions/${compId}/live`}>
-            <Button variant="secondary" size="sm">📺 Painel Ao Vivo</Button>
+            <Button variant="secondary" size="sm" icon={TvIcon}>
+              Painel Ao Vivo
+            </Button>
           </Link>
           <Link to={`/competitions/${compId}/ranking`}>
             <Button variant="secondary" size="sm">Ver Ranking</Button>

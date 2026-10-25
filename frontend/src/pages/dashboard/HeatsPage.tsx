@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useOutletContext, useParams } from "react-router-dom";
-import { PlusIcon } from "@heroicons/react/24/outline";
+import { PlayIcon, PlusIcon, StopIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { heatsApi, type HeatCreate } from "../../api/heats";
 import { teamsApi } from "../../api/teams";
 import Button from "../../components/ui/Button";
@@ -194,16 +194,17 @@ export default function HeatsPage() {
                       </button>
                     )}
                     {heat.status === "pending" && (
-                      <Button onClick={() => handleStart(heat.id)} className="text-sm">
-                        ▶ Iniciar
+                      <Button onClick={() => handleStart(heat.id)} className="text-sm" icon={PlayIcon}>
+                        Iniciar
                       </Button>
                     )}
                     {heat.status === "running" && (
                       <button
                         onClick={() => handleFinish(heat.id)}
-                        className="rounded-md bg-red-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-800"
+                        className="inline-flex items-center gap-1.5 rounded-md bg-red-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-800"
                       >
-                        ■ Encerrar
+                        <StopIcon className="h-4 w-4" aria-hidden="true" />
+                        Encerrar
                       </button>
                     )}
                     {heat.status === "pending" && (
@@ -236,8 +237,9 @@ export default function HeatsPage() {
                               onClick={() => handleRemoveTeam(heat.id, ht.team_id)}
                               className="ml-1 text-primary-400 hover:text-red-500"
                               title="Remover equipe da bateria"
+                              aria-label={`Remover ${ht.team_name} da bateria`}
                             >
-                              ×
+                              <XMarkIcon className="h-3.5 w-3.5" aria-hidden="true" />
                             </button>
                           </span>
                         ))}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useOutletContext, useParams } from "react-router-dom";
+import { XMarkIcon } from "@heroicons/react/24/outline";
 import { wodResultsApi, type WodResultUpsert } from "../../api/wod_results";
 import Alert from "../../components/ui/Alert";
 import type { Competition, WodResult, WodResultsData } from "../../types";
@@ -277,8 +278,10 @@ export default function ResultsPage() {
                                 onClick={handleDelete}
                                 disabled={saving}
                                 className="rounded-sm bg-red-100 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-200 disabled:opacity-50"
+                                title="Excluir resultado"
+                                aria-label="Excluir resultado"
                               >
-                                ×
+                                <XMarkIcon className="h-3.5 w-3.5" aria-hidden="true" />
                               </button>
                             )}
                             <button

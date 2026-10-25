@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
+import { ArrowLeftIcon, ClockIcon } from "@heroicons/react/24/outline";
 import { competitionsApi } from "../api/competitions";
 import { teamsApi } from "../api/teams";
 import { useCompetitionSocket, WsStatus } from "../hooks/useCompetitionSocket";
@@ -235,9 +236,10 @@ export default function LivePage() {
         </div>
         <Link
           to={`/competitions/${compId}/timers`}
-          className="text-sm text-primary-600 hover:underline dark:text-primary-400"
+          className="inline-flex items-center gap-1.5 text-sm text-primary-600 hover:underline dark:text-primary-400"
         >
-          ← Voltar para Timers
+          <ArrowLeftIcon className="h-4 w-4" aria-hidden="true" />
+          Voltar para Timers
         </Link>
       </div>
 
@@ -246,7 +248,7 @@ export default function LivePage() {
         <div className="text-center py-12 text-gray-400">Carregando...</div>
       ) : liveTimers.length === 0 ? (
         <div className="text-center py-16">
-          <p className="text-4xl mb-4">⏱</p>
+          <ClockIcon className="mx-auto mb-4 h-12 w-12 text-gray-300" aria-hidden="true" />
           <p className="text-gray-500 text-lg">Nenhum timer em andamento</p>
           <p className="text-gray-400 text-sm mt-1">
             Os timers aparecerão aqui assim que forem iniciados.
