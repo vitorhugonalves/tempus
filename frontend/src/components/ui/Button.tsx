@@ -1,4 +1,4 @@
-import { type ButtonHTMLAttributes, forwardRef } from "react";
+import { type ButtonHTMLAttributes, type ComponentType, type SVGProps, forwardRef } from "react";
 
 type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
 type ButtonSize = "sm" | "md" | "lg";
@@ -7,6 +7,8 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
   isLoading?: boolean;
+  /** Ícone decorativo (ex.: Heroicons) exibido antes do texto. */
+  icon?: ComponentType<SVGProps<SVGSVGElement>>;
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
@@ -32,6 +34,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       variant = "primary",
       size = "md",
       isLoading = false,
+      icon: Icon,
       disabled,
       children,
       className = "",
@@ -75,6 +78,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             />
           </svg>
         )}
+        {Icon && !isLoading && <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />}
         {children}
       </button>
     );
