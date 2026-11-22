@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { Fragment, useEffect, useState, useCallback } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowDownTrayIcon,
@@ -17,6 +17,7 @@ import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
 import type { Category, Competition, CrossfitRankingEntry, RankingEntry, TimerStatus, WodLeaderboard } from "../types";
 import { secondsToDisplay } from "../utils/time";
+import { startsCategoryGroup } from "../utils/ranking";
 import { useAuthStore } from "../store/auth";
 
 const STATUS_BADGE: Record<string, { label: string; variant: "gray" | "green" | "red" }> = {
@@ -248,6 +249,12 @@ export default function RankingPage() {
   const { label, variant } = STATUS_BADGE[competition.status] ?? STATUS_BADGE.draft;
   const hasRemaining = ranking.some((e) => e.remaining_seconds !== null);
   const hasBoxName = ranking.some((e) => e.box_name != null && e.box_name !== "");
+  const showDownloads = competition.status === "finished" && !!user;
+  // Na visão "Todas" o backend entrega o ranking agrupado por categoria;
+  // o cabeçalho de grupo só faz sentido quando há mais de uma categoria na lista.
+  const showCategoryGroups =
+    !selectedCategory && new Set(ranking.map((e) => e.category_name)).size > 1;
+  const rankingColumnCount = 8 + (hasBoxName ? 1 : 0) + (hasRemaining ? 1 : 0) + (showDownloads ? 1 : 0);
 
   const CROSSFIT_STATUS_LABEL: Record<string, string> = {
     finished: "Finalizado",
@@ -512,11 +519,22 @@ export default function RankingPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                    {ranking.map((entry) => {
+                    {ranking.map((entry, index) => {
                       const statusInfo = TIMER_STATUS_BADGE[entry.status];
                       const displayName = entry.team_name ?? entry.athlete_name;
                       return (
-                        <tr key={entry.timer_id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                        <Fragment key={entry.timer_id}>
+                        {showCategoryGroups && startsCategoryGroup(ranking, index) && (
+                          <tr className="bg-primary-50">
+                            <td
+                              colSpan={rankingColumnCount}
+                              className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-primary-700"
+                            >
+                              {entry.category_name ?? "Sem categoria"}
+                            </td>
+                          </tr>
+                        )}
+                        <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                           <td className="px-4 py-4">
                             <span className={[
                               "inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold",
@@ -605,6 +623,7 @@ export default function RankingPage() {
                             );
                           })()}
                         </tr>
+                        </Fragment>
                       );
                     })}
                   </tbody>
