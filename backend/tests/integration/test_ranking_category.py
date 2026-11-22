@@ -109,7 +109,7 @@ async def _finished_timer(
     await db.flush()
 
 
-async def test_ranking_general_sorted_by_category_with_overall_position(
+async def test_ranking_general_sorted_by_category_with_position_per_category(
     client: AsyncClient, db: AsyncSession
 ):
     competition = Competition(name="Comp Ordenada")
@@ -140,6 +140,6 @@ async def test_ranking_general_sorted_by_category_with_overall_position(
     assert [(e["position"], e["team_name"], e["category_name"]) for e in entries] == [
         (1, "RX Rápida", "RX"),
         (2, "RX Lenta", "RX"),
-        (3, "Scaled Rápida", "Scaled"),
-        (4, "Scaled Lenta", "Scaled"),
+        (1, "Scaled Rápida", "Scaled"),
+        (2, "Scaled Lenta", "Scaled"),
     ]

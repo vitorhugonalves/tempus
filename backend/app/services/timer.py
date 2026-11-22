@@ -918,7 +918,7 @@ class RankingService:
         }
 
         # Ranking geral agrupado por categoria (mesma ordem dos filtros: por nome);
-        # posição continua sequencial entre categorias (decisão do Vitor, 2026-11-22).
+        # a posição reinicia em cada categoria (decisão do Vitor, 2026-11-22).
         def sort_key(e: RankingEntry) -> tuple:
             no_category = e.category_name is None
             category_key = (e.category_name or "").casefold()
@@ -926,12 +926,13 @@ class RankingService:
 
         entries.sort(key=sort_key)
 
-        # Posições (apenas timers finalizados recebem posição numerada)
-        pos = 1
+        # Posição dentro da categoria; apenas timers finalizados recebem número
+        next_position: dict[str | None, int] = {}
         for entry in entries:
             if entry.status == TimerStatus.finished:
-                entry.position = pos
-                pos += 1
+                position = next_position.get(entry.category_name, 1)
+                entry.position = position
+                next_position[entry.category_name] = position + 1
 
         return entries
 
