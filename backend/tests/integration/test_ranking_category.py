@@ -83,3 +83,63 @@ async def test_crossfit_ranking_filter_by_category_uses_team_category(
     assert [(e["team_name"], e["category_name"]) for e in entries] == [
         ("Equipe Scaled", "Scaled")
     ]
+
+
+async def _finished_timer(
+    db: AsyncSession, competition_id: int, team_id: int, seconds: int
+) -> None:
+    """Timer de equipe finalizado com `seconds` de tempo acumulado."""
+    from datetime import datetime
+
+    from app.models.timer import TimerEvent, TimerEventType, TimerStatus
+
+    timer = Timer(
+        competition_id=competition_id, team_id=team_id, status=TimerStatus.finished
+    )
+    db.add(timer)
+    await db.flush()
+    db.add(
+        TimerEvent(
+            timer_id=timer.id,
+            event_type=TimerEventType.finished,
+            event_at=datetime(2026, 1, 1),
+            accumulated_ms=seconds * 1000,
+        )
+    )
+    await db.flush()
+
+
+async def test_ranking_general_sorted_by_category_with_overall_position(
+    client: AsyncClient, db: AsyncSession
+):
+    competition = Competition(name="Comp Ordenada")
+    db.add(competition)
+    await db.flush()
+    scaled = Category(competition_id=competition.id, name="Scaled")
+    rx = Category(competition_id=competition.id, name="RX")
+    db.add_all([scaled, rx])
+    await db.flush()
+
+    # Scaled tem o tempo mais rápido, mas RX vem antes (ordem alfabética)
+    times = [
+        ("Scaled Rápida", scaled, 1000),
+        ("RX Lenta", rx, 3000),
+        ("RX Rápida", rx, 2000),
+        ("Scaled Lenta", scaled, 4000),
+    ]
+    for name, category, seconds in times:
+        team = Team(competition_id=competition.id, category_id=category.id, name=name)
+        db.add(team)
+        await db.flush()
+        await _finished_timer(db, competition.id, team.id, seconds)
+
+    entries = (
+        await client.get(f"/api/v1/competitions/{competition.id}/ranking")
+    ).json()
+
+    assert [(e["position"], e["team_name"], e["category_name"]) for e in entries] == [
+        (1, "RX Rápida", "RX"),
+        (2, "RX Lenta", "RX"),
+        (3, "Scaled Rápida", "Scaled"),
+        (4, "Scaled Lenta", "Scaled"),
+    ]

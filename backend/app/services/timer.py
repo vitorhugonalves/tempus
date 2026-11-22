@@ -840,7 +840,7 @@ class RankingService:
         competition_id: int,
         category_id: int | None = None,
     ) -> list[RankingEntry]:
-        """Retorna ranking ordenado pelo tempo final (RF-36, RF-37).
+        """Retorna ranking agrupado por categoria e ordenado pelo tempo (RF-36/37).
 
         Tempo final = accumulated_ms // 1000 + total de penalidades.
         Apenas timers `finished` entram no ranking principal;
@@ -853,7 +853,7 @@ class RankingService:
             category_id: Filtrar por categoria (opcional).
 
         Returns:
-            Lista de RankingEntry ordenada por final_seconds.
+            Lista de RankingEntry ordenada por categoria e depois por final_seconds.
         """
         result = await db.execute(_ranking_timers_query(competition_id, category_id))
         timers = list(result.scalars().all())
@@ -917,8 +917,12 @@ class RankingService:
             TimerStatus.cancelled: 5,
         }
 
+        # Ranking geral agrupado por categoria (mesma ordem dos filtros: por nome);
+        # posição continua sequencial entre categorias (decisão do Vitor, 2026-11-22).
         def sort_key(e: RankingEntry) -> tuple:
-            return (_order.get(e.status, 9), e.final_seconds)
+            no_category = e.category_name is None
+            category_key = (e.category_name or "").casefold()
+            return (no_category, category_key, _order.get(e.status, 9), e.final_seconds)
 
         entries.sort(key=sort_key)
 
