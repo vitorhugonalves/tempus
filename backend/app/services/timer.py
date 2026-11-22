@@ -3,6 +3,7 @@
 import json
 import time
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 from fastapi import HTTPException, status
 from redis.asyncio import Redis
@@ -39,6 +40,11 @@ from app.schemas.timer import (
     TimerCreate,
     _compute_accumulated_ms,
 )
+
+if TYPE_CHECKING:
+    from sqlalchemy import Select
+
+    from app.models.category import Category
 
 
 def _utcnow() -> datetime:
@@ -783,6 +789,48 @@ class PenaltyService:
         return result.scalar_one()
 
 
+def _effective_category(timer: Timer) -> "Category | None":
+    """Categoria que vale para o ranking.
+
+    Timers de equipe criados pelas baterias não recebem `category_id`; a fonte de
+    verdade é a categoria da equipe (`Team.category_id`, obrigatório). O
+    `Timer.category` só é usado para timers individuais (sem equipe).
+    """
+    if timer.team is not None:
+        return timer.team.category
+    return timer.category
+
+
+def _ranking_timers_query(competition_id: int, category_id: int | None) -> "Select":
+    """Query dos timers da competição para o ranking, filtrada pela categoria efetiva."""
+    from sqlalchemy import func, select
+    from sqlalchemy.orm import selectinload
+
+    from app.models.team import Team
+
+    query = (
+        select(Timer)
+        .outerjoin(Team, Timer.team_id == Team.id)
+        .options(
+            selectinload(Timer.penalties).selectinload(Penalty.penalty_type),
+            selectinload(Timer.user),
+            selectinload(Timer.team).selectinload(Team.category),
+            selectinload(Timer.category),
+            selectinload(Timer.events),
+        )
+        .where(Timer.competition_id == competition_id)
+    )
+    if category_id:
+        effective_category_id = func.coalesce(Team.category_id, Timer.category_id)
+        query = query.where(effective_category_id == category_id)
+    return query
+
+
+def _category_name(timer: Timer) -> str | None:
+    category = _effective_category(timer)
+    return category.name if category else None
+
+
 class RankingService:
     """Cálculo de ranking em tempo real (RF-36 a RF-39)."""
 
@@ -807,24 +855,7 @@ class RankingService:
         Returns:
             Lista de RankingEntry ordenada por final_seconds.
         """
-        from sqlalchemy import select
-        from sqlalchemy.orm import selectinload
-
-        query = (
-            select(Timer)
-            .options(
-                selectinload(Timer.penalties).selectinload(Penalty.penalty_type),
-                selectinload(Timer.user),
-                selectinload(Timer.team),
-                selectinload(Timer.category),
-                selectinload(Timer.events),
-            )
-            .where(Timer.competition_id == competition_id)
-        )
-        if category_id:
-            query = query.where(Timer.category_id == category_id)
-
-        result = await db.execute(query)
+        result = await db.execute(_ranking_timers_query(competition_id, category_id))
         timers = list(result.scalars().all())
 
         duration_seconds: int | None = None
@@ -844,7 +875,7 @@ class RankingService:
 
             team_name = timer.team.name if timer.team else None
             box_name = timer.team.box_name if timer.team else None
-            category_name = timer.category.name if timer.category else None
+            category_name = _category_name(timer)
             infractions_count = len(timer.penalties)
 
             remaining: int | None = None
@@ -922,27 +953,9 @@ class RankingService:
         """
         from collections import defaultdict
 
-        from sqlalchemy import select
-        from sqlalchemy.orm import selectinload
-
         from app.schemas.timer import CrossfitRankingEntry
 
-        # Carrega todos os timers da competição com seus heats
-        query = (
-            select(Timer)
-            .options(
-                selectinload(Timer.user),
-                selectinload(Timer.team),
-                selectinload(Timer.category),
-                selectinload(Timer.events),
-                selectinload(Timer.penalties),
-            )
-            .where(Timer.competition_id == competition_id)
-        )
-        if category_id:
-            query = query.where(Timer.category_id == category_id)
-
-        result = await db.execute(query)
+        result = await db.execute(_ranking_timers_query(competition_id, category_id))
         timers = list(result.scalars().all())
 
         # Agrupa timers por heat para calcular pontos por bateria
@@ -990,7 +1003,7 @@ class RankingService:
                         "user_id": timer.user_id,
                         "athlete_name": athlete_name,
                         "team_name": timer.team.name if timer.team else None,
-                        "category_name": timer.category.name if timer.category else None,
+                        "category_name": _category_name(timer),
                     }
 
                 # Status mais "urgente" vence: running > paused > created > finished
@@ -1017,7 +1030,7 @@ class RankingService:
                     "user_id": timer.user_id,
                     "athlete_name": athlete_name,
                     "team_name": timer.team.name if timer.team else None,
-                    "category_name": timer.category.name if timer.category else None,
+                    "category_name": _category_name(timer),
                 }
             if key not in status_map:
                 status_map[key] = timer.status.value
