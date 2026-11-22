@@ -61,6 +61,36 @@ def test_ranking_table_without_adjustment_shows_dash():
     assert '<td class="note">—</td>' in html
 
 
+def test_ranking_table_separates_categories_with_group_row():
+    html = ranking_table_html(
+        [
+            _entry(timer_id=1, athlete_name="RX 1", category_name="RX"),
+            _entry(timer_id=2, athlete_name="RX 2", category_name="RX", position=2),
+            _entry(timer_id=3, athlete_name="Scaled 1", category_name="Scaled"),
+            _entry(timer_id=4, athlete_name="Sem cat", category_name=None),
+        ]
+    )
+    group_rows = html.count('<tr class="category-group">')
+    assert group_rows == 3
+    assert html.index(">RX</td></tr>") < html.index("RX 1")
+    assert html.index("RX 2") < html.index(">Scaled</td></tr>") < html.index("Scaled 1")
+    assert html.index("Scaled 1") < html.index(">Sem categoria</td></tr>")
+    assert 'colspan="8"' in html
+
+
+def test_ranking_table_single_category_has_no_group_row():
+    html = ranking_table_html([_entry(), _entry(timer_id=2, position=2)])
+    assert "category-group" not in html
+
+
+def test_ranking_table_escapes_category_in_group_row():
+    html = ranking_table_html(
+        [_entry(category_name="<b>RX</b>"), _entry(timer_id=2, category_name="Scaled")]
+    )
+    assert "<b>RX</b>" not in html
+    assert ">&lt;b&gt;RX&lt;/b&gt;</td></tr>" in html
+
+
 def test_ranking_document_escapes_adjustment_note():
     html = ranking_table_html(
         [

@@ -14,6 +14,8 @@ from app.core.constants import REPORT_TIMEZONE, REPORT_VERIFY_PATH
 from app.schemas.timer import RankingEntry
 
 _NO_ADJUSTMENT = "—"
+_NO_CATEGORY = "Sem categoria"
+_RANKING_COLUMN_COUNT = 8
 
 
 class PdfRendererUnavailableError(RuntimeError):
@@ -51,9 +53,8 @@ def _adjustment_cell(entry: RankingEntry) -> str:
     return f"{html.escape(entry.adjustment_note)} — ajustado em {when}"
 
 
-def ranking_rows_html(entries: list[RankingEntry]) -> str:
-    """Linhas <tr> do ranking de tempo, com coluna de justificativa."""
-    return "".join(
+def _ranking_row_html(entry: RankingEntry) -> str:
+    return (
         "<tr>"
         f"<td>{entry.position or '-'}</td>"
         f"<td>{html.escape(entry.athlete_name)}</td>"
@@ -64,8 +65,33 @@ def ranking_rows_html(entries: list[RankingEntry]) -> str:
         f"<td>{html.escape(entry.status.value)}</td>"
         f'<td class="note">{_adjustment_cell(entry)}</td>'
         "</tr>"
-        for entry in entries
     )
+
+
+def _category_group_row_html(category_name: str | None) -> str:
+    label = html.escape(category_name or _NO_CATEGORY)
+    return (
+        '<tr class="category-group">'
+        f'<td colspan="{_RANKING_COLUMN_COUNT}">{label}</td></tr>'
+    )
+
+
+def ranking_rows_html(entries: list[RankingEntry]) -> str:
+    """Linhas <tr> do ranking de tempo, com coluna de justificativa.
+
+    O ranking já chega ordenado por categoria; com mais de uma categoria na
+    lista, cada grupo ganha uma linha de cabeçalho (espelha a tela /ranking).
+    """
+    show_groups = len({entry.category_name for entry in entries}) > 1
+    rows: list[str] = []
+    previous_category: str | None = None
+    for index, entry in enumerate(entries):
+        starts_group = index == 0 or entry.category_name != previous_category
+        if show_groups and starts_group:
+            rows.append(_category_group_row_html(entry.category_name))
+        rows.append(_ranking_row_html(entry))
+        previous_category = entry.category_name
+    return "".join(rows)
 
 
 def ranking_table_html(entries: list[RankingEntry]) -> str:
@@ -112,6 +138,9 @@ def build_document_html(
   td {{ padding: 5px 4px; border-bottom: 1px solid #ddd; text-align: center; }}
   td.note {{ text-align: left; font-size: 9px; max-width: 180px; }}
   tr:nth-child(even) {{ background: #f5f5f5; }}
+  tr.category-group td {{ background: #e0e7ff; color: #1a1a2e; font-weight: bold;
+                          text-align: left; text-transform: uppercase;
+                          border-bottom: 2px solid #1a1a2e; }}
   small {{ color: #666; }}
   table.verification {{ width: auto; margin-top: 24px; border-top: 1px solid #ccc; }}
   table.verification td {{ border: none; text-align: left; vertical-align: middle;
